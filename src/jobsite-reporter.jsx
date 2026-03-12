@@ -799,7 +799,7 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
     try {
       if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: face, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        video: { facingMode: face },
         audio: flase,
       });
       streamRef.current = stream;
