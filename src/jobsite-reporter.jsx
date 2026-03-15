@@ -10578,7 +10578,7 @@ function SettingsPage({ settings, onSave, onDeleteAccount }) {
                   <Icon d={ic.camera} size={24} stroke="white" strokeWidth={2} />
                 </div>
                 <div>
-                  <div style={{ fontWeight:700,fontSize:15 }}>SiteSnap Pro</div>
+                  <div style={{ fontWeight:700,fontSize:15 }}>Kraken Cam</div>
                   <div style={{ fontSize:12,color:"var(--text2)",marginTop:2 }}>Version 1.0.0</div>
                 </div>
               </div>
@@ -10588,7 +10588,7 @@ function SettingsPage({ settings, onSave, onDeleteAccount }) {
                   Built for field professionals who need fast, reliable jobsite documentation. Questions, feedback, or issues? Our team is happy to help.
                 </div>
                 <button
-                  onClick={() => window.location.href = "mailto:support@yourdomain.com?subject=SiteSnap%20Pro%20Support"}
+                  onClick={() => window.location.href = "mailto:support@yourdomain.com?subject=Kraken%20Cam%20Support"}
                   className="btn btn-secondary btn-sm"
                   style={{ alignSelf:"flex-start",display:"flex",alignItems:"center",gap:7 }}>
                   <Icon d={ic.mail} size={14} /> Get Help
@@ -11187,8 +11187,8 @@ export default function App() {
               : <div className="nav-brand-icon"><Icon d={ic.camera} size={18} stroke="white" strokeWidth={2} /></div>
             }
             <div>
-              <div className="nav-brand-text">{settings.companyName || "SiteSnap"}</div>
-              <div className="nav-brand-sub">SiteSnap Pro</div>
+              <div className="nav-brand-text">{settings.companyName || "KrakenCam"}</div>
+              <div className="nav-brand-sub">Kraken Cam</div>
             </div>
           </div>
 
@@ -11294,7 +11294,7 @@ export default function App() {
                 {page==="account"   && <div className="topbar-title">Team</div>}
               </div>
               <div className="topbar-actions">
-                <button className="btn btn-secondary btn-sm" style={{ display:"flex",alignItems:"center",gap:6 }} onClick={() => { if(window.confirm("Sign out of SiteSnap Pro?")) alert("Signed out."); }}>
+                <button className="btn btn-secondary btn-sm" style={{ display:"flex",alignItems:"center",gap:6 }} onClick={() => { if(window.confirm("Sign out of Kraken Cam?")) alert("Signed out."); }}>
                   <Icon d={ic.logOut} size={14} /> Sign Out
                 </button>
                 <NotificationBell notifications={notifications} onMarkRead={markRead} onMarkAllRead={markAllRead} onClear={clearNotifs} />
