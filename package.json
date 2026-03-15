@@ -1,5 +1,5 @@
 {
-  "name": "krakencam",
+  "name": "kraken-cam",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -10,7 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.99.1",
+    "@supabase/supabase-js": "^2.57.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
