@@ -10416,7 +10416,7 @@ function SettingsPage({ settings, onSave, onDeleteAccount }) {
                   onClick={() => set("saveToCameraRoll", !form.saveToCameraRoll)}>
                   <div style={{ flex:1 }}>
                     <div style={{ fontWeight:600,fontSize:13.5,marginBottom:3 }}>Save to Camera Roll</div>
-                    <div style={{ fontSize:12,color:"var(--text2)",lineHeight:1.5 }}>Automatically save every photo you take to a SiteSnap folder on your device.</div>
+                    <div style={{ fontSize:12,color:"var(--text2)",lineHeight:1.5 }}>Automatically save every photo you take to a KRAKEN CAM folder on your device.</div>
                   </div>
                   <div style={{ flexShrink:0,width:48,height:28,borderRadius:14,background:form.saveToCameraRoll?"var(--accent)":"var(--border)",transition:"background .2s",position:"relative" }}>
                     <div style={{ position:"absolute",top:3,left:form.saveToCameraRoll?22:3,width:22,height:22,borderRadius:"50%",background:"white",boxShadow:"0 1px 4px rgba(0,0,0,.3)",transition:"left .2s" }} />
