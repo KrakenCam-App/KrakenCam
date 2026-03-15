@@ -861,7 +861,7 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
     if (settings?.saveToCameraRoll && reviewImg) {
       const a = document.createElement("a");
       a.href = reviewImg;
-      a.download = `SiteSnap_${name.replace(/[^a-z0-9]/gi,"_")}.jpg`;
+      a.download = `KrakenCam_${name.replace(/[^a-z0-9]/gi,"_")}.jpg`;
       a.click();
     }
     setSession(prev => [...prev, { id: uid(), dataUrl: reviewImg, room: selRoom, name, date: today(), tags: ["live capture"], gps }]);
