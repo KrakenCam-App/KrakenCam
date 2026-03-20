@@ -19570,16 +19570,13 @@ export default function App() {
     setAuthUser(user);
   };
 
-  const handleSignOut = async () => {
-    localStorage.removeItem("sb_access_token");
-    localStorage.removeItem("sb_refresh_token");
-    try {
-      await supabase.auth.signOut();
-    } catch(e) {
-      console.error('signOut error:', e);
-    }
-    // Force reload to clear all state and show login screen
-    window.location.href = '/';
+  const handleSignOut = () => {
+    // Clear everything and hard reload — AuthProvider will see no session
+    localStorage.clear();
+    sessionStorage.clear();
+    supabase.auth.signOut().finally(() => {
+      window.location.replace('/');
+    });
   };
 
   const addNotification = (n) => {
@@ -20162,7 +20159,7 @@ export default function App() {
                 {page==="account"   && <div className="topbar-title">Team</div>}
               </div>
               <div className="topbar-actions">
-                <button className="btn btn-secondary btn-sm" style={{ display:"flex",alignItems:"center",gap:6 }} onClick={() => { if(window.confirm("Sign out of KrakenCam?")) handleSignOut(); }}>
+                <button className="btn btn-secondary btn-sm" style={{ display:"flex",alignItems:"center",gap:6 }} onClick={() => { if(window.confirm("Sign out of KrakenCam?")) { handleSignOut(); } }}>
                   <Icon d={ic.logOut} size={14} /> Sign Out
                 </button>
                 {canOpenAnalytics && (
