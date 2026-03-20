@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from "react";
+import { supabase } from "./lib/supabase";
 
 // ── Icons ──────────────────────────────────────────────────────────────────────
 const Icon = ({ d, size = 20, stroke = "currentColor", fill = "none", strokeWidth = 1.8 }) => (
@@ -19569,12 +19570,13 @@ export default function App() {
     setAuthUser(user);
   };
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     localStorage.removeItem("sb_access_token");
     localStorage.removeItem("sb_refresh_token");
     setAuthUser(null);
     setPage("projects");
     setActiveProject(null);
+    await supabase.auth.signOut();
   };
 
   const addNotification = (n) => {
