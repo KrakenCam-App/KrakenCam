@@ -21,7 +21,6 @@
  */
 
 import React from 'react';
-// react-router-dom removed
 import { useSubscription } from '../hooks/useSubscription';
 import { useAuth } from './AuthProvider';
 
@@ -33,7 +32,7 @@ const FEATURE_TIER_NAMES = {
   unlimitedCalendar:  'Command III',
 };
 
-export function SubscriptionGate({ feature, children, fallback }) {
+export function SubscriptionGate({ feature, children, fallback, onNavigate }) {
   const { hasFeature, tier } = useSubscription();
   const { isAdmin } = useAuth();
 
@@ -58,9 +57,12 @@ export function SubscriptionGate({ feature, children, fallback }) {
         You're currently on <strong>{tier}</strong>.
       </p>
       {isAdmin ? (
-        <Link to="/billing" className="btn-primary">
+        <button
+          className="btn-primary"
+          onClick={() => onNavigate ? onNavigate('/billing') : null}
+        >
           Upgrade Now
-        </Link>
+        </button>
       ) : (
         <p className="feature-locked-note">
           Contact your organization admin to upgrade.
@@ -76,7 +78,7 @@ export function SubscriptionGate({ feature, children, fallback }) {
 export function withSubscriptionGate(WrappedComponent, feature) {
   return function GatedComponent(props) {
     return (
-      <SubscriptionGate feature={feature}>
+      <SubscriptionGate feature={feature} onNavigate={props.onNavigate}>
         <WrappedComponent {...props} />
       </SubscriptionGate>
     );

@@ -6,11 +6,13 @@ import ForgotPassword from './components/ForgotPassword.jsx'
 import App from './jobsite-reporter.jsx'
 import AdminRoute from './components/admin/AdminRoute.jsx'
 import AdminDashboard from './components/admin/AdminDashboard.jsx'
+import BillingDashboard from './components/BillingDashboard.jsx'
 
 export default function AppRouter() {
   const { session, loading } = useAuth()
   const [page, setPage] = useState('login')
   const isAdmin = window.location.pathname.startsWith('/admin')
+  const isBilling = window.location.pathname === '/billing'
 
   // If already logged in, go straight to app
   if (loading) {
@@ -30,6 +32,11 @@ export default function AppRouter() {
       return <LoginPage onSignup={() => setPage('signup')} onForgotPassword={() => setPage('forgot')} />
     }
     return <AdminRoute><AdminDashboard /></AdminRoute>
+  }
+
+  // /billing route — requires session
+  if (isBilling && session) {
+    return <BillingDashboard onNavigate={(path) => { window.history.pushState({}, '', path); window.dispatchEvent(new PopStateEvent('popstate')) }} />
   }
 
   // Logged in → show the main app

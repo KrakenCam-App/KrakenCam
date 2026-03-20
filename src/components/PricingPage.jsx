@@ -4,10 +4,12 @@
  * Public-facing pricing page with monthly/annual toggle.
  * Shows all 3 tiers with features and a trial CTA.
  * Can also be shown to logged-in users upgrading their plan.
+ *
+ * Props:
+ *   onNavigate(path) - called when user wants to navigate (e.g. '/signup?tier=...')
  */
 
 import React, { useState } from 'react';
-// react-router-dom removed
 import { useAuth } from './AuthProvider';
 
 const PLANS = {
@@ -65,7 +67,7 @@ const PLANS = {
   },
 };
 
-export default function PricingPage({ onSelectPlan }) {
+export default function PricingPage({ onNavigate }) {
   const [billing, setBilling] = useState('monthly'); // 'monthly' | 'annual'
   const { session, isAdmin } = useAuth();
 
@@ -76,8 +78,16 @@ export default function PricingPage({ onSelectPlan }) {
   }
 
   function handleSelectPlan(tierId) {
-    if (typeof onSelectPlan === 'function') {
-      onSelectPlan(tierId, billing);
+    if (!onNavigate) return;
+    if (!session) {
+      // Not logged in → go to signup with tier pre-selected
+      onNavigate(`/signup?tier=${tierId}&billing=${billing}`);
+    } else if (isAdmin) {
+      // Logged in admin → go to billing to upgrade
+      onNavigate(`/billing?upgrade=${tierId}&billing=${billing}`);
+    } else {
+      // Regular user → only admin can manage billing
+      onNavigate('/billing');
     }
   }
 
@@ -171,9 +181,12 @@ export default function PricingPage({ onSelectPlan }) {
         <h2>Not sure which plan? Start with any — you can change later.</h2>
         <p>Your 14-day trial gives you full access to all features. No credit card needed.</p>
         {!session && (
-          <Link to="/signup" className="btn-primary btn-large">
+          <button
+            className="btn-primary btn-large"
+            onClick={() => onNavigate && onNavigate('/signup')}
+          >
             Start Free Trial
-          </Link>
+          </button>
         )}
       </div>
     </div>
