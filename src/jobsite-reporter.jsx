@@ -14,7 +14,18 @@ import {
   deletePicture   as dbDeletePicture,
   getPictureUrl   as dbGetPictureUrl,
 } from "./lib/projects.js";
-
+import {
+  getCalEvents    as dbGetCalEvents,
+  createCalEvent  as dbCreateCalEvent,
+  updateCalEvent  as dbUpdateCalEvent,
+  deleteCalEvent  as dbDeleteCalEvent,
+} from "./lib/calendar.js";
+import {
+  getTasks        as dbGetTasks,
+  createTask      as dbCreateTaskDB,
+  updateTask      as dbUpdateTaskDB,
+  deleteTask      as dbDeleteTaskDB,
+} from "./lib/tasks.js";
 // ── Icons ──────────────────────────────────────────────────────────────────────
 const Icon = ({ d, size = 20, stroke = "currentColor", fill = "none", strokeWidth = 1.8 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
@@ -9716,26 +9727,26 @@ Write ONLY the report text content. No preamble, no "here is the text", no markd
       ? `Write the "${blockLabel}" section. Instructions: ${prompt}`
       : `Rewrite this text more professionally: ${result}`;
     try {
-      // ── Proxy via Supabase Edge Function ──────────────────────────────────
-      // Direct browser→Anthropic calls are blocked by CORS.
-      // Replace KRAKENCAM_SUPABASE_URL with your project URL, e.g.:
-      //   https://xyzxyzxyz.supabase.co/functions/v1/ai-writer
-      // Set your ANTHROPIC_API_KEY as a Supabase secret (never in this file).
-      const PROXY_URL = "https://KRAKENCAM_SUPABASE_URL.supabase.co/functions/v1/ai-writer";
-      // ─────────────────────────────────────────────────────────────────────
-      const res = await fetch(PROXY_URL, {
+      // ── Proxy via Vercel serverless function (/api/generate-report) ──────
+      // This keeps ANTHROPIC_API_KEY server-side; never in the browser bundle.
+      const { data: { session: _sess } } = await supabase.auth.getSession();
+      const _token = _sess?.access_token || "";
+      const res = await fetch("/api/generate-report", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type":  "application/json",
+          "Authorization": `Bearer ${_token}`,
+        },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          system: systemPrompt,
-          messages: [{ role: "user", content: userMsg }],
+          projectName:        blockLabel,
+          projectDescription: systemPrompt,
+          photos:             [],
+          customPrompt:       userMsg,
         }),
       });
       const data = await res.json();
-      if (data.error) throw new Error(data.error.message);
-      const text = data.content?.filter(c=>c.type==="text").map(c=>c.text).join("") || "";
+      if (data.error) throw new Error(data.error);
+      const text = data.report || "";
       setResult(text.trim());
       setPrompt("");
       if (onUsageIncrement) onUsageIncrement();
@@ -19599,6 +19610,68 @@ export default function App() {
     loadProjectsFromDB();
   }, [authProfile?.organization_id]);
 
+  // ── Load calendar events from Supabase on mount ───────────────────────────
+  useEffect(() => {
+    if (!authProfile?.organization_id) return;
+    const loadCalEvents = async () => {
+      try {
+        const rows = await dbGetCalEvents();
+        if (rows && rows.length > 0) {
+          // Map DB snake_case to the local camelCase shape CalendarPage expects
+          const mapped = rows.map(row => ({
+            id:          row.id,
+            title:       row.title || "",
+            description: row.description || "",
+            startDate:   row.start_at ? row.start_at.slice(0, 10) : "",
+            endDate:     row.end_at   ? row.end_at.slice(0, 10)   : "",
+            startTime:   row.start_at ? row.start_at.slice(11, 16) : "",
+            endTime:     row.end_at   ? row.end_at.slice(11, 16)   : "",
+            allDay:      row.all_day  ?? false,
+            projectId:   row.project_id || "",
+            createdBy:   row.created_by || "",
+            _dbId:       row.id,  // preserve DB id for updates/deletes
+          }));
+          setCalEvents(mapped);
+        }
+      } catch (err) {
+        console.warn("[KrakenCam] Could not load cal_events from Supabase:", err.message || err);
+      }
+    };
+    loadCalEvents();
+  }, [authProfile?.organization_id]);
+
+  // ── Load tasks from Supabase on mount ────────────────────────────────────
+  useEffect(() => {
+    if (!authProfile?.organization_id) return;
+    const loadTasks = async () => {
+      try {
+        const rows = await dbGetTasks();
+        if (rows && rows.length > 0) {
+          const mapped = rows.map(row => ({
+            id:          row.id,
+            title:       row.title || "",
+            description: row.description || "",
+            completed:   row.completed ?? false,
+            assigneeIds: row.assigned_to ? [row.assigned_to] : [],
+            projectId:   row.project_id || "",
+            dueDate:     row.due_date || "",
+            createdAt:   row.created_at || "",
+            status:      row.completed ? "done" : "todo",
+            priority:    "medium",
+            tags:        [],
+            checklist:   [],
+            comments:    [],
+            _dbId:       row.id,
+          }));
+          setTasks(mapped);
+        }
+      } catch (err) {
+        console.warn("[KrakenCam] Could not load tasks from Supabase:", err.message || err);
+      }
+    };
+    loadTasks();
+  }, [authProfile?.organization_id]);
+
   // Write on every change — debounced to avoid hammering on rapid updates
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -20424,8 +20497,100 @@ export default function App() {
               <JobsiteMapPage projects={projects} settings={settings} onSelectProject={p => { setActiveProject(p); setPage("detail"); }} />
             </div>
           )}
-          {page === "tasks"     && <TasksPage projects={projects} teamUsers={teamUsers} settings={settings} tasks={tasks} onTasksChange={setTasks} onNotify={addNotification} />}
-          {page === "calendar"  && <CalendarPage projects={projects} teamUsers={teamUsers} settings={settings} calEvents={calEvents} onCalEventsChange={setCalEvents} onNotify={addNotification} />}
+          {page === "tasks"     && <TasksPage projects={projects} teamUsers={teamUsers} settings={settings} tasks={tasks} onTasksChange={(newTasks) => {
+            // Wire tasks create/update/delete to Supabase (fire-and-forget)
+            if (!authProfile?.organization_id) { setTasks(newTasks); return; }
+            const prev = tasks;
+            setTasks(newTasks);
+            // Detect added tasks
+            newTasks.filter(t => !prev.find(p => p.id === t.id)).forEach(async (t) => {
+              try {
+                await dbCreateTaskDB({
+                  id: t.id,
+                  title: t.title,
+                  description: t.description || null,
+                  completed: t.completed ?? false,
+                  assigned_to: t.assigneeIds?.[0] || null,
+                  project_id: t.projectId || null,
+                  due_date: t.dueDate || null,
+                });
+              } catch(e) { console.warn("[KrakenCam] tasks sync create failed:", e.message); }
+            });
+            // Detect updated tasks
+            newTasks.filter(t => {
+              const p = prev.find(p => p.id === t.id);
+              return p && JSON.stringify(p) !== JSON.stringify(t);
+            }).forEach(async (t) => {
+              try {
+                await dbUpdateTaskDB(t.id, {
+                  title: t.title,
+                  description: t.description || null,
+                  completed: t.completed ?? false,
+                  assigned_to: t.assigneeIds?.[0] || null,
+                  project_id: t.projectId || null,
+                  due_date: t.dueDate || null,
+                });
+              } catch(e) { console.warn("[KrakenCam] tasks sync update failed:", e.message); }
+            });
+            // Detect deleted tasks
+            prev.filter(p => !newTasks.find(t => t.id === p.id)).forEach(async (t) => {
+              try { await dbDeleteTaskDB(t.id); }
+              catch(e) { console.warn("[KrakenCam] tasks sync delete failed:", e.message); }
+            });
+          }} onNotify={addNotification} />}
+          {page === "calendar"  && <CalendarPage projects={projects} teamUsers={teamUsers} settings={settings} calEvents={calEvents} onCalEventsChange={(newEvents) => {
+            // Wire cal events create/update/delete to Supabase (fire-and-forget)
+            if (!authProfile?.organization_id) { setCalEvents(newEvents); return; }
+            const prev = calEvents;
+            setCalEvents(newEvents);
+            // Detect added events
+            newEvents.filter(e => !prev.find(p => p.id === e.id)).forEach(async (ev) => {
+              try {
+                const startIso = ev.startDate && ev.startTime
+                  ? `${ev.startDate}T${ev.startTime}:00`
+                  : ev.startDate ? `${ev.startDate}T00:00:00` : null;
+                const endIso = ev.endDate && ev.endTime
+                  ? `${ev.endDate}T${ev.endTime}:00`
+                  : ev.endDate ? `${ev.endDate}T23:59:59` : null;
+                await dbCreateCalEvent({
+                  id: ev.id,
+                  title: ev.title,
+                  description: ev.description || null,
+                  start_at: startIso,
+                  end_at: endIso,
+                  all_day: ev.allDay ?? false,
+                  project_id: ev.projectId || null,
+                });
+              } catch(e) { console.warn("[KrakenCam] calEvents sync create failed:", e.message); }
+            });
+            // Detect updated events
+            newEvents.filter(e => {
+              const p = prev.find(p => p.id === e.id);
+              return p && JSON.stringify(p) !== JSON.stringify(e);
+            }).forEach(async (ev) => {
+              try {
+                const startIso = ev.startDate && ev.startTime
+                  ? `${ev.startDate}T${ev.startTime}:00`
+                  : ev.startDate ? `${ev.startDate}T00:00:00` : null;
+                const endIso = ev.endDate && ev.endTime
+                  ? `${ev.endDate}T${ev.endTime}:00`
+                  : ev.endDate ? `${ev.endDate}T23:59:59` : null;
+                await dbUpdateCalEvent(ev.id, {
+                  title: ev.title,
+                  description: ev.description || null,
+                  start_at: startIso,
+                  end_at: endIso,
+                  all_day: ev.allDay ?? false,
+                  project_id: ev.projectId || null,
+                });
+              } catch(e) { console.warn("[KrakenCam] calEvents sync update failed:", e.message); }
+            });
+            // Detect deleted events
+            prev.filter(p => !newEvents.find(e => e.id === p.id)).forEach(async (ev) => {
+              try { await dbDeleteCalEvent(ev.id); }
+              catch(e) { console.warn("[KrakenCam] calEvents sync delete failed:", e.message); }
+            });
+          }} onNotify={addNotification} />}
           {page === "account" && canOpenAccount && <AccountPage settings={settings} onSettingsChange={setSettings} projects={projects} users={teamUsers} onUsersChange={setTeamUsers} onProjectsChange={setProjects} onNotify={addNotification} />}
           {page === "settings" && canOpenSettings && (
             <SettingsPage settings={settings} onSave={s => setSettings(s)} onDeleteAccount={() => {
