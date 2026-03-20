@@ -296,6 +296,9 @@ const EMAIL_TEMPLATES = [
 
 function PreviewModal({ template, onClose }) {
   if (!template) return null
+  // Use current editable state: body_html (DB field) or previewHtml (fallback)
+  const html = template.body_html ?? template.previewHtml ?? ''
+  const trigger = template.trigger_event ?? template.trigger ?? ''
   return (
     <div style={S.modalOverlay} onClick={onClose}>
       <div style={S.modalBox} onClick={e => e.stopPropagation()}>
@@ -304,12 +307,12 @@ function PreviewModal({ template, onClose }) {
             <div style={{ fontSize: 15, fontWeight: 700, color: '#e8e8e8' }}>
               Preview: {template.name}
             </div>
-            <div style={{ fontSize: 11, color: '#666', marginTop: 3 }}>{template.trigger}</div>
+            <div style={{ fontSize: 11, color: '#666', marginTop: 3 }}>{trigger}</div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: 20, lineHeight: 1 }}>✕</button>
         </div>
         <div style={{ background: '#fff', borderRadius: 8, padding: '20px 24px', overflowY: 'auto' }}>
-          <div dangerouslySetInnerHTML={{ __html: template.previewHtml }} />
+          <div dangerouslySetInnerHTML={{ __html: html }} />
         </div>
         <div style={{ fontSize: 11, color: '#555', fontStyle: 'italic' }}>
           Note: {'{{'} variables {'}}' } will be replaced at send time. This is a preview only — actual delivery is handled by the backend.
@@ -418,11 +421,69 @@ function GeneralTab() {
 }
 
 function EmailTemplatesTab() {
-  const [templates, setTemplates] = useState(EMAIL_TEMPLATES)
+  const [templates, setTemplates] = useState(
+    EMAIL_TEMPLATES.map(t => ({ ...t, body_html: t.previewHtml }))
+  )
   const [previewTemplate, setPreviewTemplate] = useState(null)
+  const [expandedId, setExpandedId] = useState(null)
+  const [saveStatus, setSaveStatus] = useState({}) // { [id]: 'saving' | 'saved' | 'error' }
+  const [loadError, setLoadError] = useState(false)
+
+  // Load templates from DB on mount
+  React.useEffect(() => {
+    async function loadTemplates() {
+      try {
+        const { data, error } = await supabase.from('email_templates').select('*')
+        if (error) throw error
+        if (data && data.length > 0) {
+          // Merge DB data with local fallback (to keep password_reset which isn't in DB)
+          setTemplates(prev => prev.map(local => {
+            const dbRow = data.find(d => d.id === local.id)
+            if (!dbRow) return local
+            return {
+              ...local,
+              subject: dbRow.subject,
+              body_html: dbRow.body_html,
+              enabled: dbRow.enabled,
+            }
+          }))
+        }
+      } catch (err) {
+        console.warn('EmailTemplatesTab: failed to load from DB, using defaults', err)
+        setLoadError(true)
+      }
+    }
+    loadTemplates()
+  }, [])
 
   function handleSubjectChange(id, val) {
     setTemplates(prev => prev.map(t => t.id === id ? { ...t, subject: val } : t))
+  }
+
+  function handleBodyChange(id, val) {
+    setTemplates(prev => prev.map(t => t.id === id ? { ...t, body_html: val } : t))
+  }
+
+  async function handleSave(t) {
+    setSaveStatus(prev => ({ ...prev, [t.id]: 'saving' }))
+    try {
+      const { error } = await supabase.from('email_templates').upsert({
+        id: t.id,
+        name: t.name,
+        trigger_event: t.trigger_event ?? t.trigger,
+        subject: t.subject,
+        body_html: t.body_html ?? t.previewHtml,
+        enabled: t.enabled ?? true,
+        updated_at: new Date().toISOString(),
+      })
+      if (error) throw error
+      setSaveStatus(prev => ({ ...prev, [t.id]: 'saved' }))
+      setTimeout(() => setSaveStatus(prev => ({ ...prev, [t.id]: null })), 2000)
+    } catch (err) {
+      console.error('Save template error:', err)
+      setSaveStatus(prev => ({ ...prev, [t.id]: 'error' }))
+      setTimeout(() => setSaveStatus(prev => ({ ...prev, [t.id]: null })), 3000)
+    }
   }
 
   return (
@@ -430,28 +491,157 @@ function EmailTemplatesTab() {
       <div style={S.card}>
         <div style={S.sectionHeader}>Email Templates</div>
         <div style={{ fontSize: 12, color: '#555', marginBottom: 16, lineHeight: 1.6 }}>
-          Subject lines are editable. Template bodies are managed via the backend. Auth emails (password reset) are controlled by Supabase.
+          {loadError
+            ? '⚠️ Could not load templates from database — showing defaults. DB changes will still be attempted on save.'
+            : 'Click a template row to expand and edit its subject and HTML body. Password Reset is managed by Supabase Auth.'}
         </div>
 
-        {templates.map((t, i) => (
-          <div key={t.id} style={{ ...S.templateRow, borderBottom: i < templates.length - 1 ? '1px solid rgba(30,60,120,0.15)' : 'none' }}>
-            <div style={{ minWidth: 200, flexShrink: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e8e8' }}>{t.name}</div>
-              <div style={{ fontSize: 11, color: '#555', marginTop: 2 }}>{t.trigger}</div>
+        {templates.map((t, i) => {
+          const isSupabase = t.status === 'supabase'
+          const isExpanded = expandedId === t.id
+          const status = saveStatus[t.id]
+
+          return (
+            <div key={t.id} style={{ borderBottom: i < templates.length - 1 ? '1px solid rgba(30,60,120,0.15)' : 'none' }}>
+              {/* Collapsed row — click to expand */}
+              <div
+                style={{
+                  ...S.templateRow,
+                  borderBottom: 'none',
+                  cursor: isSupabase ? 'default' : 'pointer',
+                  background: isExpanded ? 'rgba(0,212,255,0.04)' : 'transparent',
+                  borderRadius: isExpanded ? '8px 8px 0 0' : 8,
+                  padding: '12px 10px',
+                  transition: 'background 0.15s',
+                }}
+                onClick={() => !isSupabase && setExpandedId(isExpanded ? null : t.id)}
+              >
+                <div style={{ minWidth: 200, flexShrink: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e8e8', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {!isSupabase && (
+                      <span style={{ fontSize: 11, color: '#555', transition: 'transform 0.15s', display: 'inline-block', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
+                    )}
+                    {t.name}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#555', marginTop: 2 }}>
+                    {t.trigger_event ?? t.trigger}
+                  </div>
+                </div>
+
+                <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                  <div style={{ fontSize: 12, color: '#777', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {t.subject}
+                  </div>
+                </div>
+
+                <span style={S.badge(isSupabase ? 'gray' : 'green')}>
+                  {isSupabase ? 'Supabase Managed' : 'Active'}
+                </span>
+
+                <button
+                  style={S.btnGhost}
+                  onClick={e => { e.stopPropagation(); setPreviewTemplate(t) }}
+                >
+                  Preview
+                </button>
+              </div>
+
+              {/* Expanded editor */}
+              {isExpanded && !isSupabase && (
+                <div style={{
+                  background: 'rgba(0,5,15,0.5)',
+                  borderRadius: '0 0 8px 8px',
+                  padding: '16px 10px 20px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 14,
+                  borderTop: '1px solid rgba(0,212,255,0.1)',
+                }}>
+                  {/* Subject */}
+                  <div>
+                    <label style={{ fontSize: 11, color: '#888', fontWeight: 600, letterSpacing: 0.5, textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                      Subject Line
+                    </label>
+                    <input
+                      style={{ ...S.input, width: '100%', boxSizing: 'border-box' }}
+                      value={t.subject}
+                      onChange={e => handleSubjectChange(t.id, e.target.value)}
+                      placeholder="Email subject..."
+                    />
+                  </div>
+
+                  {/* Body HTML */}
+                  <div>
+                    <label style={{ fontSize: 11, color: '#888', fontWeight: 600, letterSpacing: 0.5, textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                      Body HTML
+                    </label>
+                    <textarea
+                      style={{
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        background: '#0d1017',
+                        border: '1px solid #1e2638',
+                        borderRadius: 8,
+                        color: '#c9d1d9',
+                        padding: '10px 12px',
+                        fontSize: 12,
+                        fontFamily: "'Fira Code', 'Cascadia Code', 'Consolas', 'Courier New', monospace",
+                        lineHeight: 1.6,
+                        outline: 'none',
+                        resize: 'vertical',
+                        minHeight: 220,
+                      }}
+                      rows={12}
+                      value={t.body_html ?? ''}
+                      onChange={e => handleBodyChange(t.id, e.target.value)}
+                      placeholder="<div>Email HTML body...</div>"
+                    />
+                    <div style={{ fontSize: 11, color: '#444', marginTop: 4 }}>
+                      Supports {'{{first_name}}'}, {'{{org_name}}'}, {'{{trial_end_date}}'} and other template variables.
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <button
+                      style={S.btnGhost}
+                      onClick={() => setPreviewTemplate(t)}
+                    >
+                      👁 Preview
+                    </button>
+                    <button
+                      style={{
+                        ...S.btn,
+                        opacity: status === 'saving' ? 0.6 : 1,
+                        cursor: status === 'saving' ? 'not-allowed' : 'pointer',
+                      }}
+                      disabled={status === 'saving'}
+                      onClick={() => handleSave(t)}
+                    >
+                      {status === 'saving' ? '⏳ Saving…' : status === 'saved' ? '✓ Saved!' : status === 'error' ? '✗ Error' : '💾 Save'}
+                    </button>
+                    {status === 'saved' && (
+                      <span style={S.statusMsg(true)}>Template saved to database</span>
+                    )}
+                    {status === 'error' && (
+                      <span style={S.statusMsg(false)}>Save failed — check console</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Supabase-managed note when expanded would be — show inline */}
+              {isSupabase && (
+                <div style={{ padding: '0 10px 14px', fontSize: 12, color: '#555', fontStyle: 'italic' }}>
+                  🔐 Managed by Supabase Auth. Customize at{' '}
+                  <a href="https://supabase.com/dashboard/project/nszoateefidwhhsyexjd/auth/templates" target="_blank" rel="noreferrer" style={{ color: '#00d4ff' }}>
+                    Supabase → Auth → Email Templates
+                  </a>
+                </div>
+              )}
             </div>
-            <input
-              style={{ ...S.input, flex: 1, minWidth: 160, opacity: t.status === 'supabase' ? 0.4 : 1 }}
-              value={t.subject}
-              disabled={t.status === 'supabase'}
-              onChange={e => handleSubjectChange(t.id, e.target.value)}
-              placeholder="Subject line..."
-            />
-            <span style={S.badge(t.status === 'supabase' ? 'gray' : 'green')}>
-              {t.status === 'supabase' ? 'Supabase Managed' : 'Active'}
-            </span>
-            <button style={S.btnGhost} onClick={() => setPreviewTemplate(t)}>Preview</button>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {previewTemplate && <PreviewModal template={previewTemplate} onClose={() => setPreviewTemplate(null)} />}

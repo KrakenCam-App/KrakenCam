@@ -164,59 +164,6 @@ const S = {
   },
 }
 
-const SETTINGS_PANEL_STYLE = {
-  position: 'fixed',
-  inset: 0,
-  background: 'rgba(0,0,0,0.7)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 200,
-}
-const SETTINGS_BOX_STYLE = {
-  background: 'rgba(10,20,40,0.7)',
-  border: '1px solid #2a2a2a',
-  borderRadius: 12,
-  padding: '28px 32px',
-  minWidth: 360,
-  maxWidth: 480,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 16,
-}
-
-function SettingsPanel({ onClose }) {
-  return (
-    <div style={SETTINGS_PANEL_STYLE} onClick={onClose}>
-      <div style={SETTINGS_BOX_STYLE} onClick={e => e.stopPropagation()}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: '#e8e8e8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>⚙️ Admin Settings</span>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
-        </div>
-        <div style={{ color: '#666', fontSize: 13, lineHeight: 1.6 }}>
-          <div style={{ marginBottom: 12, color: '#aaa', fontWeight: 600 }}>Panel Info</div>
-          <div>This is the KrakenCam Super Admin console.</div>
-          <div style={{ marginTop: 8 }}>Access is restricted to users with <code style={{ color: '#00d4ff', background: 'rgba(5,10,25,0.8)', padding: '1px 6px', borderRadius: 4 }}>super_admin</code> role.</div>
-        </div>
-        <div style={{ background: 'rgba(5,10,25,0.8)', borderRadius: 8, padding: '12px 14px', fontSize: 12, color: '#555' }}>
-          <div style={{ color: '#444', fontWeight: 600, marginBottom: 6 }}>Environment</div>
-          <div>Supabase project: nszoateefidwhhsyexjd</div>
-          <div>Version: 1.0.0</div>
-        </div>
-        <div style={{ color: '#4ec9b0', fontSize: 12, fontStyle: 'italic' }}>
-          ✓ Additional settings (email templates, webhook config, etc.) coming soon.
-        </div>
-        <button
-          onClick={onClose}
-          style={{ background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.25)', borderRadius: 7, color: '#00d4ff', padding: '9px 18px', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
-        >
-          Close
-        </button>
-      </div>
-    </div>
-  )
-}
-
 export default function AdminDashboard() {
   const [activeSection, setActiveSection] = useState('overview')
   const [sidebarOpen, setSidebarOpen] = useState(true)
