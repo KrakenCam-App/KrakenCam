@@ -12,6 +12,7 @@ import AdminEnterprise from './AdminEnterprise.jsx'
 import AdminAnalytics from './AdminAnalytics.jsx'
 import AdminSettings from './AdminSettings.jsx'
 import AdminAuditLog from './AdminAuditLog.jsx'
+import AdminPricing from './AdminPricing.jsx'
 
 const NAV_ITEMS = [
   { id: 'overview',      label: 'Overview',        icon: '📊' },
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
   { id: 'analytics',    label: 'Analytics',        icon: '📈' },
   { id: 'enterprise',   label: 'Enterprise',       icon: '💎' },
   { id: 'discounts',    label: 'Discount Codes',   icon: '🏷️' },
+  { id: 'pricing',      label: 'Pricing',          icon: '💰' },
   { id: 'audit_log',    label: 'Audit Log',        icon: '📋' },
   { id: 'settings',     label: 'Settings',         icon: '⚙️' },
 ]
@@ -179,6 +181,7 @@ export default function AdminDashboard() {
       case 'analytics':     return <AdminAnalytics />
       case 'enterprise':    return <AdminEnterprise />
       case 'discounts':     return <AdminDiscountCodes />
+      case 'pricing':       return <AdminPricing />
       case 'audit_log':     return <AdminAuditLog />
       case 'settings':      return <AdminSettings />
       default:              return <AdminOverview />

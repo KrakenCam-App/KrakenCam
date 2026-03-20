@@ -9,17 +9,14 @@
  *   onNavigate(path) - called when user wants to navigate (e.g. '/signup?tier=...')
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from './AuthProvider';
+import { getPricingConfig, DEFAULT_PRICING } from '../lib/pricing';
 
-const PLANS = {
+const BASE_PLANS = {
   capture_i: {
-    name:         'Capture I',
-    monthlyAdmin: 39,
-    annualAdmin:  33,
-    seatMonthly:  29,
-    seatAnnual:   26,
-    color:        '#2563eb',
+    name:    'Capture I',
+    color:   '#2563eb',
     features: [
       { text: 'Unlimited projects',            included: true },
       { text: 'Video capture (1.5 min)',        included: true },
@@ -31,13 +28,9 @@ const PLANS = {
     ],
   },
   intelligence_ii: {
-    name:         'Intelligence II',
-    monthlyAdmin: 59,
-    annualAdmin:  50,
-    seatMonthly:  29,
-    seatAnnual:   26,
-    color:        '#7c3aed',
-    popular:      true,
+    name:    'Intelligence II',
+    color:   '#06b6d4',
+    popular: true,
     features: [
       { text: 'Unlimited projects',            included: true },
       { text: 'Video capture (6 min)',         included: true },
@@ -49,12 +42,8 @@ const PLANS = {
     ],
   },
   command_iii: {
-    name:         'Command III',
-    monthlyAdmin: 79,
-    annualAdmin:  67,
-    seatMonthly:  29,
-    seatAnnual:   26,
-    color:        '#0f172a',
+    name:  'Command III',
+    color: '#7c3aed',
     features: [
       { text: 'Unlimited projects',            included: true },
       { text: 'Video capture (12 min)',        included: true },
@@ -69,7 +58,27 @@ const PLANS = {
 
 export default function PricingPage({ onNavigate }) {
   const [billing, setBilling] = useState('monthly'); // 'monthly' | 'annual'
+  const [dbPricing, setDbPricing] = useState(DEFAULT_PRICING);
   const { session, isAdmin } = useAuth();
+
+  // Load live pricing from Supabase; fall back to defaults silently
+  useEffect(() => {
+    getPricingConfig().then(setDbPricing).catch(() => {});
+  }, []);
+
+  // Build PLANS by merging BASE_PLANS with live pricing
+  const PLANS = Object.fromEntries(
+    Object.entries(BASE_PLANS).map(([tierId, base]) => {
+      const p = dbPricing[tierId] || DEFAULT_PRICING[tierId];
+      return [tierId, {
+        ...base,
+        monthlyAdmin: p?.monthly?.admin ?? DEFAULT_PRICING[tierId].monthly.admin,
+        annualAdmin:  p?.annual?.admin  ?? DEFAULT_PRICING[tierId].annual.admin,
+        seatMonthly:  p?.monthly?.per_seat ?? DEFAULT_PRICING[tierId].monthly.per_seat,
+        seatAnnual:   p?.annual?.per_seat  ?? DEFAULT_PRICING[tierId].annual.per_seat,
+      }];
+    })
+  );
 
   function annualSavings(plan) {
     const monthlyCost = plan.monthlyAdmin * 12;
