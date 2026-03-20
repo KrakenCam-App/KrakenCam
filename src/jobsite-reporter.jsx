@@ -1,5 +1,19 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from "react";
 import { supabase } from "./lib/supabase";
+import { useAuth } from "./components/AuthProvider.jsx";
+import {
+  getProjects     as dbGetProjects,
+  createProject   as dbCreateProject,
+  updateProject   as dbUpdateProject,
+  deleteProject   as dbDeleteProject,
+  getFolders      as dbGetFolders,
+  createFolder    as dbCreateFolder,
+  deleteFolder    as dbDeleteFolder,
+  getPictures     as dbGetPictures,
+  uploadPicture   as dbUploadPicture,
+  deletePicture   as dbDeletePicture,
+  getPictureUrl   as dbGetPictureUrl,
+} from "./lib/projects.js";
 
 // ── Icons ──────────────────────────────────────────────────────────────────────
 const Icon = ({ d, size = 20, stroke = "currentColor", fill = "none", strokeWidth = 1.8 }) => (
@@ -8368,7 +8382,7 @@ function SketchEditor({ sketch, rooms, reports, project, settings, onSave, onClo
 }
 
 // ── Project Detail (tabs: Overview, Photos, Rooms, Reports, Checklists) ────────
-function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onEdit, onOpenCamera, onEditPhoto, onUpdateProject, onOpenReportCreator, onSendVoiceNoteToChat, onSendFileToChat, onSendPhotoToChat, settings }) {
+function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onEdit, onOpenCamera, onEditPhoto, onUpdateProject, onOpenReportCreator, onSendVoiceNoteToChat, onSendFileToChat, onSendPhotoToChat, settings, orgId }) {
   const [tab, setTab] = useState("overview");
   const [editingSketch, setEditingSketch] = useState(null); // null=list, "new"=new, sketch obj=edit
   const [scratchPad, setScratchPad] = useState(project.scratchPad || "");
@@ -8386,16 +8400,31 @@ function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onEdit, on
 
   const addUploadedPhotos = (files) => {
     const newPhotos = [];
-    Array.from(files).forEach(file => {
+    const fileArray = Array.from(files);
+    fileArray.forEach(file => {
       const reader = new FileReader();
       reader.onload = e => {
-        newPhotos.push({ id:uid(), name:file.name.replace(/\.[^/.]+$/, ""), room: project.rooms?.[0]?.name || "General", date:today(), tags:["uploaded"], dataUrl:e.target.result });
-        if (newPhotos.length === files.length) {
+        const photoId = uid();
+        const roomName = project.rooms?.[0]?.name || "General";
+        newPhotos.push({ id: photoId, name: file.name.replace(/\.[^/.]+$/, ""), room: roomName, date: today(), tags: ["uploaded"], dataUrl: e.target.result });
+        if (newPhotos.length === fileArray.length) {
           const allPhotos = [...project.photos, ...newPhotos];
           const coordPatch = (!project.manualGps && (!project.lat || !project.lng))
             ? (() => { const hit = allPhotos.find(p => p.gps?.lat && p.gps?.lng); return hit ? { lat: String(hit.gps.lat), lng: String(hit.gps.lng) } : {}; })()
             : {};
           onUpdateProject({ ...project, ...coordPatch, photos: allPhotos });
+
+          // ── Also upload to Supabase storage (fire-and-forget) ──
+          if (orgId && project.id) {
+            fileArray.forEach(f => {
+              // Find the matching room's folder_id if available, fall back to project-level
+              const matchingRoom = (project.rooms || []).find(r => r.name === roomName);
+              const folderId = matchingRoom?.supabaseFolderId || project.id;
+              dbUploadPicture(folderId, project.id, orgId, f).catch(err =>
+                console.warn("[KrakenCam] Supabase photo upload failed:", err.message || err)
+              );
+            });
+          }
         }
       };
       reader.readAsDataURL(file);
@@ -19473,6 +19502,9 @@ function LoginPage({ supabaseUrl, supabaseAnonKey, logo, onSuccess }) {
 }
 
 export default function App() {
+  // Pull org profile from AuthProvider (already wraps the whole app)
+  const { profile: authProfile } = useAuth();
+
   const [authUser,       setAuthUser]       = useState(null);   // null = not logged in
   const [authLoading,    setAuthLoading]    = useState(true);   // checking session on mount
   const [projects,      setProjects]      = useState(SEED_PROJECTS);
@@ -19513,6 +19545,59 @@ export default function App() {
       if (s.calEvents)        setCalEvents(s.calEvents);
     } catch(e) { /* ignore corrupt storage */ }
   }, []);
+
+  // ── Load projects from Supabase on mount (when authenticated) ──────────────
+  useEffect(() => {
+    if (!authProfile?.organization_id) return;  // not authenticated yet
+    const loadProjectsFromDB = async () => {
+      try {
+        const rows = await dbGetProjects();
+        if (rows && rows.length > 0) {
+          // Map DB rows to the local project shape the app expects.
+          // DB rows use snake_case; local state uses camelCase with extra fields.
+          const mapped = rows.map(row => ({
+            // Core fields present in both DB and local shape
+            id:            row.id,
+            title:         row.title || "Untitled Project",
+            address:       row.address || "",
+            city:          row.city || "",
+            state:         row.state || "",
+            zip:           row.zip || "",
+            lat:           row.lat ? String(row.lat) : "",
+            lng:           row.lng ? String(row.lng) : "",
+            clientName:    row.client_name || "",
+            clientEmail:   row.client_email || "",
+            clientPhone:   row.client_phone || "",
+            contractorName:  row.contractor_name || "",
+            contractorPhone: row.contractor_phone || "",
+            type:          row.type || "",
+            status:        row.status || "active",
+            notes:         row.notes || "",
+            color:         row.color || "#4a90d9",
+            createdAt:     row.created_at || "",
+            updatedAt:     row.updated_at || "",
+            // Carry over rich local fields that DB doesn't store (keep defaults)
+            photos:        row.photos   || [],
+            rooms:         row.rooms    || [],
+            reports:       row.reports  || [],
+            videos:        row.videos   || [],
+            voiceNotes:    row.voice_notes || [],
+            sketches:      row.sketches || [],
+            files:         row.files    || [],
+            checklists:    row.checklists || [],
+            tasks:         row.tasks    || [],
+            // Keep org reference
+            organization_id: row.organization_id,
+          }));
+          setProjects(mapped);
+        }
+      } catch (err) {
+        console.warn("[KrakenCam] Could not load projects from Supabase:", err.message || err);
+        // Fall back to whatever localStorage loaded — no action needed
+      }
+    };
+    loadProjectsFromDB();
+  }, [authProfile?.organization_id]);
 
   // Write on every change — debounced to avoid hammering on rapid updates
   useEffect(() => {
@@ -19661,7 +19746,61 @@ export default function App() {
     const newlyAssignedIds = (proj.assignedUserIds||[]).filter(id => !prevIds.includes(id));
     const stamped = { ...proj, updatedAt: now, createdAt: proj.createdAt || now };
 
+    // ── Update local state immediately (optimistic) ──
     setProjects(prev => prev.some(p => p.id===proj.id) ? prev.map(p => p.id===proj.id ? stamped : p) : [...prev, stamped]);
+
+    // ── Persist to Supabase (fire-and-forget, errors are non-fatal) ──
+    const orgId = authProfile?.organization_id;
+    if (orgId) {
+      const dbPayload = {
+        title:            stamped.title,
+        address:          stamped.address || null,
+        city:             stamped.city || null,
+        state:            stamped.state || null,
+        zip:              stamped.zip || null,
+        lat:              stamped.lat ? parseFloat(stamped.lat) : null,
+        lng:              stamped.lng ? parseFloat(stamped.lng) : null,
+        client_name:      stamped.clientName || null,
+        client_email:     stamped.clientEmail || null,
+        client_phone:     stamped.clientPhone || null,
+        contractor_name:  stamped.contractorName || null,
+        contractor_phone: stamped.contractorPhone || null,
+        type:             stamped.type || null,
+        status:           stamped.status || "active",
+        notes:            stamped.notes || null,
+        color:            stamped.color || null,
+        organization_id:  orgId,
+      };
+
+      if (!prevProj) {
+        // New project — INSERT, then sync rooms as picture_folders
+        dbCreateProject(dbPayload).then(newRow => {
+          // After the project row is created, create a folder row for each room
+          const rooms = stamped.rooms || [];
+          rooms.forEach(room => {
+            dbCreateFolder(newRow.id, room.name).catch(err =>
+              console.warn("[KrakenCam] Failed to create folder in DB:", err.message || err)
+            );
+          });
+        }).catch(err =>
+          console.warn("[KrakenCam] Failed to create project in DB:", err.message || err)
+        );
+      } else {
+        // Existing project — UPDATE
+        dbUpdateProject(stamped.id, dbPayload).catch(err =>
+          console.warn("[KrakenCam] Failed to update project in DB:", err.message || err)
+        );
+
+        // Sync any newly added rooms as picture_folders
+        const prevRooms = prevProj?.rooms || [];
+        const newRooms  = (stamped.rooms || []).filter(r => !prevRooms.some(pr => pr.id === r.id));
+        newRooms.forEach(room => {
+          dbCreateFolder(stamped.id, room.name).catch(err =>
+            console.warn("[KrakenCam] Failed to create folder in DB:", err.message || err)
+          );
+        });
+      }
+    }
 
     // Sync assignedUserIds → each user's assignedProjects list
     // Capture updated users snapshot so notifications can look up names
@@ -19703,13 +19842,50 @@ export default function App() {
 
     setShowNewProject(false); setEditingProject(null);
   };
+
   const deleteProject = (id) => {
+    // ── Update local state immediately ──
     setProjects(prev => prev.filter(p => p.id !== id));
     if (activeProject?.id === id) { setActiveProject(null); setPage("projects"); }
+
+    // ── Remove from Supabase (fire-and-forget) ──
+    if (authProfile?.organization_id) {
+      dbDeleteProject(id).catch(err =>
+        console.warn("[KrakenCam] Failed to delete project from DB:", err.message || err)
+      );
+    }
   };
+
   const updateProject = (proj) => {
+    // ── Update local state immediately ──
     setProjects(prev => prev.map(p => p.id===proj.id ? proj : p));
     setActiveProject(proj);
+
+    // ── Persist field changes to Supabase (fire-and-forget) ──
+    const orgId = authProfile?.organization_id;
+    if (orgId) {
+      const dbPayload = {
+        title:            proj.title,
+        address:          proj.address || null,
+        city:             proj.city || null,
+        state:            proj.state || null,
+        zip:              proj.zip || null,
+        lat:              proj.lat ? parseFloat(proj.lat) : null,
+        lng:              proj.lng ? parseFloat(proj.lng) : null,
+        client_name:      proj.clientName || null,
+        client_email:     proj.clientEmail || null,
+        client_phone:     proj.clientPhone || null,
+        contractor_name:  proj.contractorName || null,
+        contractor_phone: proj.contractorPhone || null,
+        type:             proj.type || null,
+        status:           proj.status || "active",
+        notes:            proj.notes || null,
+        color:            proj.color || null,
+      };
+      dbUpdateProject(proj.id, dbPayload).catch(err =>
+        console.warn("[KrakenCam] Failed to update project in DB:", err.message || err)
+      );
+    }
   };
   const sendVoiceNoteToDirectMessage = (project, note, recipientId) => {
     if (!recipientId || !note?.dataUrl) return;
@@ -19930,6 +20106,32 @@ export default function App() {
       : {};
     const updated = { ...latestProj, ...coordPatch, photos: allPhotos, videos: [...(latestProj.videos||[]), ...newVideos] };
     updateProject(updated);
+
+    // ── Upload camera-captured photos to Supabase storage (fire-and-forget) ──
+    const orgId = authProfile?.organization_id;
+    if (orgId && latestProj.id && newPhotos.length > 0) {
+      newPhotos.forEach(photo => {
+        // Convert dataUrl to a File/Blob for upload if available
+        if (photo.dataUrl && photo.dataUrl.startsWith("data:")) {
+          try {
+            const arr = photo.dataUrl.split(",");
+            const mime = (arr[0].match(/:(.*?);/) || [])[1] || "image/jpeg";
+            const bstr = atob(arr[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while (n--) u8arr[n] = bstr.charCodeAt(n);
+            const blob = new Blob([u8arr], { type: mime });
+            const ext = mime.split("/")[1] || "jpg";
+            const file = new File([blob], `${photo.name || photo.id}.${ext}`, { type: mime });
+            dbUploadPicture(latestProj.id, latestProj.id, orgId, file).catch(err =>
+              console.warn("[KrakenCam] Camera photo Supabase upload failed:", err.message || err)
+            );
+          } catch (convErr) {
+            console.warn("[KrakenCam] Could not convert photo dataUrl for upload:", convErr);
+          }
+        }
+      });
+    }
     if (newPhotos.length || newVideos.length) {
       addNotification({
         id: uid(),
@@ -20191,6 +20393,7 @@ export default function App() {
               onSendFileToChat={sendProjectFileToDirectMessage}
               onSendPhotoToChat={sendProjectPhotoToChat}
               settings={settings}
+              orgId={authProfile?.organization_id}
             />
           )}
           {page === "camera" && (
