@@ -35,9 +35,19 @@ import {
   deleteSketch    as dbDeleteSketch,
 } from "./lib/sketches.js";
 import {
+  getVideos       as dbGetVideos,
   uploadVideo     as dbUploadVideo,
   deleteVideo     as dbDeleteVideo,
 } from "./lib/videos.js";
+import {
+  getProjectFiles    as dbGetProjectFiles,
+  uploadProjectFile  as dbUploadProjectFile,
+  deleteProjectFile  as dbDeleteProjectFile,
+} from "./lib/projectFiles.js";
+import {
+  getChatMessages as dbGetChatMessages,
+  sendChatMessage as dbSendChatMessage,
+} from "./lib/chat.js";
 // ── Icons ──────────────────────────────────────────────────────────────────────
 const Icon = ({ d, size = 20, stroke = "currentColor", fill = "none", strokeWidth = 1.8 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
@@ -1309,6 +1319,7 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
       room: selRoom, name, date: today(),
       tags: ["video", "live capture"], gps,
       duration: recSeconds,
+      _blob: reviewVideo.blob, // keep ref so handleCameraSave can upload to Supabase
     }]);
     // Now safe to revoke the review URL since the session item has its own
     URL.revokeObjectURL(reviewVideo.url);
@@ -4861,7 +4872,7 @@ function VoiceNotesTab({ project, teamUsers = [], settings = {}, onUpdateProject
   );
 }
 
-function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpdateProject, onSendFileToDirectMessage }) {
+function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpdateProject, onSendFileToDirectMessage, orgId }) {
   const files = (project.files || []).map(normaliseProjectFile);
   const uploadRef = useRef(null);
   const [viewerFile, setViewerFile] = useState(null);
@@ -4934,6 +4945,11 @@ function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpdateProje
     }
     const nextFiles = [];
     selected.forEach(file => {
+      // Upload to Supabase storage (fire-and-forget)
+      if (orgId && project?.id) {
+        dbUploadProjectFile(project.id, orgId, file)
+          .catch(e => console.error('[KrakenCam] Project file upload failed:', e));
+      }
       const reader = new FileReader();
       reader.onload = ev => {
         nextFiles.push({
@@ -8845,6 +8861,7 @@ function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onEdit, on
           settings={settings}
           onUpdateProject={onUpdateProject}
           onSendFileToDirectMessage={onSendFileToChat}
+          orgId={orgId}
         />
       )}
       {tab === "portal" && (
@@ -12571,7 +12588,7 @@ function ChatButton({ chats, currentUserId, onClick }) {
 }
 
 // ── Chat Panel ────────────────────────────────────────────────────────────────
-function ChatPanel({ chats, onChatsChange, teamUsers, settings, currentUserId, initialChatId = null, onInitialChatOpened, onClose, onNotify }) {
+function ChatPanel({ chats, onChatsChange, teamUsers, settings, currentUserId, initialChatId = null, onInitialChatOpened, onClose, onNotify, orgId }) {
   const [view,         setView]         = useState("list");   // "list" | "chat"
   const [activeChatId, setActiveChatId] = useState(null);
   const [newMsg,       setNewMsg]       = useState("");
@@ -12744,6 +12761,18 @@ function ChatPanel({ chats, onChatsChange, teamUsers, settings, currentUserId, i
       ...c,
       messages: [...(c.messages||[]), msg],
     }));
+    // Fire-and-forget: persist message to Supabase
+    if (orgId && text) {
+      dbSendChatMessage({
+        organizationId: orgId,
+        channel: activeChat?.id || activeChatId || 'general',
+        projectId: activeChat?.projectId || null,
+        content: text,
+        senderId: currentUserId !== '__admin__' ? currentUserId : null,
+        senderName: msg.authorName,
+        messageType: 'text',
+      }).catch(e => console.error('[KrakenCam] Chat save failed:', e));
+    }
     setNewMsg("");
     setAttachFile(null);
     setVoiceRecError("");
@@ -19720,6 +19749,45 @@ export default function App() {
     loadTasks();
   }, [authProfile?.organization_id]);
 
+  // 🎥 Load videos from Supabase when active project changes
+  useEffect(() => {
+    if (!authProfile?.organization_id || !activeProject?.id) return;
+    dbGetVideos(activeProject.id).then(rows => {
+      if (rows?.length) {
+        setProjects(prev => prev.map(p =>
+          p.id === activeProject.id
+            ? { ...p, videos: [...(p.videos || []), ...rows.filter(r => !p.videos?.find(v => v.supabaseId === r.id))] }
+            : p
+        ));
+      }
+    }).catch(e => console.warn('[KrakenCam] Could not load videos from Supabase:', e));
+  }, [activeProject?.id, authProfile?.organization_id]);
+
+  // 📁 Load project files from Supabase when active project changes
+  useEffect(() => {
+    if (!authProfile?.organization_id || !activeProject?.id) return;
+    dbGetProjectFiles(activeProject.id).then(rows => {
+      if (rows?.length) {
+        setProjects(prev => prev.map(p =>
+          p.id === activeProject.id
+            ? { ...p, files: [...(p.files || []), ...rows.filter(r => !p.files?.find(f => f.supabaseId === r.id)).map(r => ({
+                id: r.id,
+                supabaseId: r.id,
+                name: r.name || '',
+                type: r.mime_type || '',
+                size: r.file_size || 0,
+                storagePath: r.storage_path,
+                uploadedAt: r.created_at || '',
+                category: 'General',
+                tags: [],
+                kind: r.mime_type?.startsWith('image/') ? 'Image' : r.mime_type === 'application/pdf' ? 'PDF' : 'Other',
+              }))] }
+            : p
+        ));
+      }
+    }).catch(e => console.warn('[KrakenCam] Could not load project files from Supabase:', e));
+  }, [activeProject?.id, authProfile?.organization_id]);
+
   // Write on every change — debounced to avoid hammering on rapid updates
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -20710,6 +20778,7 @@ export default function App() {
             onInitialChatOpened={() => setChatDeepLinkId(null)}
             onClose={() => setChatOpen(false)}
             onNotify={addNotification}
+            orgId={authProfile?.organization_id}
           />
         )}
 
