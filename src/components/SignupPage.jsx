@@ -159,41 +159,30 @@ export default function SignupPage({ onLogin }) {
 
       const userId = authData.user.id;
 
-      // Step 2: Create org + profile via our own API
-      // This is done server-side (with service role) to ensure atomicity
-      // and to bypass RLS for the initial org creation.
-      const slug = toSlug(form.orgName);
+      // Step 2: Create org + profile via Edge Function (service role, bypasses RLS)
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-org`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authData.session?.access_token}`,
+          },
+          body: JSON.stringify({
+            orgName:     form.orgName.trim(),
+            userId:      userId,
+            fullName:    form.fullName.trim(),
+            email:       form.email,
+            dateOfBirth: form.dateOfBirth,
+            tier:        form.tier,
+          }),
+        }
+      );
 
-      // Create the organization
-      const { data: org, error: orgError } = await supabase
-        .from('organizations')
-        .insert({
-          name: form.orgName.trim(),
-          slug: `${slug}-${Date.now()}`, // ensure uniqueness
-        })
-        .select()
-        .single();
-
-      if (orgError) throw orgError;
-
-      // Create the admin profile
-      // NOTE: The RLS "profiles_insert_admin" policy won't apply here because
-      // this user isn't an admin yet. The initial profile creation for the org
-      // founder should be done via service role in production.
-      // For now, we use the client - adjust by calling an edge function if needed.
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          organization_id: org.id,
-          user_id:         userId,
-          role:            'admin',
-          full_name:       form.fullName.trim(),
-          email:           form.email,
-          date_of_birth:   form.dateOfBirth,
-          is_active:       true,
-        });
-
-      if (profileError) throw profileError;
+      const result = await response.json();
+      if (!response.ok || result.error) {
+        throw new Error(result.error || 'Failed to create organization');
+      }
 
       // Success! AuthProvider will detect the new session and redirect.
       // No navigate needed - AppRouter handles it.
