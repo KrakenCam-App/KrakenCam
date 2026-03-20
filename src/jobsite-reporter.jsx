@@ -19573,10 +19573,13 @@ export default function App() {
   const handleSignOut = async () => {
     localStorage.removeItem("sb_access_token");
     localStorage.removeItem("sb_refresh_token");
-    setAuthUser(null);
-    setPage("projects");
-    setActiveProject(null);
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch(e) {
+      console.error('signOut error:', e);
+    }
+    // Force reload to clear all state and show login screen
+    window.location.href = '/';
   };
 
   const addNotification = (n) => {
