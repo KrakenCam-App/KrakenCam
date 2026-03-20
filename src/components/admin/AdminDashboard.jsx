@@ -10,6 +10,7 @@ import AdminOrganizations from './AdminOrganizations.jsx'
 import AdminDiscountCodes from './AdminDiscountCodes.jsx'
 import AdminEnterprise from './AdminEnterprise.jsx'
 import AdminAnalytics from './AdminAnalytics.jsx'
+import AdminSettings from './AdminSettings.jsx'
 
 const NAV_ITEMS = [
   { id: 'overview',      label: 'Overview',        icon: '📊' },
@@ -17,6 +18,7 @@ const NAV_ITEMS = [
   { id: 'analytics',    label: 'Analytics',        icon: '📈' },
   { id: 'enterprise',   label: 'Enterprise',       icon: '💎' },
   { id: 'discounts',    label: 'Discount Codes',   icon: '🏷️' },
+  { id: 'settings',     label: 'Settings',         icon: '⚙️' },
 ]
 
 const S = {
@@ -218,7 +220,6 @@ function SettingsPanel({ onClose }) {
 export default function AdminDashboard() {
   const [activeSection, setActiveSection] = useState('overview')
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [showSettings, setShowSettings] = useState(false)
 
   const activeItem = NAV_ITEMS.find(n => n.id === activeSection)
 
@@ -229,6 +230,7 @@ export default function AdminDashboard() {
       case 'analytics':     return <AdminAnalytics />
       case 'enterprise':    return <AdminEnterprise />
       case 'discounts':     return <AdminDiscountCodes />
+      case 'settings':      return <AdminSettings />
       default:              return <AdminOverview />
     }
   }
@@ -263,7 +265,7 @@ export default function AdminDashboard() {
 
         <div
           style={{ ...S.sidebarFooter(sidebarOpen), cursor: 'pointer' }}
-          onClick={() => setShowSettings(true)}
+          onClick={() => setActiveSection('settings')}
           title="Admin Settings"
         >
           <span style={{ fontSize: 13 }}>⚙️</span>
@@ -287,8 +289,6 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Settings panel */}
-      {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
     </div>
   )
 }
