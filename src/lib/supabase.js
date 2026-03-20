@@ -1,6 +1,47 @@
-import { createClient } from "@supabase/supabase-js";
+/**
+ * src/lib/supabase.js
+ *
+ * Supabase client initialization.
+ *
+ * SECURITY:
+ * - Only the ANON key is used here (safe for browser)
+ * - The SERVICE_ROLE key NEVER goes in the browser bundle
+ * - Service role key is only used in /api/* Vercel functions (server-side)
+ * - Session is persisted in localStorage by default (standard for SPAs)
+ */
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+import { createClient } from '@supabase/supabase-js';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabaseUrl  = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnon = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnon) {
+  throw new Error(
+    'Missing Supabase environment variables. ' +
+    'Make sure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in .env.local'
+  );
+}
+
+export const supabase = createClient(supabaseUrl, supabaseAnon, {
+  auth: {
+    // Persist session across page reloads
+    persistSession:    true,
+    autoRefreshToken:  true,
+    detectSessionInUrl: true,  // Handles password reset redirects
+    storage:           localStorage,
+  },
+  global: {
+    headers: {
+      'x-application-name': 'krakencam',
+    },
+  },
+});
+
+/**
+ * Get the current user's access token for API calls
+ * (used when calling our Vercel API routes)
+ */
+export async function getAccessToken() {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token || null;
+}
