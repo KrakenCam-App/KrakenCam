@@ -167,13 +167,18 @@ export default function SignupPage({ onLogin }) {
       const userId = authData.user.id;
 
       // Step 2: Create org + profile via Edge Function (service role, bypasses RLS)
+      // Use the anon key as the bearer token since the Edge Function uses service role internally
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const accessToken = authData.session?.access_token || anonKey;
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-org`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${authData.session?.access_token}`,
+            'Authorization': `Bearer ${accessToken}`,
+            'apikey': anonKey,
           },
           body: JSON.stringify({
             orgName:     form.orgName.trim(),
