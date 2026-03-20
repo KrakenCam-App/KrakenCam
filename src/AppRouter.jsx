@@ -35,7 +35,10 @@ export default function AppRouter() {
   // /admin route — protected by AdminRoute
   if (isAdmin) {
     if (!session) {
-      return <LoginPage onSignup={() => setPage('signup')} onForgotPassword={() => setPage('forgot')} />
+      if (page === 'forgot') {
+        return <ForgotPassword onBack={() => setPage('login')} />
+      }
+      return <LoginPage onSignup={null} onForgotPassword={() => setPage('forgot')} />
     }
     return <AdminRoute><AdminDashboard /></AdminRoute>
   }
