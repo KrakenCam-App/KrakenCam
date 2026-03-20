@@ -4,10 +4,9 @@
  */
 
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
-export default function ForgotPassword() {
+export default function ForgotPassword({ onBack }) {
   const [email, setEmail]     = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);

@@ -14,7 +14,7 @@
  */
 
 import React from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+// react-router-dom removed - using AppRouter pattern
 import { useAuth } from './AuthProvider';
 
 export default function ProtectedRoute({ children, requireAdmin = false }) {

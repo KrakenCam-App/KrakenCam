@@ -7,7 +7,7 @@
  */
 
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+// react-router-dom removed
 import { useAuth } from './AuthProvider';
 
 const PLANS = {

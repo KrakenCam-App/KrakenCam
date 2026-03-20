@@ -15,7 +15,6 @@
  */
 
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
 const TIERS = [
@@ -85,9 +84,7 @@ function toSlug(name) {
     .slice(0, 50);
 }
 
-export default function SignupPage() {
-  const navigate = useNavigate();
-
+export default function SignupPage({ onLogin }) {
   const [form, setForm] = useState({
     orgName:     '',
     fullName:    '',
@@ -198,8 +195,8 @@ export default function SignupPage() {
 
       if (profileError) throw profileError;
 
-      // Success! Navigate to dashboard. They're on 14-day trial.
-      navigate('/dashboard?welcome=true');
+      // Success! AuthProvider will detect the new session and redirect.
+      // No navigate needed - AppRouter handles it.
     } catch (err) {
       console.error('[SignupPage] Signup error:', err);
       if (err.message?.includes('already registered')) {
@@ -315,7 +312,7 @@ export default function SignupPage() {
           </form>
 
           <div className="auth-links">
-            Already have an account? <Link to="/login">Sign in</Link>
+            Already have an account? <button className="btn-link" onClick={onLogin}>Sign in</button>
           </div>
         </div>
       </div>

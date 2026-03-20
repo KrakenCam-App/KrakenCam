@@ -21,7 +21,7 @@
  */
 
 import React from 'react';
-import { Link } from 'react-router-dom';
+// react-router-dom removed
 import { useSubscription } from '../hooks/useSubscription';
 import { useAuth } from './AuthProvider';
 

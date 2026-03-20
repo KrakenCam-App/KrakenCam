@@ -5,10 +5,8 @@
 
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Link, useNavigate } from 'react-router-dom';
 
-export default function LoginPage() {
-  const navigate = useNavigate();
+export default function LoginPage({ onSignup, onForgotPassword }) {
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
   const [error, setError]       = useState('');
@@ -22,11 +20,9 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      // Don't expose whether the email exists or not (security best practice)
       setError('Invalid email or password. Please try again.');
-    } else {
-      navigate('/dashboard');
     }
+    // On success, AuthProvider will update session and AppRouter will redirect
 
     setLoading(false);
   }
@@ -81,16 +77,16 @@ export default function LoginPage() {
         </form>
 
         <div className="auth-links">
-          <Link to="/forgot-password">Forgot your password?</Link>
+          <button className="btn-link" onClick={onForgotPassword}>Forgot your password?</button>
         </div>
 
         <div className="auth-divider">
           <span>Don't have an account?</span>
         </div>
 
-        <Link to="/signup" className="btn-secondary btn-full">
+        <button className="btn-secondary btn-full" onClick={onSignup}>
           Start Free Trial
-        </Link>
+        </button>
       </div>
     </div>
   );
