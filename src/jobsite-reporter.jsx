@@ -19788,6 +19788,34 @@ export default function App() {
     }).catch(e => console.warn('[KrakenCam] Could not load project files from Supabase:', e));
   }, [activeProject?.id, authProfile?.organization_id]);
 
+  // 💬 Load chat history from Supabase on login / when chats change
+  useEffect(() => {
+    if (!authProfile?.organization_id || !chats?.length) return;
+    chats.forEach(chat => {
+      dbGetChatMessages(chat.id, null, 100).then(rows => {
+        if (!rows?.length) return;
+        const dbMessages = rows.map(row => ({
+          id: row.id,
+          authorId: row.sender_id,
+          authorName: row.sender_name,
+          text: row.content,
+          timestamp: row.created_at,
+          readBy: [],
+          fromDb: true,
+        }));
+        setChats(prev => prev.map(c => {
+          if (c.id !== chat.id) return c;
+          const existingIds = new Set((c.messages || []).map(m => m.id));
+          const newMessages = dbMessages.filter(m => !existingIds.has(m.id));
+          if (!newMessages.length) return c;
+          const merged = [...(c.messages || []), ...newMessages]
+            .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+          return { ...c, messages: merged };
+        }));
+      }).catch(e => console.error('[KrakenCam] Chat load failed:', e));
+    });
+  }, [authProfile?.organization_id, chats?.length]);
+
   // Write on every change — debounced to avoid hammering on rapid updates
   useEffect(() => {
     const timer = setTimeout(() => {
