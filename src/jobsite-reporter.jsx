@@ -19571,12 +19571,10 @@ export default function App() {
   };
 
   const handleSignOut = () => {
-    // Clear everything and hard reload — AuthProvider will see no session
     localStorage.clear();
     sessionStorage.clear();
-    supabase.auth.signOut().finally(() => {
-      window.location.replace('/');
-    });
+    supabase.auth.signOut();
+    window.location.replace('/');
   };
 
   const addNotification = (n) => {
