@@ -50,7 +50,7 @@ export default function AdminBilling() {
     try {
       const { data, error } = await supabase
         .from('organizations')
-        .select('id,name,slug,tier,billing_cycle,subscription_status,trial_ends_at,current_period_end,stripe_customer_id,stripe_subscription_id,created_at,seat_count,monthly_price_override')
+        .select('id,name,slug,subscription_tier,subscription_status,trial_ends_at,stripe_customer_id,stripe_subscription_id,created_at,custom_admin_price,custom_seat_price,custom_price_override')
         .order('created_at', { ascending: false })
       if (error) throw error
       setOrgs(data || [])
@@ -70,10 +70,10 @@ export default function AdminBilling() {
 
   // MRR: sum of active org base prices
   const mrr = active.reduce((sum, o) => {
-    const prices = TIER_PRICES[o.tier] || { monthly:0, annual:0 }
-    const base = o.monthly_price_override || (o.billing_cycle === 'annual' ? prices.annual : prices.monthly)
-    const seats = Math.max(0, (o.seat_count || 1) - 1) // first seat included in base
-    return sum + base + seats * (o.billing_cycle === 'annual' ? 26 : 29)
+    const prices = TIER_PRICES[o.subscription_tier] || { monthly:0, annual:0 }
+    const base = o.custom_admin_price || ((o.subscription_tier === 'command_iii' ? 'annual' : 'monthly') === 'annual' ? prices.annual : prices.monthly)
+    const seats = Math.max(0, ((o.custom_seat_price ? 2 : 1) || 1) - 1) // first seat included in base
+    return sum + base + seats * ((o.subscription_tier === 'command_iii' ? 'annual' : 'monthly') === 'annual' ? 26 : 29)
   }, 0)
 
   const arr = mrr * 12
@@ -85,10 +85,10 @@ export default function AdminBilling() {
 
   // Revenue by tier
   const byTier = ['capture_i','intelligence_ii','command_iii'].map(tier => {
-    const tierOrgs = active.filter(o => o.tier === tier)
+    const tierOrgs = active.filter(o => o.subscription_tier === tier)
     const rev = tierOrgs.reduce((sum, o) => {
       const prices = TIER_PRICES[tier] || { monthly:0, annual:0 }
-      const base = o.monthly_price_override || (o.billing_cycle === 'annual' ? prices.annual : prices.monthly)
+      const base = o.custom_admin_price || ((o.subscription_tier === 'command_iii' ? 'annual' : 'monthly') === 'annual' ? prices.annual : prices.monthly)
       return sum + base
     }, 0)
     return { tier, count: tierOrgs.length, rev }
@@ -96,8 +96,8 @@ export default function AdminBilling() {
 
   // Upcoming renewals (next 7 days)
   const renewalsSoon = active.filter(o => {
-    if (!o.current_period_end) return false
-    const d = daysUntil(o.current_period_end)
+    if (!o.trial_ends_at) return false
+    const d = daysUntil(o.trial_ends_at)
     return d !== null && d >= 0 && d <= 7
   }).sort((a,b) => new Date(a.current_period_end) - new Date(b.current_period_end))
 
@@ -182,10 +182,10 @@ export default function AdminBilling() {
                     {renewalsSoon.map(o => (
                       <tr key={o.id}>
                         <td style={S.td}>{o.name}</td>
-                        <td style={S.td}><span style={S.badge(TIER_COLOR[o.tier]||'#888')}>{TIER_LABEL[o.tier]||o.tier}</span></td>
-                        <td style={S.td}>{o.billing_cycle === 'annual' ? '📅 Annual' : '📆 Monthly'}</td>
-                        <td style={S.td}>{fmtDate(o.current_period_end)}</td>
-                        <td style={{ ...S.td, color:'#fbbf24', fontWeight:600 }}>{daysUntil(o.current_period_end)}d</td>
+                        <td style={S.td}><span style={S.badge(TIER_COLOR[o.subscription_tier]||'#888')}>{TIER_LABEL[o.subscription_tier]||o.subscription_tier}</span></td>
+                        <td style={S.td}>{(o.subscription_tier === 'command_iii' ? 'annual' : 'monthly') === 'annual' ? '📅 Annual' : '📆 Monthly'}</td>
+                        <td style={S.td}>{fmtDate(o.trial_ends_at)}</td>
+                        <td style={{ ...S.td, color:'#fbbf24', fontWeight:600 }}>{daysUntil(o.trial_ends_at)}d</td>
                       </tr>
                     ))}
                   </tbody>
@@ -214,9 +214,9 @@ export default function AdminBilling() {
                     {failed.map(o => (
                       <tr key={o.id}>
                         <td style={S.td}>{o.name}</td>
-                        <td style={S.td}><span style={S.badge(TIER_COLOR[o.tier]||'#888')}>{TIER_LABEL[o.tier]||o.tier}</span></td>
+                        <td style={S.td}><span style={S.badge(TIER_COLOR[o.subscription_tier]||'#888')}>{TIER_LABEL[o.subscription_tier]||o.subscription_tier}</span></td>
                         <td style={S.td}><span style={S.badge('#f87171')}>{o.subscription_status}</span></td>
-                        <td style={S.td}>{fmtDate(o.current_period_end)}</td>
+                        <td style={S.td}>{fmtDate(o.trial_ends_at)}</td>
                         <td style={S.td}>
                           <button style={S.actionBtn} disabled={retrying[o.id]} onClick={() => retryPayment(o)}>
                             {retrying[o.id] ? '⏳' : '↻ Retry'}
@@ -257,7 +257,7 @@ export default function AdminBilling() {
                       return (
                         <tr key={o.id}>
                           <td style={S.td}>{o.name}</td>
-                          <td style={S.td}><span style={S.badge(TIER_COLOR[o.tier]||'#888')}>{TIER_LABEL[o.tier]||o.tier}</span></td>
+                          <td style={S.td}><span style={S.badge(TIER_COLOR[o.subscription_tier]||'#888')}>{TIER_LABEL[o.subscription_tier]||o.subscription_tier}</span></td>
                           <td style={S.td}>{fmtDate(o.trial_ends_at)}</td>
                           <td style={{ ...S.td, color: urgent ? '#f87171' : warning ? '#fbbf24' : '#4ec9b0', fontWeight:600 }}>
                             {d === null ? '—' : d <= 0 ? 'Expired' : `${d}d`}
@@ -305,16 +305,16 @@ export default function AdminBilling() {
                   </tr></thead>
                   <tbody>
                     {active.map(o => {
-                      const prices = TIER_PRICES[o.tier] || { monthly:0, annual:0 }
-                      const base = o.monthly_price_override || (o.billing_cycle === 'annual' ? prices.annual : prices.monthly)
-                      const seats = Math.max(0, (o.seat_count||1) - 1)
-                      const est = base + seats * (o.billing_cycle === 'annual' ? 26 : 29)
+                      const prices = TIER_PRICES[o.subscription_tier] || { monthly:0, annual:0 }
+                      const base = o.custom_admin_price || ((o.subscription_tier === 'command_iii' ? 'annual' : 'monthly') === 'annual' ? prices.annual : prices.monthly)
+                      const seats = Math.max(0, ((o.custom_seat_price ? 2 : 1)||1) - 1)
+                      const est = base + seats * ((o.subscription_tier === 'command_iii' ? 'annual' : 'monthly') === 'annual' ? 26 : 29)
                       return (
                         <tr key={o.id}>
                           <td style={S.td}>{o.name}</td>
-                          <td style={S.td}><span style={S.badge(TIER_COLOR[o.tier]||'#888')}>{TIER_LABEL[o.tier]||o.tier}</span></td>
-                          <td style={S.td}>{o.billing_cycle === 'annual' ? '📅 Annual' : '📆 Monthly'}</td>
-                          <td style={S.td}>{o.seat_count||1}</td>
+                          <td style={S.td}><span style={S.badge(TIER_COLOR[o.subscription_tier]||'#888')}>{TIER_LABEL[o.subscription_tier]||o.subscription_tier}</span></td>
+                          <td style={S.td}>{(o.subscription_tier === 'command_iii' ? 'annual' : 'monthly') === 'annual' ? '📅 Annual' : '📆 Monthly'}</td>
+                          <td style={S.td}>{(o.custom_seat_price ? 2 : 1)||1}</td>
                           <td style={{ ...S.td, color:'#4ec9b0', fontWeight:600 }}>{fmt$(est)}</td>
                           <td style={S.td}>{fmtDate(o.created_at)}</td>
                         </tr>

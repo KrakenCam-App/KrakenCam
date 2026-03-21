@@ -52,7 +52,7 @@ export default function AdminSupport() {
     setLoading(true)
     const { data } = await supabase
       .from('organizations')
-      .select('id,name,slug,tier,subscription_status,created_at,seat_count')
+      .select('id,name,slug,subscription_tier,subscription_status,created_at')
       .ilike('name', `%${q}%`)
       .limit(10)
     setOrgs(data || [])
@@ -71,7 +71,7 @@ export default function AdminSupport() {
     // Load users
     const { data: u } = await supabase
       .from('profiles')
-      .select('id,full_name,email,role,created_at,last_sign_in_at')
+      .select('id,user_id,full_name,email,role,created_at,is_active')
       .eq('organization_id', org.id)
       .order('created_at')
     setUsers(u || [])
@@ -116,13 +116,11 @@ export default function AdminSupport() {
   }
 
   const impersonate = async (user) => {
-    setImpersonating(user.id)
+    setImpersonating(user.user_id)
     setImpStatus(null)
     try {
-      // Use Supabase admin to generate a magic link for this user
-      // This requires the service role key — we call our edge function
       const { data, error } = await supabase.functions.invoke('admin-impersonate', {
-        body: { user_id: user.id }
+        body: { user_id: user.user_id }
       })
       if (error || !data?.link) throw new Error(error?.message || 'No link returned')
       setImpStatus({ ok: true, link: data.link, name: user.full_name || user.email })
@@ -162,7 +160,7 @@ export default function AdminSupport() {
                   <span style={{ fontSize:11, color:'#555', marginLeft:8 }}>/{o.slug}</span>
                 </div>
                 <div style={{ display:'flex', gap:6 }}>
-                  <span style={S.badge(TIER_COLOR[o.tier]||'#888')}>{TIER_LABEL[o.tier]||o.tier}</span>
+                  <span style={S.badge(TIER_COLOR[o.subscription_tier]||'#888')}>{TIER_LABEL[o.subscription_tier]||o.subscription_tier}</span>
                   <span style={S.badge(STATUS_COLOR[o.subscription_status]||'#555')}>{o.subscription_status}</span>
                 </div>
               </div>
@@ -200,7 +198,7 @@ export default function AdminSupport() {
                     <th style={S.th}>Name</th>
                     <th style={S.th}>Email</th>
                     <th style={S.th}>Role</th>
-                    <th style={S.th}>Last Sign In</th>
+                    <th style={S.th}>Status</th>
                     <th style={S.th}>Impersonate</th>
                   </tr></thead>
                   <tbody>
@@ -208,11 +206,11 @@ export default function AdminSupport() {
                       <tr key={u.id}>
                         <td style={S.td}>{u.full_name || '—'}</td>
                         <td style={{ ...S.td, fontFamily:'monospace', fontSize:12 }}>{u.email}</td>
-                        <td style={S.td}><span style={S.badge(u.role==='admin'?'#00d4ff':'#888')}>{u.role}</span></td>
-                        <td style={S.td}>{fmtDate(u.last_sign_in_at)}</td>
+                        <td style={S.td}><span style={S.badge(u.role==='super_admin'?'#c792ea':u.role==='admin'?'#00d4ff':'#888')}>{u.role}</span></td>
+                        <td style={S.td}><span style={S.badge(u.is_active?'#4ade80':'#f87171')}>{u.is_active?'Active':'Inactive'}</span></td>
                         <td style={S.td}>
                           <button style={S.btn} disabled={!!impersonating} onClick={() => impersonate(u)}>
-                            {impersonating===u.id ? '⏳' : '👁 View as user'}
+                            {impersonating===u.user_id ? '⏳' : '👁 View as user'}
                           </button>
                         </td>
                       </tr>

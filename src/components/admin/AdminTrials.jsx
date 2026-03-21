@@ -44,7 +44,7 @@ export default function AdminTrials() {
     setLoading(true)
     const { data } = await supabase
       .from('organizations')
-      .select('id,name,slug,tier,billing_cycle,subscription_status,trial_ends_at,created_at,seat_count')
+      .select('id,name,slug,subscription_tier,subscription_status,trial_ends_at,created_at')
       .eq('subscription_status', 'trialing')
       .order('trial_ends_at', { ascending: true })
     setOrgs(data || [])
@@ -175,7 +175,7 @@ export default function AdminTrials() {
                         <div style={{ fontWeight:600, color:'#e8e8e8' }}>{o.name}</div>
                         <div style={{ fontSize:11, color:'#555' }}>/{o.slug}</div>
                       </td>
-                      <td style={S.td}><span style={S.badge(TIER_COLOR[o.tier]||'#888')}>{TIER_LABEL[o.tier]||o.tier}</span></td>
+                      <td style={S.td}><span style={S.badge(TIER_COLOR[o.subscription_tier]||'#888')}>{TIER_LABEL[o.subscription_tier]||o.subscription_tier}</span></td>
                       <td style={S.td}>{fmtDate(o.trial_ends_at)}</td>
                       <td style={{ ...S.td, color:dColor, fontWeight:700, fontSize:15 }}>
                         {d === null ? '—' : d <= 0 ? 'Expired' : `${d}d`}
