@@ -806,9 +806,8 @@ const CSS = `
   .cam-guide-box::after{top:0;right:0;border-width:2px 2px 0 0;}
   .cam-guide-box span::before{bottom:0;left:0;border-width:0 0 2px 2px;}
   .cam-guide-box span::after{bottom:0;right:0;border-width:0 2px 2px 0;}
-  .cam-flash{position:absolute;inset:0;background:white;pointer-events:none;opacity:0;z-index:20;transition:opacity .03s;}
-  .cam-flash.on{opacity:1;transition:opacity .03s;}
-  .cam-flash.off{opacity:0;transition:opacity .18s;}
+  .cam-flash{position:absolute;inset:0;background:white;pointer-events:none;opacity:0;z-index:20;transition:opacity .04s;}
+  .cam-flash.on{opacity:1;}
   .cam-hud-top{position:absolute;top:0;left:0;right:0;padding:13px 16px;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(to bottom,rgba(0,0,0,.7),transparent);z-index:10;gap:8px;flex-wrap:wrap;}
   .cam-hud-bot{position:absolute;bottom:0;left:0;right:0;padding:12px 18px 22px;background:linear-gradient(to top,rgba(0,0,0,.85),transparent);z-index:10;}
   .shutter-outer{width:74px;height:74px;border-radius:50%;border:3px solid rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;transition:transform .1s;flex-shrink:0;}
@@ -1099,14 +1098,13 @@ const CSS = `
 
 // ── Camera Component ───────────────────────────────────────────────────────────
 function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
-  const videoRef        = useRef(null);
-  const canvasRef       = useRef(null);
-  const flashRef        = useRef(null);
-  const streamRef       = useRef(null);
-  const imageCaptureRef = useRef(null); // persistent ImageCapture instance
-  const mediaRecRef     = useRef(null);
-  const chunksRef       = useRef([]);
-  const recTimerRef     = useRef(null);
+  const videoRef     = useRef(null);
+  const canvasRef    = useRef(null);
+  const flashRef     = useRef(null);
+  const streamRef    = useRef(null);
+  const mediaRecRef  = useRef(null);
+  const chunksRef    = useRef([]);
+  const recTimerRef  = useRef(null);
 
   const [camState,    setCamState]    = useState("starting");
   const [facing,      setFacing]      = useState("environment");
@@ -1132,7 +1130,6 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
   const [flashMode,      setFlashMode]      = useState("off");
   const [torchOn,        setTorchOn]        = useState(false);   // kept for compat, unused
   const [torchSupported, setTorchSupported] = useState(false);
-
 
 
   // Video mode state
@@ -1213,19 +1210,14 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
       }
       // Reset flash when switching cameras
       setFlashMode("off");
-      // Create a persistent ImageCapture instance and fully warm it up
+      // Pre-warm ImageCapture so fillLightMode:'flash' is ready on first shot
       try {
         const t = stream.getVideoTracks()[0];
         if (t && typeof ImageCapture !== "undefined") {
           const ic = new ImageCapture(t);
-          imageCaptureRef.current = ic;
-          // Warmup: capabilities + a no-flash grab so the pipeline is hot
-          await ic.getPhotoCapabilities().catch(() => {});
-          await ic.grabFrame().catch(() => {});
-        } else {
-          imageCaptureRef.current = null;
+          ic.getPhotoCapabilities().catch(() => {});
         }
-      } catch { imageCaptureRef.current = null; }
+      } catch { /* ignore */ }
       setCamState("live");
     } catch (e) {
       setCamState(e.name === "NotAllowedError" || e.name === "PermissionDeniedError" ? "denied" : "error");
@@ -1260,6 +1252,9 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
     if (video.readyState < 2 || video.videoWidth === 0) return;
     setFiring(true);
 
+    // Screen flash overlay
+    if (flashRef.current) { flashRef.current.classList.add("on"); setTimeout(() => flashRef.current?.classList.remove("on"), 140); }
+
     const qualityMap = { low: 0.5, moderate: 0.85, high: 0.97 };
     const jpegQuality = qualityMap[settings?.photoQuality] ?? 0.88;
     const resMap = { low: 1920, moderate: 2560, high: 3840 };
@@ -1275,58 +1270,35 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
       ctx.fillText(gps ? `GPS: ${gps.lat}, ${gps.lng}` : "GPS: unavailable", 18, cvs.height - 17);
     };
 
-    // ── Flash path: screen flash as fill light ──
-    // The LED cannot be controlled via any web API on Chrome Android.
-    // Screen flash is the guaranteed alternative — it illuminates the subject,
-    // the camera AE responds to the white screen, and we capture at peak brightness.
-    if (flashMode === "on") {
-      // Step 1: blast screen to full white
-      if (flashRef.current) {
-        flashRef.current.style.transition = "none";
-        flashRef.current.style.opacity = "1";
-      }
-      // Step 2: request max screen brightness via Wake Lock + full white
-      // Give camera AE time to adjust to the bright screen (150ms)
-      await new Promise(r => setTimeout(r, 150));
-      // Step 3: capture via ImageCapture for full sensor resolution
-      const track = streamRef.current?.getVideoTracks()[0];
-      let captured = false;
+    // ── ImageCapture path (Chrome Android — supports fillLightMode:'flash') ──
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (flashMode === "on" && facing === "environment") {
       if (track && typeof ImageCapture !== "undefined") {
         try {
-          const ic = new ImageCapture(track);
-          const blob = await ic.takePhoto();
+          const imageCapture = new ImageCapture(track);
+          // Call getPhotoCapabilities first — this warms up the ImageCapture API
+          // and makes fillLightMode:'flash' fire reliably on Chrome Android
+          await imageCapture.getPhotoCapabilities().catch(() => {});
+          const blob = await imageCapture.takePhoto({ fillLightMode: "flash" });
           const bmp = await createImageBitmap(blob);
           const vw = bmp.width, vh = bmp.height;
           const scale = Math.min(maxRes / vw, maxRes / vh, 1);
-          canvas.width = Math.round(vw * scale); canvas.height = Math.round(vh * scale);
+          canvas.width  = Math.round(vw * scale);
+          canvas.height = Math.round(vh * scale);
           const ctx = canvas.getContext("2d");
           ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
           drawOverlay(canvas);
           setReviewImg(canvas.toDataURL("image/jpeg", jpegQuality));
-          captured = true;
-        } catch (e) { console.warn("[KrakenCam] IC takePhoto failed:", e?.message); }
+          setTimeout(() => setFiring(false), 200);
+          return;
+        } catch (e) {
+          console.warn("[KrakenCam] ImageCapture flash failed, falling back:", e?.message);
+          // fall through to canvas path below
+        }
       }
-      if (!captured) {
-        // Fallback: draw from video element
-        const vwF = video.videoWidth || 1280, vhF = video.videoHeight || 720;
-        const scaleF = Math.min(maxRes / vwF, maxRes / vhF, 1);
-        canvas.width = Math.round(vwF * scaleF); canvas.height = Math.round(vhF * scaleF);
-        const ctxF = canvas.getContext("2d");
-        ctxF.drawImage(video, 0, 0, canvas.width, canvas.height);
-        drawOverlay(canvas);
-        setReviewImg(canvas.toDataURL("image/jpeg", jpegQuality));
-      }
-      // Step 4: fade screen back out
-      if (flashRef.current) {
-        flashRef.current.style.transition = "opacity 0.25s";
-        flashRef.current.style.opacity = "0";
-      }
-      setTimeout(() => setFiring(false), 200);
-      return;
     }
 
-    // ── No-flash canvas path ──
-    if (flashRef.current) { flashRef.current.classList.add("on"); setTimeout(() => flashRef.current?.classList.remove("on"), 140); }
+    // ── Canvas path (no flash / fallback) ──
     const vw = video.videoWidth || 1280, vh = video.videoHeight || 720;
     const scale = Math.min(maxRes / vw, maxRes / vh, 1);
     canvas.width = Math.round(vw * scale); canvas.height = Math.round(vh * scale);
@@ -1418,7 +1390,7 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
     setReviewVideo(null); setRecSeconds(0); setRecState("idle");
   };
 
-  const flipCam = () => { setFlashMode("off"); setFacing(prev => prev === "environment" ? "user" : "environment"); };
+  const flipCam = () => { setFacing(prev => prev === "environment" ? "user" : "environment"); };
   const cycleTimer = () => setTimerSec(t => t === 0 ? 3 : t === 3 ? 10 : 0);
 
   const roomList = project?.rooms?.map(r => r.name) || ["General"];
