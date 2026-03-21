@@ -1206,12 +1206,9 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
           setTimeout(resolve, 2000);
         });
       }
-      // Detect torch support on the new stream
-      const track = stream.getVideoTracks()[0];
-      const caps  = track?.getCapabilities?.();
-      const hasTorch = !!(caps?.torch);
-      setTorchSupported(hasTorch);
-      if (!hasTorch) setTorchOn(false); // reset if new camera doesn't support it
+      // Reset torch when switching cameras
+      setTorchOn(false);
+      setTorchSupported(true); // assume supported until proven otherwise on first tap
       setCamState("live");
     } catch (e) {
       setCamState(e.name === "NotAllowedError" || e.name === "PermissionDeniedError" ? "denied" : "error");
@@ -1242,8 +1239,10 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
     try {
       await track.applyConstraints({ advanced: [{ torch: next }] });
       setTorchOn(next);
-    } catch {
-      // torch constraint rejected (device doesn't support it at runtime)
+    } catch (err) {
+      // Constraint rejected — this device/browser doesn't support torch
+      console.warn("[KrakenCam] Torch not supported:", err?.message || err);
+      setTorchOn(false);
       setTorchSupported(false);
     }
   }, [torchOn]);
@@ -1636,7 +1635,7 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
                   {timerSec > 0 ? <span style={{ fontWeight:700,fontSize:13 }}>{timerSec}s</span> : <Icon d={ic.timer} size={18} />}
                 </div>
                 <div className={`cam-icon-btn ${gridOn?"lit":""}`} title="Grid" onClick={() => setGridOn(g => !g)}><Icon d={ic.grid} size={18} /></div>
-                {torchSupported && (
+                {torchSupported && facing === "environment" && (
                   <div
                     className={`cam-icon-btn ${torchOn ? "lit" : ""}`}
                     title={torchOn ? "Flash on (tap to turn off)" : "Flash off (tap to turn on)"}
