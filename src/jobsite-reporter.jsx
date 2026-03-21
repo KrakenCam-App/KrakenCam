@@ -1248,10 +1248,51 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
     if (caps?.zoom) track.applyConstraints({ advanced: [{ zoom }] }).catch(() => {});
   }, [zoom]);
 
-  // toggleFlash: cycles flashMode between off/on
-  const toggleTorch = useCallback(() => {
-    setFlashMode(m => m === "off" ? "on" : "off");
-  }, []);
+  // ── Toggle flash: arm/disarm, restart stream with torch on/off ──
+  const toggleTorch = useCallback(async () => {
+    const next = flashMode === "off" ? "on" : "off";
+    setFlashMode(next);
+
+    const photoResMap = {
+      low:      { width: { ideal: 1280 }, height: { ideal: 720  } },
+      moderate: { width: { ideal: 1920 }, height: { ideal: 1080 } },
+      high:     { width: { ideal: 3840 }, height: { ideal: 2160 } },
+    };
+    const streamRes = photoResMap[settings?.photoQuality] ?? photoResMap.moderate;
+
+    // Stop current stream
+    if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+
+    try {
+      const constraints = next === "on"
+        ? { video: { facingMode: { exact: "environment" }, ...streamRes, torch: true }, audio: false }
+        : { video: { facingMode: "environment", ...streamRes }, audio: true };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = stream;
+      imageCaptureRef.current = (typeof ImageCapture !== "undefined")
+        ? new ImageCapture(stream.getVideoTracks()[0])
+        : null;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(() => {});
+      }
+    } catch (e) {
+      console.warn("[KrakenCam] torch stream request failed:", e?.message);
+      // Torch constraint not supported — fall back to normal stream, stay in flash mode
+      // so screen flash still fires on capture
+      try {
+        const fallback = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment", ...streamRes }, audio: true,
+        });
+        streamRef.current = fallback;
+        imageCaptureRef.current = (typeof ImageCapture !== "undefined")
+          ? new ImageCapture(fallback.getVideoTracks()[0])
+          : null;
+        if (videoRef.current) { videoRef.current.srcObject = fallback; videoRef.current.play().catch(() => {}); }
+      } catch { /* ignore */ }
+    }
+  }, [flashMode, settings?.photoQuality]);
 
   // ── Photo capture ──
   const doSnap = useCallback(async () => {
@@ -1276,48 +1317,17 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
     };
 
     // ── Flash path ──
-    const track = streamRef.current?.getVideoTracks()[0];
     if (flashMode === "on") {
-      // Screen flash: white overlay at full brightness — fires instantly,
-      // illuminates the subject from the screen, and triggers camera AE.
-      // This is the most reliable fill-flash available in a web app.
-      if (flashRef.current) {
-        flashRef.current.classList.remove("off");
-        flashRef.current.classList.add("on");
-      }
-      // Wait for screen to reach peak brightness before capturing
-      await new Promise(r => setTimeout(r, 80));
-
-      // Also attempt LED via ImageCapture (fires when Chrome decides to, bonus if it does)
-      if (track && typeof ImageCapture !== "undefined") {
-        try {
-          const ic = new ImageCapture(track);
-          const blob = await ic.takePhoto({ fillLightMode: "flash" });
-          // Fade screen flash out slowly
-          if (flashRef.current) { flashRef.current.classList.remove("on"); flashRef.current.classList.add("off"); setTimeout(() => flashRef.current?.classList.remove("off"), 300); }
-          const bmp = await createImageBitmap(blob);
-          const vw = bmp.width, vh = bmp.height;
-          const scale = Math.min(maxRes / vw, maxRes / vh, 1);
-          canvas.width  = Math.round(vw * scale);
-          canvas.height = Math.round(vh * scale);
-          const ctx = canvas.getContext("2d");
-          ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
-          drawOverlay(canvas);
-          setReviewImg(canvas.toDataURL("image/jpeg", jpegQuality));
-          setTimeout(() => setFiring(false), 200);
-          return;
-        } catch (e) {
-          console.warn("[KrakenCam] ImageCapture flash failed, using screen flash only:", e?.message);
-        }
-      }
-      // Screen-flash-only fallback: capture from video element while screen is white
+      // The stream was re-requested with torch:true when flash was armed.
+      // If that worked, the LED is already on — just capture from the lit video.
+      // Screen flash fires simultaneously as a guaranteed fill light.
+      if (flashRef.current) { flashRef.current.classList.remove("off"); flashRef.current.classList.add("on"); }
+      await new Promise(r => setTimeout(r, 60)); // let screen reach peak brightness
       const vwF = video.videoWidth || 1280, vhF = video.videoHeight || 720;
       const scaleF = Math.min(maxRes / vwF, maxRes / vhF, 1);
       canvas.width = Math.round(vwF * scaleF); canvas.height = Math.round(vhF * scaleF);
       const ctxF = canvas.getContext("2d");
-      if (facing === "user") { ctxF.translate(canvas.width, 0); ctxF.scale(-1, 1); }
       ctxF.drawImage(video, 0, 0, canvas.width, canvas.height);
-      ctxF.setTransform(1, 0, 0, 1, 0, 0);
       drawOverlay(canvas);
       setReviewImg(canvas.toDataURL("image/jpeg", jpegQuality));
       if (flashRef.current) { flashRef.current.classList.remove("on"); flashRef.current.classList.add("off"); setTimeout(() => flashRef.current?.classList.remove("off"), 300); }
@@ -1418,7 +1428,7 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
     setReviewVideo(null); setRecSeconds(0); setRecState("idle");
   };
 
-  const flipCam = () => { setFacing(prev => prev === "environment" ? "user" : "environment"); };
+  const flipCam = () => { setFlashMode("off"); setFacing(prev => prev === "environment" ? "user" : "environment"); };
   const cycleTimer = () => setTimerSec(t => t === 0 ? 3 : t === 3 ? 10 : 0);
 
   const roomList = project?.rooms?.map(r => r.name) || ["General"];
