@@ -365,8 +365,8 @@ export default function AdminPricing() {
     const prices = buildPricesArray(mode === 'new_customers' ? values : globalValues)
 
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token
+      // Use anon key directly — avoids Brave IndexedDB lock on getSession()
+      const token = import.meta.env.VITE_SUPABASE_ANON_KEY
 
       if (mode === 'all_customers') {
         setStatusMsg({ type: 'progress', text: `Updating ${activeOrgCount ?? 'all'} subscriptions…` })
