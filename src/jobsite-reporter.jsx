@@ -19177,16 +19177,27 @@ function SettingsPage({ settings, onSave, onDeleteAccount, projects = [], users 
                 </div>
               </div>
 
-              <div style={{ borderTop:"1px solid var(--border)",paddingTop:14,display:"flex",flexDirection:"column",gap:8 }}>
+              <div style={{ borderTop:"1px solid var(--border)",paddingTop:14,display:"flex",flexDirection:"column",gap:10 }}>
                 <div style={{ fontSize:12.5,color:"var(--text2)",lineHeight:1.6 }}>
-                  Built for field professionals who need fast, reliable jobsite documentation. Questions, feedback, or issues? Our team is happy to help.
+                  Built for field professionals who need fast, reliable jobsite documentation. Questions, feedback, or issues? We're here to help.
                 </div>
-                <button
-                  onClick={() => window.open("https://www.krakencam.com/support", "_blank", "noopener,noreferrer")}
-                  className="btn btn-secondary btn-sm"
-                  style={{ alignSelf:"flex-start",display:"flex",alignItems:"center",gap:7 }}>
-                  <Icon d={ic.arrowUpRight} size={14} /> Get Help
-                </button>
+                <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
+                  <a
+                    href="mailto:support@krakencam.com"
+                    className="btn btn-primary btn-sm"
+                    style={{ display:"flex",alignItems:"center",gap:7,textDecoration:"none" }}>
+                    <Icon d={ic.mail} size={13} /> Email Support
+                  </a>
+                  <a
+                    href="mailto:info@krakencam.com"
+                    className="btn btn-secondary btn-sm"
+                    style={{ display:"flex",alignItems:"center",gap:7,textDecoration:"none" }}>
+                    <Icon d={ic.mail} size={13} /> Sales Inquiry
+                  </a>
+                </div>
+                <div style={{ fontSize:11.5,color:"var(--text3)" }}>
+                  📧 support@krakencam.com &nbsp;·&nbsp; info@krakencam.com
+                </div>
               </div>
 
               <div style={{ borderTop:"1px solid var(--border)",paddingTop:14,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8 }}>
@@ -20758,6 +20769,7 @@ export default function App() {
     { id:"jobmap",     label:"Jobsite Map",     icon:ic.mapPin,        section:"tools", proOnly:true },
     { id:"account",    label:"Account",         icon:ic.shield,        section:"tools" },
     { id:"settings",   label:"Settings",        icon:ic.settings,      section:"tools" },
+    { id:"help",       label:"Help & Support",  icon:ic.mail,          section:"tools" },
   ];
 
   const userInitials = `${settings.userFirstName?.[0]||"J"}${settings.userLastName?.[0]||"D"}`.toUpperCase();
@@ -20856,6 +20868,13 @@ export default function App() {
                   {!navCollapsed && <span style={{ marginLeft:"auto",fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:6,background:"var(--surface3)",color:"var(--text3)",whiteSpace:"nowrap" }}>II+</span>}
                 </div>
               );
+              if (item.id === "help") {
+                return (
+                  <a key={item.id} href="mailto:support@krakencam.com" className="nav-item" title="Email support@krakencam.com" style={{ textDecoration:"none",color:"inherit" }}>
+                    <Icon d={item.icon} size={15} /><span className="nav-item-label">{item.label}</span>
+                  </a>
+                );
+              }
               return (
                 <div key={item.id} className={`nav-item ${page===item.id?"active":""}`} title={navCollapsed ? item.label : ""} onClick={() => setPage(item.id)}>
                   <Icon d={item.icon} size={15} /><span className="nav-item-label">{item.label}</span>
