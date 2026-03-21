@@ -1132,6 +1132,7 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
   const [flashMode,      setFlashMode]      = useState("off");
   const [torchOn,        setTorchOn]        = useState(false);   // kept for compat, unused
   const [torchSupported, setTorchSupported] = useState(false);
+  const [flashDebug,     setFlashDebug]     = useState("tap ⚡ to diagnose");
 
 
 
@@ -1248,51 +1249,53 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
     if (caps?.zoom) track.applyConstraints({ advanced: [{ zoom }] }).catch(() => {});
   }, [zoom]);
 
-  // ── Toggle flash: arm/disarm, restart stream with torch on/off ──
+  // ── Torch diagnostic + toggle ──
   const toggleTorch = useCallback(async () => {
     const next = flashMode === "off" ? "on" : "off";
     setFlashMode(next);
+    if (next === "off") { setFlashDebug("off"); return; }
 
-    const photoResMap = {
-      low:      { width: { ideal: 1280 }, height: { ideal: 720  } },
-      moderate: { width: { ideal: 1920 }, height: { ideal: 1080 } },
-      high:     { width: { ideal: 3840 }, height: { ideal: 2160 } },
-    };
-    const streamRes = photoResMap[settings?.photoQuality] ?? photoResMap.moderate;
+    const log = [];
+    const track = streamRef.current?.getVideoTracks()[0];
 
-    // Stop current stream
-    if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
-
-    try {
-      const constraints = next === "on"
-        ? { video: { facingMode: { exact: "environment" }, ...streamRes, torch: true }, audio: false }
-        : { video: { facingMode: "environment", ...streamRes }, audio: true };
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      streamRef.current = stream;
-      imageCaptureRef.current = (typeof ImageCapture !== "undefined")
-        ? new ImageCapture(stream.getVideoTracks()[0])
-        : null;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play().catch(() => {});
-      }
-    } catch (e) {
-      console.warn("[KrakenCam] torch stream request failed:", e?.message);
-      // Torch constraint not supported — fall back to normal stream, stay in flash mode
-      // so screen flash still fires on capture
+    // Test 1: applyConstraints advanced torch
+    if (track) {
       try {
-        const fallback = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment", ...streamRes }, audio: true,
-        });
-        streamRef.current = fallback;
-        imageCaptureRef.current = (typeof ImageCapture !== "undefined")
-          ? new ImageCapture(fallback.getVideoTracks()[0])
-          : null;
-        if (videoRef.current) { videoRef.current.srcObject = fallback; videoRef.current.play().catch(() => {}); }
-      } catch { /* ignore */ }
+        await track.applyConstraints({ advanced: [{ torch: true }] });
+        log.push("applyAdv:ok");
+        await new Promise(r => setTimeout(r, 600));
+        await track.applyConstraints({ advanced: [{ torch: false }] }).catch(() => {});
+      } catch (e) { log.push(`applyAdv:err(${e?.name})`); }
+    } else { log.push("applyAdv:notrack"); }
+
+    // Test 2: getCapabilities torch
+    if (track) {
+      const caps = track.getCapabilities?.() || {};
+      log.push(`caps.torch:${caps.torch ?? "undef"}`);
     }
-  }, [flashMode, settings?.photoQuality]);
+
+    // Test 3: ImageCapture fillLightMode caps
+    if (track && typeof ImageCapture !== "undefined") {
+      try {
+        const ic = new ImageCapture(track);
+        const pc = await ic.getPhotoCapabilities().catch(() => null);
+        log.push(`IC.flm:${JSON.stringify(pc?.fillLightMode ?? "none")}`);
+      } catch (e) { log.push(`IC:err(${e?.name})`); }
+    } else { log.push("IC:unavail"); }
+
+    // Test 4: getUserMedia with torch:true top-level
+    try {
+      const ts = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { exact: "environment" }, torch: true }, audio: false,
+      });
+      log.push("gUM.torch:ok");
+      await new Promise(r => setTimeout(r, 600));
+      ts.getTracks().forEach(t => t.stop());
+    } catch (e) { log.push(`gUM.torch:err(${e?.name})`); }
+
+    setFlashDebug(log.join(" | "));
+    setFlashMode("off");
+  }, [flashMode]);
 
   // ── Photo capture ──
   const doSnap = useCallback(async () => {
@@ -1598,6 +1601,11 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
             opacity: camState === "live" ? 1 : 0,
             transition:"opacity .3s" }} />
         <div ref={flashRef} className="cam-flash" />
+        <div style={{ position:"absolute",bottom:170,left:0,right:0,zIndex:30,textAlign:"center",pointerEvents:"none",padding:"0 12px" }}>
+          <span style={{ background:"rgba(0,0,0,.88)",color:"#ffe066",fontSize:10,padding:"5px 10px",borderRadius:6,fontFamily:"monospace",wordBreak:"break-all",display:"inline-block",maxWidth:"100%",lineHeight:1.6 }}>
+            {flashDebug}
+          </span>
+        </div>
         {gridOn && camState === "live" && mode === "photo" && (
           <svg className="cam-grid-svg" style={{ opacity:.22 }}>
             <line x1="33.33%" y1="0" x2="33.33%" y2="100%" stroke="white" strokeWidth="1" />
