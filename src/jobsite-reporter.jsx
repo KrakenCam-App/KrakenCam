@@ -18007,12 +18007,74 @@ function StatusListEditor({ items: rawItems, onChange }) {
   );
 }
 
-function SettingsPage({ settings, onSave, onDeleteAccount }) {
+function SettingsPage({ settings, onSave, onDeleteAccount, projects = [], users = [] }) {
   const [tab, setTab]   = useState(typeof window !== "undefined" && window.innerWidth <= 768 ? "appearance" : "company");
   const [form, setForm] = useState({ ...settings });
   const [saved, setSaved] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportDone, setExportDone] = useState(false);
+
+  const handleExportData = async () => {
+    setExporting(true);
+    setExportDone(false);
+    try {
+      // Bundle all account data — only this org's data (already in local state, RLS-enforced on load)
+      const exportPayload = {
+        exported_at: new Date().toISOString(),
+        account: {
+          org_name:    settings.orgName || settings.companyName || "My Organization",
+          plan:        settings.plan,
+          export_note: "This export contains all data for your KrakenCam account only.",
+        },
+        settings: {
+          ...settings,
+          // Strip sensitive keys
+          supabaseKey: undefined, serviceRoleKey: undefined,
+        },
+        users: users.map(u => ({
+          name:  u.name || u.full_name,
+          email: u.email,
+          role:  u.role,
+        })),
+        projects: projects.map(p => ({
+          id:       p.id,
+          title:    p.title,
+          type:     p.type,
+          status:   p.status,
+          date:     p.date,
+          address:  p.address,
+          rooms:    p.rooms,
+          photos:   (p.photos  || []),   // includes dataUrl base64
+          videos:   (p.videos  || []).map(v => ({ ...v, dataUrl: undefined, _blob: undefined })), // strip blobs
+          reports:  p.reports  || [],
+          files:    (p.files   || []).map(f => ({ ...f, dataUrl: undefined })), // strip file data
+          notes:    p.notes    || [],
+          tasks:    p.tasks    || [],
+          checklists: p.checklists || [],
+          gps:      p.gps,
+          coords:   p.coords,
+        })),
+      };
+
+      const json = JSON.stringify(exportPayload, null, 2);
+      const blob = new Blob([json], { type: "application/json" });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `krakencam-export-${new Date().toISOString().slice(0,10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setExportDone(true);
+    } catch (e) {
+      console.error("Export failed:", e);
+    }
+    setExporting(false);
+  };
   const [pwForm, setPwForm] = useState({ current:"", newPw:"", confirm:"" });
   const [pwError, setPwError] = useState("");
   const [pwSuccess, setPwSuccess] = useState(false);
@@ -18396,7 +18458,16 @@ function SettingsPage({ settings, onSave, onDeleteAccount }) {
 
           {/* Danger zone — admin only, desktop only */}
           {form.userRole === "admin" && !isMobile && (
-            <div style={{ marginTop:32,paddingTop:24,borderTop:"1px solid var(--border)",display:"flex",justifyContent:"flex-end" }}>
+            <div style={{ marginTop:32,paddingTop:24,borderTop:"1px solid var(--border)",display:"flex",justifyContent:"flex-end",gap:10,alignItems:"center" }}>
+              {/* Export Data */}
+              <button
+                onClick={() => { setShowExportModal(true); setExportDone(false); }}
+                style={{ display:"flex",alignItems:"center",gap:6,padding:"6px 14px",fontSize:12,fontWeight:600,borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"transparent",color:"var(--text2)",cursor:"pointer",opacity:0.85,transition:"opacity .15s" }}
+                onMouseEnter={e => e.currentTarget.style.opacity=1}
+                onMouseLeave={e => e.currentTarget.style.opacity=0.85}>
+                <Icon d={ic.download} size={13} /> Export My Data
+              </button>
+              {/* Delete Account */}
               <button
                 onClick={() => { setShowDeleteModal(true); setDeleteConfirmText(""); }}
                 style={{ display:"flex",alignItems:"center",gap:6,padding:"6px 14px",fontSize:12,fontWeight:600,borderRadius:"var(--radius-sm)",border:"1px solid #b03030",background:"transparent",color:"#c0392b",cursor:"pointer",opacity:0.8,transition:"opacity .15s" }}
@@ -18404,6 +18475,55 @@ function SettingsPage({ settings, onSave, onDeleteAccount }) {
                 onMouseLeave={e => e.currentTarget.style.opacity=0.8}>
                 <Icon d={ic.trash} size={13} stroke="#c0392b" /> Delete Account
               </button>
+            </div>
+          )}
+
+          {/* Export Data Modal */}
+          {showExportModal && form.userRole === "admin" && !isMobile && (
+            <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,.75)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20 }}>
+              <div style={{ background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius)",maxWidth:480,width:"100%",padding:28,boxShadow:"0 24px 64px rgba(0,0,0,.5)" }}>
+                <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:16 }}>
+                  <div style={{ width:40,height:40,borderRadius:10,background:"rgba(74,144,217,.15)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
+                    <Icon d={ic.download} size={20} stroke="var(--accent)" />
+                  </div>
+                  <div>
+                    <div style={{ fontWeight:700,fontSize:16,color:"var(--text)" }}>Export Your Data</div>
+                    <div style={{ fontSize:12,color:"var(--text2)",marginTop:2 }}>Download everything in your account as a JSON file</div>
+                  </div>
+                </div>
+
+                <div style={{ background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:"var(--radius-sm)",padding:"12px 16px",marginBottom:20,fontSize:13,color:"var(--text)",lineHeight:1.7 }}>
+                  <strong>Your export will include:</strong>
+                  <ul style={{ margin:"8px 0 0 0",paddingLeft:18,color:"var(--text2)" }}>
+                    <li>All jobsites and project data</li>
+                    <li>All photos (full resolution)</li>
+                    <li>All reports, checklists, and notes</li>
+                    <li>Team members and account settings</li>
+                    <li>GPS coordinates and timestamps</li>
+                  </ul>
+                  <div style={{ marginTop:10,fontSize:12,color:"var(--text3)" }}>
+                    ⚠️ Photos are included as base64 — the file may be large depending on how many you have.
+                  </div>
+                </div>
+
+                {exportDone && (
+                  <div style={{ background:"rgba(61,186,126,.1)",border:"1px solid rgba(61,186,126,.3)",borderRadius:"var(--radius-sm)",padding:"10px 14px",marginBottom:16,fontSize:13,color:"#3dba7e",fontWeight:600 }}>
+                    ✓ Export downloaded successfully!
+                  </div>
+                )}
+
+                <div style={{ display:"flex",gap:10,justifyContent:"flex-end" }}>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setShowExportModal(false)}>Close</button>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    disabled={exporting}
+                    onClick={handleExportData}
+                    style={{ display:"flex",alignItems:"center",gap:6 }}>
+                    <Icon d={ic.download} size={13} />
+                    {exporting ? "Preparing export…" : "Download My Data"}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -20963,7 +21083,8 @@ export default function App() {
           }} onNotify={addNotification} />}
           {page === "account" && canOpenAccount && <AccountPage settings={settings} onSettingsChange={setSettings} projects={projects} users={teamUsers} onUsersChange={setTeamUsers} onProjectsChange={setProjects} onNotify={addNotification} />}
           {page === "settings" && canOpenSettings && (
-            <SettingsPage settings={settings} onSave={s => setSettings(s)} onDeleteAccount={() => {
+            <SettingsPage settings={settings} onSave={s => setSettings(s)} projects={projects} users={teamUsers}
+            onDeleteAccount={() => {
               setProjects([]);
               setTasks([]);
               setTeamUsers([]);
