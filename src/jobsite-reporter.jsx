@@ -1210,6 +1210,14 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
       }
       // Reset flash when switching cameras
       setFlashMode("off");
+      // Pre-warm ImageCapture so fillLightMode:'flash' is ready on first shot
+      try {
+        const t = stream.getVideoTracks()[0];
+        if (t && typeof ImageCapture !== "undefined") {
+          const ic = new ImageCapture(t);
+          ic.getPhotoCapabilities().catch(() => {});
+        }
+      } catch { /* ignore */ }
       setCamState("live");
     } catch (e) {
       setCamState(e.name === "NotAllowedError" || e.name === "PermissionDeniedError" ? "denied" : "error");
@@ -1267,15 +1275,11 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
     if (flashMode === "on" && facing === "environment") {
       if (track && typeof ImageCapture !== "undefined") {
         try {
-          // Step 1: force torch on — deterministic, doesn't rely on fillLightMode hint
-          await track.applyConstraints({ advanced: [{ torch: true }] }).catch(() => {});
-          // Step 2: wait for LED to reach full brightness
-          await new Promise(r => setTimeout(r, 150));
-          // Step 3: capture the frame while LED is actually lit
           const imageCapture = new ImageCapture(track);
-          const blob = await imageCapture.takePhoto();
-          // Step 4: turn torch off immediately
-          track.applyConstraints({ advanced: [{ torch: false }] }).catch(() => {});
+          // Call getPhotoCapabilities first — this warms up the ImageCapture API
+          // and makes fillLightMode:'flash' fire reliably on Chrome Android
+          await imageCapture.getPhotoCapabilities().catch(() => {});
+          const blob = await imageCapture.takePhoto({ fillLightMode: "flash" });
           const bmp = await createImageBitmap(blob);
           const vw = bmp.width, vh = bmp.height;
           const scale = Math.min(maxRes / vw, maxRes / vh, 1);
@@ -1289,7 +1293,6 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
           return;
         } catch (e) {
           console.warn("[KrakenCam] ImageCapture flash failed, falling back:", e?.message);
-          track.applyConstraints({ advanced: [{ torch: false }] }).catch(() => {});
           // fall through to canvas path below
         }
       }
