@@ -62,18 +62,17 @@ export default function AppRouter() {
     return () => authSub.unsubscribe()
   }, [])
 
-  // Check maintenance mode on load (uses public RPC — works for logged-out users too)
+  // Check maintenance mode — hard timeout so a slow/missing RPC never blocks the app
   useEffect(() => {
+    const timeout = setTimeout(() => setMaintenance(false), 3000) // give up after 3s
     supabase.rpc('get_maintenance_mode')
       .then(({ data, error }) => {
+        clearTimeout(timeout)
         if (error || !data) { setMaintenance(false); return; }
-        if (data.enabled) {
-          setMaintenance({ message: data.message || '' });
-        } else {
-          setMaintenance(false);
-        }
+        setMaintenance(data.enabled ? { message: data.message || '' } : false);
       })
-      .catch(() => setMaintenance(false));
+      .catch(() => { clearTimeout(timeout); setMaintenance(false); });
+    return () => clearTimeout(timeout)
   }, [])
 
   // Fetch user role for announcement targeting
@@ -101,7 +100,7 @@ export default function AppRouter() {
     )
   }
 
-  if (loading || maintenance === null) {
+  if (loading) {
     return (
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center',
