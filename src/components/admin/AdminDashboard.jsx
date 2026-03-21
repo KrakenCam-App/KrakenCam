@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect } from 'react'
+import { supabase } from '../../lib/supabase.js'
 import AdminOverview from './AdminOverview.jsx'
 import AdminOrganizations from './AdminOrganizations.jsx'
 import AdminDiscountCodes from './AdminDiscountCodes.jsx'
@@ -193,6 +194,11 @@ export default function AdminDashboard() {
     return () => window.removeEventListener('kc-admin-nav', handler)
   }, [])
 
+  const signOut = async () => {
+    await supabase.auth.signOut()
+    window.location.href = '/'
+  }
+
   const activeItem = NAV_ITEMS.find(n => n.id === activeSection)
 
   function renderSection() {
@@ -244,9 +250,19 @@ export default function AdminDashboard() {
           ))}
         </nav>
 
-        <div style={S.sidebarFooter(sidebarOpen)}>
-          <span style={{ fontSize: 13 }}>🦑</span>
-          <span style={S.navLabel(sidebarOpen)}>KrakenCam Admin</span>
+        <div style={{ ...S.sidebarFooter(sidebarOpen), flexDirection:'column', gap:8, alignItems: sidebarOpen?'flex-start':'center' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <span style={{ fontSize: 13 }}>🦑</span>
+            <span style={S.navLabel(sidebarOpen)}>KrakenCam Admin</span>
+          </div>
+          <button
+            onClick={signOut}
+            title="Sign out"
+            style={{ display:'flex', alignItems:'center', gap:6, background:'rgba(239,68,68,.1)', border:'1px solid rgba(239,68,68,.2)', borderRadius:6, color:'#f87171', fontSize:11, fontWeight:600, cursor:'pointer', padding: sidebarOpen?'5px 10px':'5px 8px', width: sidebarOpen?'100%':'auto', justifyContent:'center' }}
+          >
+            <span>⏏</span>
+            {sidebarOpen && <span>Sign out</span>}
+          </button>
         </div>
       </aside>
 
