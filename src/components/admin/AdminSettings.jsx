@@ -367,13 +367,21 @@ function WebhookModal({ onClose }) {
 
 function GeneralTab() {
   const [supportEmail, setSupportEmail] = useState('support@krakencam.com')
-  // Email address reference for display
+  const [currentVersion, setCurrentVersion] = useState('—')
   const [saved, setSaved] = useState(null)
 
   useEffect(() => {
     supabase.from('app_settings').select('value').eq('key', 'general').single()
       .then(({ data }) => { if (data?.value?.supportEmail) setSupportEmail(data.value.supportEmail) })
       .catch(() => {})
+    // Load latest published version from app_versions
+    const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL
+    const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY
+    fetch(`${SUPABASE_URL}/rest/v1/app_versions?published=eq.true&order=release_date.desc&limit=1&select=version,title`, {
+      headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` }
+    }).then(r => r.json()).then(data => {
+      if (Array.isArray(data) && data[0]) setCurrentVersion(`v${data[0].version}${data[0].title ? ` — ${data[0].title}` : ''}`)
+    }).catch(() => {})
   }, [])
 
   async function handleSave() {
@@ -408,7 +416,7 @@ function GeneralTab() {
         </div>
         <div style={S.row}>
           <span style={S.label}>Current Version</span>
-          <div style={S.readOnly}>1.0.0</div>
+          <div style={S.readOnly}>{currentVersion}</div>
         </div>
         <div style={S.row}>
           <span style={S.label}>Supabase Project</span>
