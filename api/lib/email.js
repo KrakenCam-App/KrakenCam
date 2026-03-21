@@ -4,7 +4,9 @@
  */
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY
-const FROM_EMAIL = 'KrakenCam <noreply@krakencam.com>'
+const FROM_EMAIL    = 'KrakenCam <noreply@krakencam.com>'   // transactional (welcome, reset, invoices)
+const SUPPORT_EMAIL = 'KrakenCam Support <support@krakencam.com>' // support replies
+const INFO_EMAIL    = 'KrakenCam <info@krakencam.com>'            // sales & general inquiries
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://nszoateefidwhhsyexjd.supabase.co'
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -42,7 +44,7 @@ async function sendEmail({ to, subject, html }) {
       'Authorization': `Bearer ${RESEND_API_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ from: FROM_EMAIL, to, subject, html })
+    body: JSON.stringify({ from: FROM_EMAIL, to, subject, html, reply_to: SUPPORT_EMAIL })
   })
   const data = await res.json()
   if (!res.ok) throw new Error(data.message || 'Failed to send email')

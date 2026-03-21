@@ -367,6 +367,7 @@ function WebhookModal({ onClose }) {
 
 function GeneralTab() {
   const [supportEmail, setSupportEmail] = useState('support@krakencam.com')
+  // Email address reference for display
   const [saved, setSaved] = useState(null)
 
   useEffect(() => {
@@ -416,16 +417,27 @@ function GeneralTab() {
       </div>
 
       <div style={S.card}>
-        <div style={S.sectionHeader}>Contact</div>
+        <div style={S.sectionHeader}>Email Addresses</div>
 
         <div style={S.row}>
-          <span style={S.label}>Support Email</span>
+          <span style={S.label}>Admin / Backend</span>
+          <div style={S.readOnly}>krakencamco@gmail.com</div>
+          <span style={{ fontSize:11, color:'#555' }}>Admin logins, backend ops</span>
+        </div>
+        <div style={S.row}>
+          <span style={S.label}>General / Sales</span>
+          <div style={S.readOnly}>info@krakencam.com</div>
+          <span style={{ fontSize:11, color:'#555' }}>General inquiries, sales, form submissions</span>
+        </div>
+        <div style={S.row}>
+          <span style={S.label}>Support</span>
           <input
             style={S.input}
             value={supportEmail}
             onChange={e => setSupportEmail(e.target.value)}
             placeholder="support@krakencam.com"
           />
+          <span style={{ fontSize:11, color:'#555' }}>Support issues, reply-to on emails</span>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
