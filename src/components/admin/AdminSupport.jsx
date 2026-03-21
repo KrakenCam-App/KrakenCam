@@ -50,8 +50,10 @@ export default function AdminSupport() {
   const searchOrgs = useCallback(async (q) => {
     if (!q.trim()) { setOrgs([]); return }
     setLoading(true)
-    const { data } = await supabase.rpc('admin_search_orgs', { search_term: q })
-    setOrgs(data || [])
+    const { data, error } = await supabase.rpc('admin_search_orgs', { search_term: q })
+    console.log('[Support search]', { q, data, error })
+    const results = Array.isArray(data) ? data : data ? [data] : []
+    setOrgs(results)
     setLoading(false)
   }, [])
 
