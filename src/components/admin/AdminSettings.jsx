@@ -367,12 +367,29 @@ function WebhookModal({ onClose }) {
 
 function GeneralTab() {
   const [supportEmail, setSupportEmail] = useState('support@krakencam.com')
-  const [saved, setSaved] = useState(false)
+  const [saved, setSaved] = useState(null)
 
-  function handleSave() {
-    // In production this would write to a config table
-    setSaved(true)
-    setTimeout(() => setSaved(false), 3000)
+  useEffect(() => {
+    supabase.from('app_settings').select('value').eq('key', 'general').single()
+      .then(({ data }) => { if (data?.value?.supportEmail) setSupportEmail(data.value.supportEmail) })
+      .catch(() => {})
+  }, [])
+
+  async function handleSave() {
+    setSaved('saving')
+    try {
+      const { error } = await supabase.from('app_settings').upsert({
+        key: 'general',
+        value: { supportEmail },
+        updated_at: new Date().toISOString(),
+      })
+      if (error) throw error
+      setSaved('ok')
+    } catch (e) {
+      console.error('General save error:', e)
+      setSaved('error')
+    }
+    setTimeout(() => setSaved(null), 3000)
   }
 
   return (
@@ -412,8 +429,11 @@ function GeneralTab() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
-          <button style={S.btn} onClick={handleSave}>Save Changes</button>
-          {saved && <span style={S.statusMsg(true)}>✓ Saved</span>}
+          <button style={S.btn} onClick={handleSave} disabled={saved === 'saving'}>
+            {saved === 'saving' ? '⏳ Saving…' : 'Save Changes'}
+          </button>
+          {saved === 'ok'    && <span style={S.statusMsg(true)}>✓ Saved</span>}
+          {saved === 'error' && <span style={S.statusMsg(false)}>✗ Failed to save</span>}
         </div>
       </div>
     </div>
@@ -802,7 +822,7 @@ function SecurityTab() {
         <div style={{ marginTop: 16 }}>
           <button
             style={S.btnGhost}
-            onClick={() => alert('Audit log viewer coming soon.')}
+            onClick={() => { window.history.pushState({}, '', '/admin'); window.dispatchEvent(new CustomEvent('kc-admin-nav', { detail: 'audit_log' })) }}
           >
             📋 View Audit Log
           </button>

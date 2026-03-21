@@ -4,7 +4,7 @@
  * Dark theme: #0f0f0f bg, #1a1a1a cards, #00d4ff accent.
  */
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import AdminOverview from './AdminOverview.jsx'
 import AdminOrganizations from './AdminOrganizations.jsx'
 import AdminDiscountCodes from './AdminDiscountCodes.jsx'
@@ -172,6 +172,12 @@ export default function AdminDashboard() {
   const [activeSection, setActiveSection] = useState('overview')
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
+  useEffect(() => {
+    const handler = (e) => setActiveSection(e.detail)
+    window.addEventListener('kc-admin-nav', handler)
+    return () => window.removeEventListener('kc-admin-nav', handler)
+  }, [])
+
   const activeItem = NAV_ITEMS.find(n => n.id === activeSection)
 
   function renderSection() {
@@ -216,13 +222,9 @@ export default function AdminDashboard() {
           ))}
         </nav>
 
-        <div
-          style={{ ...S.sidebarFooter(sidebarOpen), cursor: 'pointer' }}
-          onClick={() => setActiveSection('settings')}
-          title="Admin Settings"
-        >
-          <span style={{ fontSize: 13 }}>⚙️</span>
-          <span style={S.navLabel(sidebarOpen)}>Super Admin</span>
+        <div style={S.sidebarFooter(sidebarOpen)}>
+          <span style={{ fontSize: 13 }}>🦑</span>
+          <span style={S.navLabel(sidebarOpen)}>KrakenCam Admin</span>
         </div>
       </aside>
 
