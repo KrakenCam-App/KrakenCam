@@ -1130,7 +1130,7 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
   const [flashMode,      setFlashMode]      = useState("off");
   const [torchOn,        setTorchOn]        = useState(false);   // kept for compat, unused
   const [torchSupported, setTorchSupported] = useState(false);
-  const [flashDebug,     setFlashDebug]     = useState("");
+
 
   // Video mode state
   const [mode,        setMode]        = useState("photo");  // "photo" | "video"
@@ -1265,13 +1265,9 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
     // ── ImageCapture path (Chrome Android — supports fillLightMode:'flash') ──
     const track = streamRef.current?.getVideoTracks()[0];
     if (flashMode === "on" && facing === "environment") {
-      const hasIC = typeof ImageCapture !== "undefined";
-      setFlashDebug(`track:${!!track} IC:${hasIC}`);
-      if (track && hasIC) {
+      if (track && typeof ImageCapture !== "undefined") {
         try {
           const imageCapture = new ImageCapture(track);
-          const caps = await imageCapture.getPhotoCapabilities().catch(() => null);
-          setFlashDebug(`caps:${JSON.stringify(caps?.fillLightMode)}`);
           const blob = await imageCapture.takePhoto({ fillLightMode: "flash" });
           const bmp  = await createImageBitmap(blob);
           const vw = bmp.width, vh = bmp.height;
@@ -1282,12 +1278,10 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
           ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
           drawOverlay(canvas);
           setReviewImg(canvas.toDataURL("image/jpeg", jpegQuality));
-          setFlashDebug("IC ok");
           setTimeout(() => setFiring(false), 200);
           return;
         } catch (e) {
-          setFlashDebug(`IC err: ${e?.message || e}`);
-          console.warn("[KrakenCam] ImageCapture flash failed:", e?.message);
+          console.warn("[KrakenCam] ImageCapture flash failed, falling back:", e?.message);
           // fall through to canvas path below
         }
       }
@@ -1555,13 +1549,6 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
             opacity: camState === "live" ? 1 : 0,
             transition:"opacity .3s" }} />
         <div ref={flashRef} className="cam-flash" />
-        {flashDebug !== "" && (
-          <div style={{ position:"absolute",bottom:160,left:0,right:0,zIndex:30,textAlign:"center",pointerEvents:"none" }}>
-            <span style={{ background:"rgba(0,0,0,.8)",color:"#ffe066",fontSize:11,padding:"4px 10px",borderRadius:6,fontFamily:"monospace" }}>
-              flash: {flashDebug}
-            </span>
-          </div>
-        )}
         {gridOn && camState === "live" && mode === "photo" && (
           <svg className="cam-grid-svg" style={{ opacity:.22 }}>
             <line x1="33.33%" y1="0" x2="33.33%" y2="100%" stroke="white" strokeWidth="1" />
