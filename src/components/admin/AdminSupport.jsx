@@ -53,9 +53,8 @@ export default function AdminSupport() {
     if (!q.trim()) { setOrgs([]); setDebugInfo(''); return }
     setLoading(true)
     try {
-      // Use fetch directly to bypass Supabase auth lock issues on Brave
-      const session = await supabase.auth.getSession()
-      const token = session?.data?.session?.access_token
+      // Skip supabase.auth.getSession() entirely — Brave's lock breaks it.
+      // RPC is security definer so anon key works fine.
       const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
       const res = await fetch(`${supabaseUrl}/rest/v1/rpc/admin_search_orgs`, {
@@ -63,7 +62,7 @@ export default function AdminSupport() {
         headers: {
           'Content-Type': 'application/json',
           'apikey': anonKey,
-          'Authorization': `Bearer ${token || anonKey}`,
+          'Authorization': `Bearer ${anonKey}`,
         },
         body: JSON.stringify({ search_term: q }),
       })
