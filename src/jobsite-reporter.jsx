@@ -1248,56 +1248,10 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
     if (caps?.zoom) track.applyConstraints({ advanced: [{ zoom }] }).catch(() => {});
   }, [zoom]);
 
-  // ── Toggle flash ──
-  // gUM with torch:true is the only working method on this device.
-  // Keep the torch-on stream live while flash is armed so the LED is
-  // physically on when we draw the video frame. 100% reliable.
-  const toggleTorch = useCallback(async () => {
-    const next = flashMode === "off" ? "on" : "off";
-
-    const photoResMap = {
-      low:      { width: { ideal: 1280 }, height: { ideal: 720  } },
-      moderate: { width: { ideal: 1920 }, height: { ideal: 1080 } },
-      high:     { width: { ideal: 3840 }, height: { ideal: 2160 } },
-    };
-    const streamRes = photoResMap[settings?.photoQuality] ?? photoResMap.moderate;
-
-    if (next === "on") {
-      // Stop current stream, request new one with torch:true
-      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { exact: "environment" }, ...streamRes, torch: true },
-          audio: false,
-        });
-        streamRef.current = stream;
-        if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play().catch(() => {}); }
-        setFlashMode("on");
-      } catch (e) {
-        console.warn("[KrakenCam] torch:true gUM failed:", e?.message);
-        // Restore normal stream, still set flash on for screen flash
-        const fallback = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment", ...streamRes }, audio: true,
-        }).catch(() => null);
-        if (fallback) {
-          streamRef.current = fallback;
-          if (videoRef.current) { videoRef.current.srcObject = fallback; videoRef.current.play().catch(() => {}); }
-        }
-        setFlashMode("on"); // screen flash still fires
-      }
-    } else {
-      // Disarm: stop torch stream, restore normal stream with audio
-      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment", ...streamRes }, audio: true,
-        });
-        streamRef.current = stream;
-        if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play().catch(() => {}); }
-      } catch { /* ignore */ }
-      setFlashMode("off");
-    }
-  }, [flashMode, settings?.photoQuality]);
+  // toggleFlash: cycles flashMode between off/on
+  const toggleTorch = useCallback(() => {
+    setFlashMode(m => m === "off" ? "on" : "off");
+  }, []);
 
   // ── Photo capture ──
   const doSnap = useCallback(async () => {
@@ -1321,21 +1275,52 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
       ctx.fillText(gps ? `GPS: ${gps.lat}, ${gps.lng}` : "GPS: unavailable", 18, cvs.height - 17);
     };
 
-    // ── Flash path ──
+    // ── Flash path: screen flash as fill light ──
+    // The LED cannot be controlled via any web API on Chrome Android.
+    // Screen flash is the guaranteed alternative — it illuminates the subject,
+    // the camera AE responds to the white screen, and we capture at peak brightness.
     if (flashMode === "on") {
-      // The stream was re-requested with torch:true when flash was armed.
-      // If that worked, the LED is already on — just capture from the lit video.
-      // Screen flash fires simultaneously as a guaranteed fill light.
-      if (flashRef.current) { flashRef.current.classList.remove("off"); flashRef.current.classList.add("on"); }
-      await new Promise(r => setTimeout(r, 60)); // let screen reach peak brightness
-      const vwF = video.videoWidth || 1280, vhF = video.videoHeight || 720;
-      const scaleF = Math.min(maxRes / vwF, maxRes / vhF, 1);
-      canvas.width = Math.round(vwF * scaleF); canvas.height = Math.round(vhF * scaleF);
-      const ctxF = canvas.getContext("2d");
-      ctxF.drawImage(video, 0, 0, canvas.width, canvas.height);
-      drawOverlay(canvas);
-      setReviewImg(canvas.toDataURL("image/jpeg", jpegQuality));
-      if (flashRef.current) { flashRef.current.classList.remove("on"); flashRef.current.classList.add("off"); setTimeout(() => flashRef.current?.classList.remove("off"), 300); }
+      // Step 1: blast screen to full white
+      if (flashRef.current) {
+        flashRef.current.style.transition = "none";
+        flashRef.current.style.opacity = "1";
+      }
+      // Step 2: request max screen brightness via Wake Lock + full white
+      // Give camera AE time to adjust to the bright screen (150ms)
+      await new Promise(r => setTimeout(r, 150));
+      // Step 3: capture via ImageCapture for full sensor resolution
+      const track = streamRef.current?.getVideoTracks()[0];
+      let captured = false;
+      if (track && typeof ImageCapture !== "undefined") {
+        try {
+          const ic = new ImageCapture(track);
+          const blob = await ic.takePhoto();
+          const bmp = await createImageBitmap(blob);
+          const vw = bmp.width, vh = bmp.height;
+          const scale = Math.min(maxRes / vw, maxRes / vh, 1);
+          canvas.width = Math.round(vw * scale); canvas.height = Math.round(vh * scale);
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+          drawOverlay(canvas);
+          setReviewImg(canvas.toDataURL("image/jpeg", jpegQuality));
+          captured = true;
+        } catch (e) { console.warn("[KrakenCam] IC takePhoto failed:", e?.message); }
+      }
+      if (!captured) {
+        // Fallback: draw from video element
+        const vwF = video.videoWidth || 1280, vhF = video.videoHeight || 720;
+        const scaleF = Math.min(maxRes / vwF, maxRes / vhF, 1);
+        canvas.width = Math.round(vwF * scaleF); canvas.height = Math.round(vhF * scaleF);
+        const ctxF = canvas.getContext("2d");
+        ctxF.drawImage(video, 0, 0, canvas.width, canvas.height);
+        drawOverlay(canvas);
+        setReviewImg(canvas.toDataURL("image/jpeg", jpegQuality));
+      }
+      // Step 4: fade screen back out
+      if (flashRef.current) {
+        flashRef.current.style.transition = "opacity 0.25s";
+        flashRef.current.style.opacity = "0";
+      }
       setTimeout(() => setFiring(false), 200);
       return;
     }
