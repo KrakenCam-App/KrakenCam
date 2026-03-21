@@ -1131,6 +1131,7 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
   const [flashMode,      setFlashMode]      = useState("off");
   const [torchOn,        setTorchOn]        = useState(false);   // kept for compat, unused
   const [torchSupported, setTorchSupported] = useState(false);
+  const [flashDebug,     setFlashDebug]     = useState("");
 
 
   // Video mode state
@@ -1279,47 +1280,20 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
     // ── ImageCapture path (Chrome Android — supports fillLightMode:'flash') ──
     const track = streamRef.current?.getVideoTracks()[0];
     if (flashMode === "on" && facing === "environment") {
-      if (track && typeof ImageCapture !== "undefined") {
+      const ic = imageCaptureRef.current;
+      if (ic) {
         try {
-          // Stop the current stream and re-request with torch:true at the top level.
-          // This is the only 100% reliable way to force the LED on Chrome Android —
-          // fillLightMode is treated as a hint; torch in getUserMedia is not.
-          streamRef.current?.getTracks().forEach(t => t.stop());
-
-          const photoResMap = {
-            low:      { width: { ideal: 1280 }, height: { ideal: 720  } },
-            moderate: { width: { ideal: 1920 }, height: { ideal: 1080 } },
-            high:     { width: { ideal: 3840 }, height: { ideal: 2160 } },
-          };
-          const streamRes = photoResMap[settings?.photoQuality] ?? photoResMap.moderate;
-
-          // Request with torch on
-          const torchStream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { exact: "environment" }, ...streamRes, torch: true },
-            audio: false,
-          });
-
-          // Let the LED stabilise
-          await new Promise(r => setTimeout(r, 200));
-
-          // Capture via ImageCapture from the torch-on stream
-          const torchTrack = torchStream.getVideoTracks()[0];
-          const ic = new ImageCapture(torchTrack);
-          const blob = await ic.takePhoto();
-
-          // Immediately kill the torch stream
-          torchStream.getTracks().forEach(t => t.stop());
-
-          // Restore normal stream in background (don't await — let preview recover)
-          navigator.mediaDevices.getUserMedia({
-            video: { facingMode: "environment", ...streamRes },
-            audio: true,
-          }).then(s => {
-            streamRef.current = s;
-            imageCaptureRef.current = typeof ImageCapture !== "undefined" ? new ImageCapture(s.getVideoTracks()[0]) : null;
-            if (videoRef.current) { videoRef.current.srcObject = s; videoRef.current.play().catch(() => {}); }
-          }).catch(() => {});
-
+          // Check which fillLightMode values this device actually supports
+          const caps = await ic.getPhotoCapabilities().catch(() => null);
+          const supported = caps?.fillLightMode || [];
+          // Prefer "torch" (keeps LED on during capture = reliable),
+          // fall back to "flash" if torch not listed, or no constraint if neither
+          const lightMode = supported.includes("torch") ? "torch"
+                          : supported.includes("flash") ? "flash"
+                          : null;
+          setFlashDebug(`caps:[${supported.join(",")}] using:${lightMode||"none"}`);
+          const photoOpts = lightMode ? { fillLightMode: lightMode } : {};
+          const blob = await ic.takePhoto(photoOpts);
           const bmp = await createImageBitmap(blob);
           const vw = bmp.width, vh = bmp.height;
           const scale = Math.min(maxRes / vw, maxRes / vh, 1);
@@ -1332,11 +1306,7 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
           setTimeout(() => setFiring(false), 200);
           return;
         } catch (e) {
-          console.warn("[KrakenCam] torch stream flash failed, falling back:", e?.message);
-          // Restore stream if torch path failed
-          const photoResMap = { low: { width:{ideal:1280},height:{ideal:720} }, moderate: { width:{ideal:1920},height:{ideal:1080} }, high: { width:{ideal:3840},height:{ideal:2160} } };
-          navigator.mediaDevices.getUserMedia({ video: { facingMode:"environment", ...(photoResMap[settings?.photoQuality]??photoResMap.moderate) }, audio:true })
-            .then(s => { streamRef.current = s; if(videoRef.current){videoRef.current.srcObject=s;videoRef.current.play().catch(()=>{});} }).catch(()=>{});
+          console.warn("[KrakenCam] ImageCapture flash failed, falling back:", e?.message);
           // fall through to canvas path below
         }
       }
@@ -1604,6 +1574,13 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
             opacity: camState === "live" ? 1 : 0,
             transition:"opacity .3s" }} />
         <div ref={flashRef} className="cam-flash" />
+        {flashDebug !== "" && (
+          <div style={{ position:"absolute",bottom:160,left:0,right:0,zIndex:30,textAlign:"center",pointerEvents:"none" }}>
+            <span style={{ background:"rgba(0,0,0,.85)",color:"#ffe066",fontSize:11,padding:"4px 10px",borderRadius:6,fontFamily:"monospace",wordBreak:"break-all" }}>
+              {flashDebug}
+            </span>
+          </div>
+        )}
         {gridOn && camState === "live" && mode === "photo" && (
           <svg className="cam-grid-svg" style={{ opacity:.22 }}>
             <line x1="33.33%" y1="0" x2="33.33%" y2="100%" stroke="white" strokeWidth="1" />
