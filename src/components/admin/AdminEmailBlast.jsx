@@ -112,13 +112,13 @@ export default function AdminEmailBlast() {
   const dryRun = async () => {
     setDryRunning(true); setDryResult(null)
     try {
-      const res = await fetch('/api/send-blast', {
+      const res = await fetch('/api/send-email', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-internal-secret': 'krakencam-internal-2024',
         },
-        body: JSON.stringify({ subject, html, target, dry_run: true }),
+        body: JSON.stringify({ type: 'blast', subject, html, target, dry_run: true }),
       })
       const data = await res.json()
       setDryResult(data)
@@ -130,13 +130,13 @@ export default function AdminEmailBlast() {
     if (!confirmed) return
     setSending(true); setResult(null)
     try {
-      const res = await fetch('/api/send-blast', {
+      const res = await fetch('/api/send-email', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-internal-secret': 'krakencam-internal-2024',
         },
-        body: JSON.stringify({ subject, html, target }),
+        body: JSON.stringify({ type: 'blast', subject, html, target }),
       })
       const data = await res.json()
       setResult(data)
