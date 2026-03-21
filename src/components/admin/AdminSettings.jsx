@@ -993,14 +993,178 @@ function DangerZoneTab() {
   )
 }
 
+// ── Announcements Tab ────────────────────────────────────────────────────────
+
+function AnnouncementsTab() {
+  const [announcements, setAnnouncements] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveStatus, setSaveStatus] = useState(null)
+  const blank = { title: '', message: '', scheduled_date: '', start_time: '', end_time: '', target: 'all', active: true }
+  const [form, setForm] = useState(blank)
+  const [editId, setEditId] = useState(null)
+
+  const load = () => {
+    setLoading(true)
+    supabase.from('app_announcements').select('*').order('created_at', { ascending: false })
+      .then(({ data }) => { setAnnouncements(data || []); setLoading(false) })
+      .catch(() => setLoading(false))
+  }
+
+  useEffect(() => { load() }, [])
+
+  const openNew = () => { setForm(blank); setEditId(null); setShowForm(true) }
+  const openEdit = (a) => {
+    setForm({
+      title: a.title, message: a.message,
+      scheduled_date: a.scheduled_date || '', start_time: a.start_time || '',
+      end_time: a.end_time || '', target: a.target, active: a.active,
+    })
+    setEditId(a.id); setShowForm(true)
+  }
+
+  const save = async () => {
+    if (!form.title.trim() || !form.message.trim()) return
+    setSaving(true); setSaveStatus(null)
+    try {
+      const payload = {
+        title: form.title.trim(), message: form.message.trim(),
+        scheduled_date: form.scheduled_date || null,
+        start_time: form.start_time || null, end_time: form.end_time || null,
+        target: form.target, active: form.active,
+        updated_at: new Date().toISOString(),
+      }
+      if (editId) {
+        const { error } = await supabase.from('app_announcements').update(payload).eq('id', editId)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('app_announcements').insert(payload)
+        if (error) throw error
+      }
+      setSaveStatus('ok'); setShowForm(false); load()
+    } catch (e) { console.error(e); setSaveStatus('error') }
+    setSaving(false)
+  }
+
+  const toggle = async (a) => {
+    await supabase.from('app_announcements').update({ active: !a.active }).eq('id', a.id)
+    load()
+  }
+
+  const del = async (id) => {
+    if (!window.confirm('Delete this announcement?')) return
+    await supabase.from('app_announcements').delete().eq('id', id)
+    load()
+  }
+
+  const inp = { background: '#0a0f1a', border: '1px solid rgba(30,60,120,0.4)', borderRadius: 8, color: '#e8e8e8', fontSize: 13, padding: '8px 12px', width: '100%', boxSizing: 'border-box', fontFamily: 'Inter, sans-serif' }
+
+  return (
+    <div>
+      <div style={S.card}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div>
+            <div style={S.sectionHeader}>📣 App Announcements</div>
+            <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>Push a popup notice to all users, admins, or managers. Users dismiss it once and won't see it again.</div>
+          </div>
+          <button style={{ ...S.btn, flexShrink: 0, marginLeft: 16 }} onClick={openNew}>+ New Announcement</button>
+        </div>
+
+        {loading && <div style={{ color: '#666', fontSize: 13 }}>Loading…</div>}
+        {!loading && !announcements.length && <div style={{ color: '#666', fontSize: 13 }}>No announcements yet.</div>}
+
+        {!loading && announcements.map(a => (
+          <div key={a.id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '14px 16px', marginBottom: 10, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#e8e8e8' }}>{a.title}</span>
+                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: a.active ? 'rgba(61,186,126,.15)' : 'rgba(255,255,255,.05)', color: a.active ? '#3dba7e' : '#666', fontWeight: 600 }}>{a.active ? 'Active' : 'Inactive'}</span>
+                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: 'rgba(255,255,255,.05)', color: '#8b9ab8' }}>{a.target === 'all' ? '👥 All users' : a.target === 'admins' ? '🔑 Admins' : '👔 Managers'}</span>
+              </div>
+              <div style={{ fontSize: 12, color: '#8b9ab8', marginBottom: 4, whiteSpace: 'pre-wrap' }}>{a.message}</div>
+              {(a.scheduled_date || a.start_time) && (
+                <div style={{ fontSize: 11, color: '#fbbf24' }}>
+                  🗓 {a.scheduled_date || ''}{a.start_time ? ` · ${a.start_time}–${a.end_time}` : ''}
+                </div>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+              <button onClick={() => toggle(a)} style={{ ...S.btn, fontSize: 11, padding: '4px 10px', background: a.active ? 'rgba(220,60,60,.15)' : 'rgba(61,186,126,.15)', color: a.active ? '#e85a3a' : '#3dba7e', border: `1px solid ${a.active ? 'rgba(220,60,60,.3)' : 'rgba(61,186,126,.3)'}` }}>{a.active ? 'Disable' : 'Enable'}</button>
+              <button onClick={() => openEdit(a)} style={{ ...S.btn, fontSize: 11, padding: '4px 10px' }}>Edit</button>
+              <button onClick={() => del(a.id)} style={{ ...S.btn, fontSize: 11, padding: '4px 10px', background: 'rgba(220,60,60,.1)', color: '#e85a3a', border: '1px solid rgba(220,60,60,.3)' }}>Delete</button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Create / Edit modal */}
+      {showForm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px' }}>
+          <div style={{ background: '#0f1521', border: '1px solid rgba(255,255,255,.1)', borderRadius: 16, padding: '28px 24px', width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 20 }}>{editId ? '✏️ Edit Announcement' : '📣 New Announcement'}</div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <div style={{ fontSize: 12, color: '#888', marginBottom: 5 }}>Title *</div>
+                <input style={inp} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Scheduled Maintenance" />
+              </div>
+              <div>
+                <div style={{ fontSize: 12, color: '#888', marginBottom: 5 }}>Message *</div>
+                <textarea style={{ ...inp, minHeight: 80, resize: 'vertical' }} value={form.message} onChange={e => setForm(f => ({ ...f, message: e.target.value }))} placeholder="We'll be down for maintenance on March 25 from 2:00 AM – 4:00 AM PDT." />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                <div>
+                  <div style={{ fontSize: 12, color: '#888', marginBottom: 5 }}>Date (optional)</div>
+                  <input style={inp} type="date" value={form.scheduled_date} onChange={e => setForm(f => ({ ...f, scheduled_date: e.target.value }))} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: '#888', marginBottom: 5 }}>Start time</div>
+                  <input style={inp} type="time" value={form.start_time} onChange={e => setForm(f => ({ ...f, start_time: e.target.value }))} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: '#888', marginBottom: 5 }}>End time</div>
+                  <input style={inp} type="time" value={form.end_time} onChange={e => setForm(f => ({ ...f, end_time: e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 12, color: '#888', marginBottom: 5 }}>Show to</div>
+                <select style={inp} value={form.target} onChange={e => setForm(f => ({ ...f, target: e.target.value }))}>
+                  <option value="all">👥 All users</option>
+                  <option value="admins">🔑 Admins only</option>
+                  <option value="managers">👔 Managers + Admins</option>
+                </select>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <input type="checkbox" id="ann-active" checked={form.active} onChange={e => setForm(f => ({ ...f, active: e.target.checked }))} />
+                <label htmlFor="ann-active" style={{ fontSize: 13, color: '#e8e8e8', cursor: 'pointer' }}>Active (visible to users immediately)</label>
+              </div>
+            </div>
+
+            {saveStatus === 'error' && <div style={{ fontSize: 12, color: '#e85a3a', marginTop: 12 }}>✗ Failed to save — check console</div>}
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button style={{ ...S.btn, flex: 1 }} onClick={() => setShowForm(false)}>Cancel</button>
+              <button style={{ ...S.btn, flex: 2, background: 'rgba(37,99,235,.2)', color: '#60a5fa', border: '1px solid rgba(37,99,235,.3)' }} onClick={save} disabled={saving}>
+                {saving ? '⏳ Saving…' : editId ? '✓ Save Changes' : '📣 Create Announcement'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 
 const TABS = [
   { id: 'general',    label: '⚙️ General' },
-  { id: 'email',      label: '✉️ Email Templates' },
-  { id: 'webhooks',   label: '🔗 Webhooks' },
-  { id: 'security',   label: '🔒 Security' },
-  { id: 'danger',     label: '⚠️ Danger Zone' },
+  { id: 'email',         label: '✉️ Email Templates' },
+  { id: 'webhooks',      label: '🔗 Webhooks' },
+  { id: 'security',      label: '🔒 Security' },
+  { id: 'announcements', label: '📣 Announcements' },
+  { id: 'danger',        label: '⚠️ Danger Zone' },
 ]
 
 export default function AdminSettings() {
@@ -1008,12 +1172,13 @@ export default function AdminSettings() {
 
   function renderTab() {
     switch (activeTab) {
-      case 'general':  return <GeneralTab />
-      case 'email':    return <EmailTemplatesTab />
-      case 'webhooks': return <WebhookTab />
-      case 'security': return <SecurityTab />
-      case 'danger':   return <DangerZoneTab />
-      default:         return <GeneralTab />
+      case 'general':       return <GeneralTab />
+      case 'email':         return <EmailTemplatesTab />
+      case 'webhooks':      return <WebhookTab />
+      case 'security':      return <SecurityTab />
+      case 'announcements': return <AnnouncementsTab />
+      case 'danger':        return <DangerZoneTab />
+      default:              return <GeneralTab />
     }
   }
 

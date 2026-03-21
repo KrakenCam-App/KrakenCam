@@ -10,6 +10,7 @@ import BillingDashboard from './components/BillingDashboard.jsx'
 import SubscriptionGate from './components/SubscriptionGate.jsx'
 import AcceptInvite from './components/AcceptInvite.jsx'
 import ResetPassword from './components/ResetPassword.jsx'
+import AnnouncementPopup from './components/AnnouncementPopup.jsx'
 import { supabase } from './lib/supabase.js'
 
 function MaintenanceScreen({ message }) {
@@ -43,6 +44,7 @@ export default function AppRouter() {
   const [page, setPage] = useState('login')
   const [isRecovery, setIsRecovery] = useState(false)
   const [maintenance, setMaintenance] = useState(null) // null=loading, false=off, {message}=on
+  const [userRole,    setUserRole]    = useState('user')
   const isAdmin = window.location.pathname.startsWith('/admin')
   const isBilling = window.location.pathname === '/billing'
   const isAcceptInvite = window.location.pathname === '/accept-invite'
@@ -73,6 +75,14 @@ export default function AppRouter() {
       })
       .catch(() => setMaintenance(false));
   }, [])
+
+  // Fetch user role for announcement targeting
+  useEffect(() => {
+    if (!session) return
+    supabase.from('profiles').select('role').eq('id', session.user.id).single()
+      .then(({ data }) => { if (data?.role) setUserRole(data.role) })
+      .catch(() => {})
+  }, [session])
 
   // Accept invite — show before auth checks
   if (isAcceptInvite) {
@@ -122,7 +132,12 @@ export default function AppRouter() {
       }
       return <LoginPage onSignup={null} onForgotPassword={() => setPage('forgot')} />
     }
-    return <AdminRoute><AdminDashboard /></AdminRoute>
+    return (
+      <>
+        <AnnouncementPopup userRole={userRole} />
+        <AdminRoute><AdminDashboard /></AdminRoute>
+      </>
+    )
   }
 
   // /billing route — requires session
@@ -133,9 +148,12 @@ export default function AppRouter() {
   // Logged in → show the main app (wrapped in SubscriptionGate)
   if (session) {
     return (
-      <SubscriptionGate>
-        <App />
-      </SubscriptionGate>
+      <>
+        <AnnouncementPopup userRole={userRole} />
+        <SubscriptionGate>
+          <App />
+        </SubscriptionGate>
+      </>
     )
   }
 
