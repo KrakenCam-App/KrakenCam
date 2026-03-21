@@ -4,7 +4,7 @@
  * Webhook Config, Security, and Danger Zone.
  */
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { getAllOrganizations } from '../../lib/admin'
 
@@ -795,6 +795,40 @@ function DangerZoneTab() {
   const [exportStatus, setExportStatus] = useState(null)
   const [confirm, setConfirm] = useState(null) // 'snapshot' | 'export' | null
 
+  // ── Maintenance mode ──
+  const [maintEnabled,  setMaintEnabled]  = useState(false)
+  const [maintMessage,  setMaintMessage]  = useState("We are performing scheduled maintenance. We'll be back shortly.")
+  const [maintStatus,   setMaintStatus]   = useState(null) // null | 'saving' | 'ok' | 'error'
+  const [maintLoaded,   setMaintLoaded]   = useState(false)
+
+  useEffect(() => {
+    supabase.rpc('get_maintenance_mode')
+      .then(({ data }) => {
+        if (data) {
+          setMaintEnabled(!!data.enabled)
+          setMaintMessage(data.message || "We are performing scheduled maintenance. We'll be back shortly.")
+        }
+        setMaintLoaded(true)
+      })
+      .catch(() => setMaintLoaded(true))
+  }, [])
+
+  async function saveMaintenance(enabled) {
+    setMaintStatus('saving')
+    try {
+      const { error } = await supabase
+        .from('app_settings')
+        .upsert({ key: 'maintenance_mode', value: { enabled, message: maintMessage }, updated_by: (await supabase.auth.getUser()).data?.user?.id })
+      if (error) throw error
+      setMaintEnabled(enabled)
+      setMaintStatus('ok')
+    } catch (err) {
+      console.error('Maintenance save error:', err)
+      setMaintStatus('error')
+    }
+    setTimeout(() => setMaintStatus(null), 4000)
+  }
+
   async function triggerSnapshot() {
     setConfirm(null)
     setSnapshotStatus('loading')
@@ -848,6 +882,47 @@ function DangerZoneTab() {
         <div style={S.sectionHeader}>Maintenance</div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+          {/* Maintenance Mode Toggle */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e8e8', marginBottom: 2 }}>
+                  🔧 Maintenance Mode
+                </div>
+                <div style={{ fontSize: 12, color: '#666', lineHeight: 1.5 }}>
+                  When enabled, all users see a maintenance screen. Admins on <code style={S.code}>/admin</code> are unaffected.
+                </div>
+              </div>
+              <button
+                onClick={() => saveMaintenance(!maintEnabled)}
+                disabled={!maintLoaded || maintStatus === 'saving'}
+                style={{
+                  flexShrink: 0, marginLeft: 20, padding: '8px 18px', borderRadius: 8,
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer', border: 'none',
+                  background: maintEnabled ? '#dc3c3c' : '#3dba7e',
+                  color: 'white', opacity: maintStatus === 'saving' ? 0.6 : 1,
+                  transition: 'all .15s',
+                }}
+              >
+                {maintStatus === 'saving' ? '⏳ Saving…' : maintEnabled ? '🔴 Maintenance ON — Click to Disable' : '✅ Maintenance OFF — Click to Enable'}
+              </button>
+            </div>
+            {/* Custom message */}
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontSize: 12, color: '#888', marginBottom: 6 }}>Custom message shown to users:</div>
+              <textarea
+                value={maintMessage}
+                onChange={e => setMaintMessage(e.target.value)}
+                rows={2}
+                style={{ width: '100%', boxSizing: 'border-box', background: '#0f1521', border: '1px solid rgba(30,60,120,0.4)', borderRadius: 8, color: '#e8e8e8', fontSize: 12, padding: '8px 12px', resize: 'vertical', fontFamily: 'Inter, sans-serif' }}
+              />
+            </div>
+            {maintStatus === 'ok'    && <div style={{ fontSize: 12, color: '#3dba7e', marginTop: 6 }}>✓ Saved</div>}
+            {maintStatus === 'error' && <div style={{ fontSize: 12, color: '#dc3c3c', marginTop: 6 }}>✗ Failed to save — check console</div>}
+          </div>
+
+          <hr style={S.divider} />
           {/* Analytics Snapshot */}
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#e8e8e8', marginBottom: 4 }}>

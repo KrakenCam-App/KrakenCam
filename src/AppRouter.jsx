@@ -12,10 +12,37 @@ import AcceptInvite from './components/AcceptInvite.jsx'
 import ResetPassword from './components/ResetPassword.jsx'
 import { supabase } from './lib/supabase.js'
 
+function MaintenanceScreen({ message }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      height: '100vh', background: '#0a0c10', color: '#e8e8e8',
+      fontFamily: 'Inter, sans-serif', flexDirection: 'column', gap: 24,
+      padding: '0 24px', textAlign: 'center',
+    }}>
+      <div style={{ fontSize: 56 }}>🔧</div>
+      <div style={{ fontSize: 26, fontWeight: 700, color: '#fff', letterSpacing: '-0.5px' }}>
+        Under Maintenance
+      </div>
+      <div style={{
+        fontSize: 15, color: '#8b9ab8', maxWidth: 420, lineHeight: 1.7,
+        background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+        borderRadius: 14, padding: '18px 24px',
+      }}>
+        {message || 'We are performing scheduled maintenance. We\'ll be back shortly.'}
+      </div>
+      <div style={{ fontSize: 13, color: '#4a5568', marginTop: 8 }}>
+        — The KrakenCam Team
+      </div>
+    </div>
+  )
+}
+
 export default function AppRouter() {
   const { session, loading } = useAuth()
   const [page, setPage] = useState('login')
   const [isRecovery, setIsRecovery] = useState(false)
+  const [maintenance, setMaintenance] = useState(null) // null=loading, false=off, {message}=on
   const isAdmin = window.location.pathname.startsWith('/admin')
   const isBilling = window.location.pathname === '/billing'
   const isAcceptInvite = window.location.pathname === '/accept-invite'
@@ -31,6 +58,20 @@ export default function AppRouter() {
       if (event === 'PASSWORD_RECOVERY') setIsRecovery(true)
     })
     return () => authSub.unsubscribe()
+  }, [])
+
+  // Check maintenance mode on load (uses public RPC — works for logged-out users too)
+  useEffect(() => {
+    supabase.rpc('get_maintenance_mode')
+      .then(({ data, error }) => {
+        if (error || !data) { setMaintenance(false); return; }
+        if (data.enabled) {
+          setMaintenance({ message: data.message || '' });
+        } else {
+          setMaintenance(false);
+        }
+      })
+      .catch(() => setMaintenance(false));
   }, [])
 
   // Accept invite — show before auth checks
@@ -50,7 +91,7 @@ export default function AppRouter() {
     )
   }
 
-  if (loading) {
+  if (loading || maintenance === null) {
     return (
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -66,6 +107,11 @@ export default function AppRouter() {
         <span>Loading...</span>
       </div>
     )
+  }
+
+  // Maintenance mode — admins on /admin bypass it, everyone else sees the screen
+  if (maintenance && !isAdmin) {
+    return <MaintenanceScreen message={maintenance.message} />
   }
 
   // /admin route — protected by AdminRoute
