@@ -18498,6 +18498,17 @@ function SettingsPage({ settings, onSave, onDeleteAccount, projects = [], users 
   const [tab, setTab]   = useState(typeof window !== "undefined" && window.innerWidth <= 768 ? "appearance" : "company");
   const [form, setForm] = useState({ ...settings });
   const [saved, setSaved] = useState(false);
+
+  // Re-sync form when settings prop changes (e.g. authProfile seeds name/email on first load)
+  useEffect(() => {
+    setForm(prev => ({ ...settings, ...prev,
+      // Always take these from settings if they were blank in form
+      userFirstName: prev.userFirstName || settings.userFirstName || "",
+      userLastName:  prev.userLastName  || settings.userLastName  || "",
+      userEmail:     prev.userEmail     || settings.userEmail     || "",
+      companyName:   prev.companyName   || settings.companyName   || "",
+    }));
+  }, [settings.userFirstName, settings.userEmail, settings.companyName]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [showExportModal, setShowExportModal] = useState(false);
@@ -18574,14 +18585,26 @@ function SettingsPage({ settings, onSave, onDeleteAccount, projects = [], users 
     return null;
   };
 
-  const handleUpdatePassword = () => {
+  const handleUpdatePassword = async () => {
     setPwError(""); setPwSuccess(false);
     if (!pwForm.current) return setPwError("Please enter your current password.");
     const err = validatePassword(pwForm.newPw);
     if (err) return setPwError(err);
     if (pwForm.newPw !== pwForm.confirm) return setPwError("New passwords do not match.");
-    setPwSuccess(true);
-    setPwForm({ current:"", newPw:"", confirm:"" });
+    try {
+      // Re-authenticate with current password first
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.email) return setPwError("Could not verify your account. Please sign out and back in.");
+      const { error: signInErr } = await supabase.auth.signInWithPassword({ email: user.email, password: pwForm.current });
+      if (signInErr) return setPwError("Current password is incorrect.");
+      // Now update to new password
+      const { error: updateErr } = await supabase.auth.updateUser({ password: pwForm.newPw });
+      if (updateErr) return setPwError(updateErr.message || "Failed to update password.");
+      setPwSuccess(true);
+      setPwForm({ current:"", newPw:"", confirm:"" });
+    } catch (e) {
+      setPwError("An error occurred. Please try again.");
+    }
   };
   const logoRef   = useRef();
   const avatarRef = useRef();
