@@ -20486,6 +20486,21 @@ export default function App() {
     } catch(e) { /* ignore corrupt storage */ }
   }, []);
 
+  // ── Load report templates from Supabase ──────────────────────────────────
+  useEffect(() => {
+    const orgId = authProfile?.organization_id;
+    if (!orgId) return;
+    const url = import.meta.env.VITE_SUPABASE_URL;
+    const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    fetch(`${url}/rest/v1/report_templates?organization_id=eq.${orgId}&select=*&order=created_at`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}` }
+    }).then(r => r.json()).then(rows => {
+      if (Array.isArray(rows) && rows.length > 0) {
+        setReportTemplates(rows.map(r => ({ ...((r.sections && typeof r.sections === 'object' && !Array.isArray(r.sections)) ? r.sections : {}), id: r.id, name: r.name, type: r.type, color: r.color, sections: r.sections })));
+      }
+    }).catch(() => {});
+  }, [authProfile?.organization_id]);
+
   // ── Load settings from Supabase when org/user is known ──────────────────
   useEffect(() => {
     const orgId  = authProfile?.organization_id;
@@ -20968,56 +20983,19 @@ export default function App() {
     // ── Update local state immediately (optimistic) ──
     setProjects(prev => prev.some(p => p.id===proj.id) ? prev.map(p => p.id===proj.id ? stamped : p) : [...prev, stamped]);
 
-    // ── Persist to Supabase (fire-and-forget, errors are non-fatal) ──
+    // ── Persist full project to Supabase (fire-and-forget) ──
     const orgId = authProfile?.organization_id;
     if (orgId) {
-      const dbPayload = {
-        title:            stamped.title,
-        address:          stamped.address || null,
-        city:             stamped.city || null,
-        state:            stamped.state || null,
-        zip:              stamped.zip || null,
-        lat:              stamped.lat ? parseFloat(stamped.lat) : null,
-        lng:              stamped.lng ? parseFloat(stamped.lng) : null,
-        client_name:      stamped.clientName || null,
-        client_email:     stamped.clientEmail || null,
-        client_phone:     stamped.clientPhone || null,
-        contractor_name:  stamped.contractorName || null,
-        contractor_phone: stamped.contractorPhone || null,
-        type:             stamped.type || null,
-        status:           stamped.status || "active",
-        notes:            stamped.notes || null,
-        color:            stamped.color || null,
-        organization_id:  orgId,
-      };
-
       if (!prevProj) {
-        // New project — INSERT, then sync rooms as picture_folders
-        dbCreateProject(dbPayload).then(newRow => {
-          // After the project row is created, create a folder row for each room
-          const rooms = stamped.rooms || [];
-          rooms.forEach(room => {
-            dbCreateFolder(newRow.id, room.name).catch(err =>
-              console.warn("[KrakenCam] Failed to create folder in DB:", err.message || err)
-            );
-          });
-        }).catch(err =>
+        // New project — INSERT with full data
+        dbCreateProject({ ...stamped, organization_id: orgId }).catch(err =>
           console.warn("[KrakenCam] Failed to create project in DB:", err.message || err)
         );
       } else {
-        // Existing project — UPDATE
-        dbUpdateProject(stamped.id, dbPayload).catch(err =>
+        // Existing project — UPDATE with full data
+        dbUpdateProject(stamped.id, stamped).catch(err =>
           console.warn("[KrakenCam] Failed to update project in DB:", err.message || err)
         );
-
-        // Sync any newly added rooms as picture_folders
-        const prevRooms = prevProj?.rooms || [];
-        const newRooms  = (stamped.rooms || []).filter(r => !prevRooms.some(pr => pr.id === r.id));
-        newRooms.forEach(room => {
-          dbCreateFolder(stamped.id, room.name).catch(err =>
-            console.warn("[KrakenCam] Failed to create folder in DB:", err.message || err)
-          );
-        });
       }
     }
 
@@ -21076,35 +21054,13 @@ export default function App() {
   };
 
   const updateProject = (proj) => {
-    // ── Update local state immediately ──
-    setProjects(prev => prev.map(p => p.id===proj.id ? proj : p));
+    // Update local state immediately for instant UI response
+    setProjects(prev => prev.map(p => p.id === proj.id ? proj : p));
     setActiveProject(proj);
-
-    // ── Persist field changes to Supabase (fire-and-forget) ──
-    const orgId = authProfile?.organization_id;
-    if (orgId) {
-      const dbPayload = {
-        title:            proj.title,
-        address:          proj.address || null,
-        city:             proj.city || null,
-        state:            proj.state || null,
-        zip:              proj.zip || null,
-        lat:              proj.lat ? parseFloat(proj.lat) : null,
-        lng:              proj.lng ? parseFloat(proj.lng) : null,
-        client_name:      proj.clientName || null,
-        client_email:     proj.clientEmail || null,
-        client_phone:     proj.clientPhone || null,
-        contractor_name:  proj.contractorName || null,
-        contractor_phone: proj.contractorPhone || null,
-        type:             proj.type || null,
-        status:           proj.status || "active",
-        notes:            proj.notes || null,
-        color:            proj.color || null,
-      };
-      dbUpdateProject(proj.id, dbPayload).catch(err =>
-        console.warn("[KrakenCam] Failed to update project in DB:", err.message || err)
-      );
-    }
+    // Save full project (including rooms, photos, reports, checklists, activity log, etc.) to Supabase
+    dbUpdateProject(proj.id, proj).catch(err =>
+      console.warn("[KrakenCam] Failed to update project in DB:", err.message || err)
+    );
   };
   const sendVoiceNoteToDirectMessage = (project, note, recipientId) => {
     if (!recipientId || !note?.dataUrl) return;
@@ -21659,7 +21615,20 @@ export default function App() {
           )}
           {page === "templates" && (
             <div className="desktop-only" style={{ flex:1 }}>
-              <TemplatesPage templates={reportTemplates} onTemplatesChange={setReportTemplates} projects={projects} onUseTemplate={(tmpl, proj) => { openReportCreator(proj, { id:uid(), title:tmpl.name, type:tmpl.type, reportType:tmpl.type, date:today(), status:"draft", photos:0, color:tmpl.color, _fromTemplate:tmpl.id }); }} />
+              <TemplatesPage templates={reportTemplates} onTemplatesChange={async (newTemplates) => {
+                setReportTemplates(newTemplates);
+                // Save to Supabase report_templates table
+                const orgId = authProfile?.organization_id;
+                if (!orgId) return;
+                const url = import.meta.env.VITE_SUPABASE_URL;
+                const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+                // Upsert all templates for this org
+                await fetch(`${url}/rest/v1/report_templates`, {
+                  method: 'POST',
+                  headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+                  body: JSON.stringify(newTemplates.map(t => ({ id: t.id, organization_id: orgId, name: t.name, type: t.type || '', color: t.color || '#4a90d9', sections: t.sections || t, updated_at: new Date().toISOString() }))),
+                }).catch(() => {});
+              }} projects={projects} onUseTemplate={(tmpl, proj) => { openReportCreator(proj, { id:uid(), title:tmpl.name, type:tmpl.type, reportType:tmpl.type, date:today(), status:"draft", photos:0, color:tmpl.color, _fromTemplate:tmpl.id }); }} />
             </div>
           )}
           {page === "jobmap" && (
