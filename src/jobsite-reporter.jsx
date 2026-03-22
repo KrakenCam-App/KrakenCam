@@ -5784,6 +5784,29 @@ function ClientPortalTab({ project, settings = {}, onUpdateProject }) {
             </div>
             <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
               <button className="btn btn-secondary" onClick={copyLink}><Icon d={ic.copy} size={14} /> {copied ? "Copied" : "Copy Link"}</button>
+              <button className="btn btn-primary" onClick={async () => {
+                // Publish portal snapshot to Supabase so clients can view it publicly
+                const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL;
+                const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
+                const approvedProject = withPortalFilteredProject(project);
+                const payload = {
+                  slug:          portal.slug,
+                  project_id:    project.id,
+                  project_data:  { ...approvedProject, clientPortal: portal },
+                  portal_config: portal,
+                  brand_color:   settings?.accent || "#2b7fe8",
+                  active:        true,
+                  updated_at:    new Date().toISOString(),
+                };
+                await fetch(`${SUPABASE_URL}/rest/v1/published_portals`, {
+                  method: "POST",
+                  headers: { apikey:SUPABASE_ANON, Authorization:`Bearer ${SUPABASE_ANON}`, "Content-Type":"application/json", Prefer:"resolution=merge-duplicates,return=minimal" },
+                  body: JSON.stringify(payload),
+                }).catch(e => console.warn("Portal publish error:", e));
+                await copyLink();
+              }}>
+                <Icon d={ic.arrowUpRight} size={14} /> Publish & Copy Link
+              </button>
               <button className="btn btn-secondary" onClick={() => setShowPreview(v => !v)}><Icon d={ic.eye} size={14} /> {showPreview ? "Hide Preview" : "Show Preview"}</button>
             </div>
           </div>

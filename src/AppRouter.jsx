@@ -11,6 +11,7 @@ import SubscriptionGate from './components/SubscriptionGate.jsx'
 import AcceptInvite from './components/AcceptInvite.jsx'
 import ResetPassword from './components/ResetPassword.jsx'
 import AnnouncementPopup from './components/AnnouncementPopup.jsx'
+import ClientPortalPage from './components/ClientPortalPage.jsx'
 import { FlagsProvider } from './lib/featureFlags.jsx'
 import WhatsNewPopup from './components/WhatsNewPopup.jsx'
 import { supabase } from './lib/supabase.js'
@@ -52,6 +53,8 @@ export default function AppRouter() {
   const isAdmin = window.location.pathname.startsWith('/admin')
   const isBilling = window.location.pathname === '/billing'
   const isAcceptInvite = window.location.pathname === '/accept-invite'
+  const portalMatch = window.location.pathname.match(/^\/client-portal\/(.+)$/)
+  const portalSlug = portalMatch ? portalMatch[1] : null
 
   useEffect(() => {
     // Check for recovery token in URL hash
@@ -92,6 +95,11 @@ export default function AppRouter() {
       })
       .catch(() => {})
   }, [session])
+
+  // Client portal — fully public, no auth needed
+  if (portalSlug) {
+    return <ClientPortalPage slug={portalSlug} />
+  }
 
   // Accept invite — show before auth checks
   if (isAcceptInvite) {
