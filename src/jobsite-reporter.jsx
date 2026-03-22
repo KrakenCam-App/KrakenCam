@@ -1220,7 +1220,9 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
       } catch { /* ignore */ }
       setCamState("live");
     } catch (e) {
-      setCamState(e.name === "NotAllowedError" || e.name === "PermissionDeniedError" ? "denied" : "error");
+      if (e.name === "NotAllowedError" || e.name === "PermissionDeniedError") setCamState("denied");
+      else if (e.name === "NotFoundError" || e.name === "DevicesNotFoundError") setCamState("nodevice");
+      else setCamState("error");
     }
   }, [mode, settings?.photoQuality, settings?.videoQuality]);
 
@@ -1409,6 +1411,18 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
   const fmtTime = s => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
   const recPct  = (recSeconds / MAX_REC) * 100;
 
+  // Desktop without a camera — show friendly message instead of dark screen
+  if (!navigator.mediaDevices?.getUserMedia) return (
+    <div className="cam-page"><div className="cam-error">
+      <div className="cam-error-icon"><Icon d={ic.camera} size={32} stroke="var(--accent)" /></div>
+      <div style={{ fontSize:16,fontWeight:700,color:"var(--text)" }}>Camera Not Available</div>
+      <div style={{ fontSize:13,color:"var(--text2)",maxWidth:320,textAlign:"center",lineHeight:1.6 }}>
+        Camera capture requires a device with a camera. On desktop, you can still upload photos using the <strong>Upload Photos</strong> button on the Photos tab.
+      </div>
+      <button className="btn btn-secondary" onClick={onClose} style={{ marginTop:8 }}>Go Back</button>
+    </div></div>
+  );
+
   if (camState === "denied") return (
     <div className="cam-page"><div className="cam-error" style={{ maxWidth:420,margin:"0 auto" }}>
       <div className="cam-error-icon"><Icon d={ic.alert} size={32} stroke="var(--accent)" /></div>
@@ -1435,6 +1449,16 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
         <button className="btn btn-secondary" style={{ flex:1 }} onClick={onClose}>Cancel</button>
         <button className="btn btn-primary" style={{ flex:1 }} onClick={() => startStream(facing)}>Try Again</button>
       </div>
+    </div></div>
+  );
+  if (camState === "nodevice") return (
+    <div className="cam-page"><div className="cam-error">
+      <div className="cam-error-icon"><Icon d={ic.camera} size={32} stroke="var(--accent)" /></div>
+      <div style={{ fontSize:16,fontWeight:700,color:"var(--text)" }}>No Camera Found</div>
+      <div style={{ fontSize:13,color:"var(--text2)",maxWidth:320,textAlign:"center",lineHeight:1.6 }}>
+        No camera was detected on this device. Use the <strong>Upload Photos</strong> button on the Photos tab to add images from your computer.
+      </div>
+      <button className="btn btn-secondary" onClick={onClose} style={{ marginTop:8 }}>Go Back</button>
     </div></div>
   );
   if (camState === "error") return (
