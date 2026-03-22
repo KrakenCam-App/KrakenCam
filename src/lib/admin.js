@@ -13,14 +13,16 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 let _adminClient = null
 export function getAdminClient() {
   if (!_adminClient) {
-_adminClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    persistSession: true,
-    storageKey: 'kraken-admin',
-    autoRefreshToken: true,
+    _adminClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: true,
+        storageKey: 'kraken-admin',
+        autoRefreshToken: true,
+      }
+    })
   }
-})
-
+  return _adminClient
+}
 // ─── Auth Helper ──────────────────────────────────────────────────────────────
 
 /**
