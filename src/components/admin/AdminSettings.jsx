@@ -498,31 +498,24 @@ function EmailTemplatesTab() {
   const [saveStatus, setSaveStatus] = useState({}) // { [id]: 'saving' | 'saved' | 'error' }
   const [loadError, setLoadError] = useState(false)
 
-  // Load templates from DB on mount
+  // Load templates from DB on mount — raw fetch to bypass Brave IndexedDB lock
   React.useEffect(() => {
-    async function loadTemplates() {
-      try {
-        const { data, error } = await supabase.from('email_templates').select('*')
-        if (error) throw error
-        if (data && data.length > 0) {
-          // Merge DB data with local fallback (to keep password_reset which isn't in DB)
+    const url     = import.meta.env.VITE_SUPABASE_URL
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+    fetch(`${url}/rest/v1/email_templates?select=*`, {
+      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` }
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
           setTemplates(prev => prev.map(local => {
             const dbRow = data.find(d => d.id === local.id)
             if (!dbRow) return local
-            return {
-              ...local,
-              subject: dbRow.subject,
-              body_html: dbRow.body_html,
-              enabled: dbRow.enabled,
-            }
+            return { ...local, subject: dbRow.subject, body_html: dbRow.body_html, enabled: dbRow.enabled }
           }))
         }
-      } catch (err) {
-        console.warn('EmailTemplatesTab: failed to load from DB, using defaults', err)
-        setLoadError(true)
-      }
-    }
-    loadTemplates()
+      })
+      .catch(err => { console.warn('EmailTemplatesTab: load failed, using defaults', err); setLoadError(true) })
   }, [])
 
   function handleSubjectChange(id, val) {
@@ -536,16 +529,14 @@ function EmailTemplatesTab() {
   async function handleSave(t) {
     setSaveStatus(prev => ({ ...prev, [t.id]: 'saving' }))
     try {
-      const { error } = await supabase.from('email_templates').upsert({
-        id: t.id,
-        name: t.name,
-        trigger_event: t.trigger_event ?? t.trigger,
-        subject: t.subject,
-        body_html: t.body_html ?? t.previewHtml,
-        enabled: t.enabled ?? true,
-        updated_at: new Date().toISOString(),
+      const url     = import.meta.env.VITE_SUPABASE_URL
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+      const res = await fetch(`${url}/rest/v1/email_templates`, {
+        method: 'POST',
+        headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify({ id: t.id, name: t.name, trigger_event: t.trigger_event ?? t.trigger, subject: t.subject, body_html: t.body_html ?? t.previewHtml, enabled: t.enabled ?? true, updated_at: new Date().toISOString() }),
       })
-      if (error) throw error
+      if (!res.ok) throw new Error(await res.text())
       setSaveStatus(prev => ({ ...prev, [t.id]: 'saved' }))
       setTimeout(() => setSaveStatus(prev => ({ ...prev, [t.id]: null })), 2000)
     } catch (err) {
