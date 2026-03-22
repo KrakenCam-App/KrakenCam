@@ -55,8 +55,8 @@ async function sendEmail({ to, subject, html }) {
 
 export async function sendWelcomeEmail({ to, firstName, orgName }) {
   const tmpl = await loadTemplate('welcome', {
-    subject: 'Welcome to KrakenCam 🦑',
-    body_html: `<div style="font-family:sans-serif;max-width:520px;margin:auto;color:#111"><h2 style="color:#0055cc">Welcome to KrakenCam!</h2><p>Hi {{first_name}},</p><p>Your account for <strong>{{org_name}}</strong> is ready. Start capturing incredible footage and managing your team with ease.</p><a href="https://app.krakencam.com" style="display:inline-block;background:#0055cc;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;margin:16px 0">Go to KrakenCam →</a><p style="color:#888;font-size:12px">You are on a 14-day free trial. No credit card required yet.</p></div>`
+    subject: 'Welcome to KrakenCam',
+    body_html: `<div style="font-family:sans-serif;max-width:520px;margin:auto;color:#111"><h2 style="color:#0055cc">Welcome to KrakenCam!</h2><p>Hi {{first_name}},</p><p>Your account for <strong>{{org_name}}</strong> is ready. Start capturing incredible footage and managing your team with ease.</p><a href="https://app.krakencam.com" style="display:inline-block;background:#0055cc;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;margin:16px 0">Go to KrakenCam </a><p style="color:#888;font-size:12px">You are on a 14-day free trial. No credit card required yet.</p></div>`
   })
   const html = renderTemplate(tmpl.body_html, { first_name: firstName, org_name: orgName })
   return sendEmail({ to, subject: tmpl.subject, html })
@@ -65,7 +65,7 @@ export async function sendWelcomeEmail({ to, firstName, orgName }) {
 export async function sendTrialEndingEmail({ to, firstName, daysLeft, trialEndsAt }) {
   const tmpl = await loadTemplate('trial_ending', {
     subject: `Your KrakenCam trial ends in ${daysLeft} days`,
-    body_html: `<div style="font-family:sans-serif;max-width:520px;margin:auto;color:#111"><h2 style="color:#d97706">Your trial is almost over</h2><p>Hi {{first_name}},</p><p>Your free trial ends in <strong>{{days_left}} days</strong>. Upgrade now to keep all your data and continue with uninterrupted access.</p><a href="https://app.krakencam.com/billing" style="display:inline-block;background:#d97706;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;margin:16px 0">Upgrade Now →</a></div>`
+    body_html: `<div style="font-family:sans-serif;max-width:520px;margin:auto;color:#111"><h2 style="color:#d97706">Your trial is almost over</h2><p>Hi {{first_name}},</p><p>Your free trial ends in <strong>{{days_left}} days</strong>. Upgrade now to keep all your data and continue with uninterrupted access.</p><a href="https://app.krakencam.com/billing" style="display:inline-block;background:#d97706;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;margin:16px 0">Upgrade Now</a></div>`
   })
   const html = renderTemplate(tmpl.body_html, { first_name: firstName, days_left: daysLeft })
   const subject = tmpl.subject.replace(/\d+ days/, `${daysLeft} days`)
@@ -75,7 +75,7 @@ export async function sendTrialEndingEmail({ to, firstName, daysLeft, trialEndsA
 export async function sendPaymentFailedEmail({ to, orgName }) {
   const tmpl = await loadTemplate('payment_failed', {
     subject: 'Action required: Payment failed for KrakenCam',
-    body_html: `<div style="font-family:sans-serif;max-width:520px;margin:auto;color:#111"><h2 style="color:#dc2626">Payment Failed</h2><p>Hi {{org_name}} team,</p><p>We were unable to process your payment. Please update your billing information to avoid service interruption.</p><a href="https://app.krakencam.com/billing" style="display:inline-block;background:#dc2626;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;margin:16px 0">Update Billing →</a><p style="color:#888;font-size:12px">We will retry in 3 days. After 3 failed attempts your account will be suspended.</p></div>`
+    body_html: `<div style="font-family:sans-serif;max-width:520px;margin:auto;color:#111"><h2 style="color:#dc2626">Payment Failed</h2><p>Hi {{org_name}} team,</p><p>We were unable to process your payment. Please update your billing information to avoid service interruption.</p><a href="https://app.krakencam.com/billing" style="display:inline-block;background:#dc2626;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;margin:16px 0">Update Billing</a><p style="color:#888;font-size:12px">We will retry in 3 days. After 3 failed attempts your account will be suspended.</p></div>`
   })
   const html = renderTemplate(tmpl.body_html, { org_name: orgName })
   return sendEmail({ to, subject: tmpl.subject, html })
@@ -84,7 +84,7 @@ export async function sendPaymentFailedEmail({ to, orgName }) {
 export async function sendCancellationEmail({ to, firstName }) {
   const tmpl = await loadTemplate('subscription_cancelled', {
     subject: 'Your KrakenCam subscription has been cancelled',
-    body_html: `<div style="font-family:sans-serif;max-width:520px;margin:auto;color:#111"><h2 style="color:#6b7280">Subscription Cancelled</h2><p>Hi {{first_name}},</p><p>Your KrakenCam subscription has been cancelled. You will retain access until the end of your current billing period.</p><p>Your data will be available for <strong>60 days</strong> after cancellation.</p><a href="https://app.krakencam.com/billing" style="display:inline-block;background:#374151;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;margin:16px 0">Reactivate →</a></div>`
+    body_html: `<div style="font-family:sans-serif;max-width:520px;margin:auto;color:#111"><h2 style="color:#6b7280">Subscription Cancelled</h2><p>Hi {{first_name}},</p><p>Your KrakenCam subscription has been cancelled. You will retain access until the end of your current billing period.</p><p>Your data will be available for <strong>60 days</strong> after cancellation.</p><a href="https://app.krakencam.com/billing" style="display:inline-block;background:#374151;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;margin:16px 0">Reactivate</a></div>`
   })
   const html = renderTemplate(tmpl.body_html, { first_name: firstName })
   return sendEmail({ to, subject: tmpl.subject, html })
@@ -92,7 +92,7 @@ export async function sendCancellationEmail({ to, firstName }) {
 
 export async function sendDeletionWarningEmail({ to, firstName, orgName, deletionDate }) {
   const tmpl = await loadTemplate('account_deletion_warning', {
-    subject: '⚠️ Your KrakenCam data will be permanently deleted in 15 days',
+    subject: 'Your KrakenCam data will be permanently deleted in 15 days',
     body_html: `<!DOCTYPE html>
 <html>
 <body style="margin:0;padding:0;background:#f0f4f8;font-family:Inter,-apple-system,sans-serif">
@@ -100,14 +100,14 @@ export async function sendDeletionWarningEmail({ to, firstName, orgName, deletio
 
   <!-- Header -->
   <div style="background:linear-gradient(135deg,#1e1e2e,#2d1b69);padding:36px 32px;text-align:center">
-    <div style="font-size:42px;margin-bottom:12px">🦑</div>
+    <div style="font-size:42px;margin-bottom:12px"></div>
     <div style="font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.5);margin-bottom:8px">KrakenCam</div>
     <div style="font-size:22px;font-weight:800;color:#fff;line-height:1.3">Your account data is about to be<br/>permanently deleted</div>
   </div>
 
   <!-- Urgency bar -->
   <div style="background:#dc2626;padding:12px 32px;text-align:center">
-    <span style="color:#fff;font-weight:700;font-size:14px;letter-spacing:.04em">⏰ PERMANENT DELETION IN 15 DAYS — {{deletion_date}}</span>
+    <span style="color:#fff;font-weight:700;font-size:14px;letter-spacing:.04em">PERMANENT DELETION IN 15 DAYS — {{deletion_date}}</span>
   </div>
 
   <!-- Body -->
@@ -121,11 +121,11 @@ export async function sendDeletionWarningEmail({ to, firstName, orgName, deletio
 
     <!-- What gets deleted -->
     <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:20px 24px;margin:0 0 28px">
-      <div style="font-weight:700;color:#dc2626;margin-bottom:12px;font-size:14px">🗑 What will be permanently deleted:</div>
+      <div style="font-weight:700;color:#dc2626;margin-bottom:12px;font-size:14px">What will be permanently deleted:</div>
       <ul style="margin:0;padding:0 0 0 20px;color:#374151;font-size:14px;line-height:2">
         <li>All jobsite photos and videos</li>
         <li>All reports, checklists, and inspection records</li>
-        <li>Voice notes and field documentation</li>
+        <li>Voice notes, calendar, and field documentation</li>
         <li>Project timelines and client portal data</li>
         <li>Team member records and settings</li>
       </ul>
@@ -133,9 +133,9 @@ export async function sendDeletionWarningEmail({ to, firstName, orgName, deletio
 
     <!-- Don't lose your data box -->
     <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:12px;padding:20px 24px;margin:0 0 28px">
-      <div style="font-weight:700;color:#92400e;margin-bottom:8px;font-size:14px">📥 Haven't downloaded your data yet?</div>
+      <div style="font-weight:700;color:#92400e;margin-bottom:8px;font-size:14px">Haven't downloaded your data yet?</div>
       <p style="margin:0;font-size:14px;color:#78350f;line-height:1.6">
-        You can still recover everything. Sign back in to KrakenCam and go to <strong>Settings → Export My Data</strong> to download a complete backup of all your jobsite data before deletion.
+        You can still recover everything. Sign back in to KrakenCam and go to <strong>Settings, Export My Data</strong> to download a complete backup of all your jobsite data before deletion.
       </p>
     </div>
 
@@ -175,7 +175,7 @@ export async function sendDeletionWarningEmail({ to, firstName, orgName, deletio
       <div style="font-weight:700;color:#0c4a6e;margin-bottom:12px;font-size:14px">How to reactivate in 3 steps:</div>
       <div style="font-size:14px;color:#0c4a6e;line-height:2">
         <div><strong>1.</strong> Visit <a href="https://app.krakencam.com" style="color:#2563eb;font-weight:700">app.krakencam.com</a> and sign in with your email</div>
-        <div><strong>2.</strong> Go to <strong>Account → Billing</strong> and choose your plan</div>
+        <div><strong>2.</strong> Go to <strong>Account, Billing</strong> and choose your plan</div>
         <div><strong>3.</strong> Your data is restored immediately — pick up right where you left off</div>
       </div>
     </div>
