@@ -4151,13 +4151,44 @@ function TemplateManagerModal({ templates, setTemplates, onClose }) {
     try { return JSON.parse(localStorage.getItem("kc_cl_custom_cats") || "[]"); } catch { return []; }
   });
 
-  const allCats = [...BUILT_IN_CATEGORIES, ...customCats.filter(c => !BUILT_IN_CATEGORIES.includes(c))];
+  // hiddenBuiltIn: built-in cats the admin has hidden
+  const [hiddenBuiltIn, setHiddenBuiltIn] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("kc_cl_hidden_cats") || "[]"); } catch { return []; }
+  });
+
+  const allCats = [
+    ...BUILT_IN_CATEGORIES.filter(c => !hiddenBuiltIn.includes(c)),
+    ...customCats.filter(c => !BUILT_IN_CATEGORIES.includes(c)),
+  ];
 
   const saveCustomCat = (cat) => {
     if (!cat.trim() || allCats.includes(cat.trim())) return;
     const updated = [...customCats, cat.trim()];
     setCustomCats(updated);
     localStorage.setItem("kc_cl_custom_cats", JSON.stringify(updated));
+  };
+
+  const removeCategory = (cat) => {
+    const isBuiltIn = BUILT_IN_CATEGORIES.includes(cat);
+    if (isBuiltIn) {
+      const updated = [...hiddenBuiltIn, cat];
+      setHiddenBuiltIn(updated);
+      localStorage.setItem("kc_cl_hidden_cats", JSON.stringify(updated));
+    } else {
+      const updated = customCats.filter(c => c !== cat);
+      setCustomCats(updated);
+      localStorage.setItem("kc_cl_custom_cats", JSON.stringify(updated));
+    }
+    // If currently filtering by this cat, reset to All
+    if (tmplCategory === cat) setTmplCategory("All");
+    // If editing template uses this cat, reset to General
+    if (editing?.category === cat) setEditing(p => ({...p, category:"General"}));
+  };
+
+  const restoreBuiltIn = (cat) => {
+    const updated = hiddenBuiltIn.filter(c => c !== cat);
+    setHiddenBuiltIn(updated);
+    localStorage.setItem("kc_cl_hidden_cats", JSON.stringify(updated));
   };
 
   const openEdit = (t) => {
@@ -4297,6 +4328,48 @@ function TemplateManagerModal({ templates, setTemplates, onClose }) {
                 </div>
               );
             })}
+          </div>
+        </div>
+        {/* Manage categories section */}
+        <div style={{ borderTop:"1px solid var(--border)", padding:"12px 20px" }}>
+          <div style={{ fontSize:12, fontWeight:700, color:"var(--text2)", marginBottom:8 }}>📂 Manage Categories</div>
+          {/* Active categories with remove button */}
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:8 }}>
+            {allCats.map(cat => {
+              const color = CATEGORY_COLORS[cat] || "var(--accent)";
+              return (
+                <div key={cat} style={{ display:"flex", alignItems:"center", gap:4, padding:"3px 8px 3px 10px", borderRadius:20, background:`${color}18`, border:`1px solid ${color}44`, fontSize:11, fontWeight:600, color }}>
+                  {cat}
+                  <button onClick={() => removeCategory(cat)} title={`Remove ${cat}`}
+                    style={{ background:"none", border:"none", cursor:"pointer", color, opacity:.7, fontSize:13, lineHeight:1, padding:"0 1px", display:"flex", alignItems:"center" }}
+                    onMouseEnter={e=>e.currentTarget.style.opacity=1}
+                    onMouseLeave={e=>e.currentTarget.style.opacity=0.7}>×</button>
+                </div>
+              );
+            })}
+          </div>
+          {/* Restore hidden built-ins */}
+          {hiddenBuiltIn.length > 0 && (
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:8, alignItems:"center" }}>
+              <span style={{ fontSize:11, color:"var(--text3)" }}>Hidden:</span>
+              {hiddenBuiltIn.map(cat => (
+                <button key={cat} onClick={() => restoreBuiltIn(cat)}
+                  style={{ padding:"2px 8px", borderRadius:20, fontSize:11, fontWeight:600, border:"1px dashed var(--border)", background:"transparent", color:"var(--text3)", cursor:"pointer" }}>
+                  + {cat}
+                </button>
+              ))}
+            </div>
+          )}
+          {/* Add new custom category */}
+          <div style={{ display:"flex", gap:8 }}>
+            <input className="form-input" style={{ flex:1, fontSize:12, height:32 }}
+              value={customCatInput} onChange={e=>setCustomCatInput(e.target.value)}
+              placeholder="Add new category…"
+              onKeyDown={e=>{ if(e.key==="Enter" && customCatInput.trim()){ saveCustomCat(customCatInput); setCustomCatInput(""); }}}
+            />
+            <button className="btn btn-secondary btn-sm" disabled={!customCatInput.trim()} onClick={()=>{ saveCustomCat(customCatInput); setCustomCatInput(""); }}>
+              + Add
+            </button>
           </div>
         </div>
         <div className="modal-footer">
