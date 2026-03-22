@@ -20606,16 +20606,30 @@ export default function App() {
             // Find matching local project to recover photo dataUrls
             const localProj = localProjects.find(p => p.id === row.id);
 
-            // Merge photos: DB photos may have hasImage:true but no dataUrl.
-            // Restore dataUrl from localStorage if available.
-            const mergedPhotos = (row.photos || []).map(dbPhoto => {
-              if (dbPhoto.dataUrl) return dbPhoto; // already has URL (Storage)
-              if (!dbPhoto.hasImage) return dbPhoto; // no image at all
-              // Try to find the base64 in localStorage
-              const localPhoto = (localProj?.photos || []).find(p => p.id === dbPhoto.id);
-              if (localPhoto?.dataUrl) return { ...dbPhoto, dataUrl: localPhoto.dataUrl };
-              return dbPhoto; // hasImage but no local copy either
-            });
+            // Photo merge strategy:
+            // 1. If DB has photos with Storage URLs → use DB (authoritative)
+            // 2. If DB photos array is empty but localStorage has photos → use localStorage
+            // 3. If DB photos have hasImage:true (stripped base64) → restore from localStorage
+            const dbPhotos = row.photos || [];
+            const localPhotos = localProj?.photos || [];
+
+            let mergedPhotos;
+            if (dbPhotos.length === 0 && localPhotos.length > 0) {
+              // DB never had photos saved — use localStorage photos entirely
+              mergedPhotos = localPhotos;
+            } else {
+              // DB has photo records — merge, restoring dataUrls from localStorage where needed
+              mergedPhotos = dbPhotos.map(dbPhoto => {
+                if (dbPhoto.dataUrl && !dbPhoto.hasImage) return dbPhoto; // Storage URL — keep
+                const localPhoto = localPhotos.find(p => p.id === dbPhoto.id);
+                if (localPhoto?.dataUrl) return { ...dbPhoto, dataUrl: localPhoto.dataUrl };
+                return dbPhoto;
+              });
+              // Also add any localStorage photos not in DB yet
+              localPhotos.forEach(lp => {
+                if (!mergedPhotos.find(p => p.id === lp.id)) mergedPhotos.push(lp);
+              });
+            }
 
             return {
               id:            row.id,
