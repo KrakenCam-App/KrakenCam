@@ -1773,7 +1773,15 @@ function ImageEditor({ photo, onClose, onSave }) {
   };
   const restoreSnap = (dataUrl) => {
     const img = new Image();
-    img.onload = () => { const c = canvasRef.current; if (c) c.getContext("2d").drawImage(img, 0, 0); };
+    img.onload = () => {
+      const c = canvasRef.current;
+      if (!c) return;
+      // Resize canvas to match the snapshot dimensions before drawing
+      // This is critical for undo after a crop (canvas shrank, need to grow back)
+      c.width  = img.naturalWidth;
+      c.height = img.naturalHeight;
+      c.getContext("2d").drawImage(img, 0, 0);
+    };
     img.src = dataUrl;
   };
   const undo = () => {
@@ -1902,14 +1910,19 @@ function ImageEditor({ photo, onClose, onSave }) {
     if (!cropRect) return;
     const c = canvasRef.current; if (!c) return;
     const { x, y, w, h } = cropRect;
-    if (w < 4 || h < 4) { setCropRect(null); return; }
-    const tmp = document.createElement("canvas");
-    tmp.width = Math.round(Math.abs(w)); tmp.height = Math.round(Math.abs(h));
+    if (Math.abs(w) < 4 || Math.abs(h) < 4) { setCropRect(null); return; }
+    // Save pre-crop state FIRST so undo can restore it (including original canvas dimensions)
+    saveSnap();
     const sx = w < 0 ? x + w : x, sy = h < 0 ? y + h : y;
-    tmp.getContext("2d").drawImage(c, sx, sy, Math.abs(w), Math.abs(h), 0, 0, tmp.width, tmp.height);
+    const sw = Math.abs(w), sh = Math.abs(h);
+    const tmp = document.createElement("canvas");
+    tmp.width = Math.round(sw); tmp.height = Math.round(sh);
+    tmp.getContext("2d").drawImage(c, sx, sy, sw, sh, 0, 0, tmp.width, tmp.height);
     c.width = tmp.width; c.height = tmp.height;
     c.getContext("2d").drawImage(tmp, 0, 0);
-    setCropRect(null); saveSnap();
+    setCropRect(null);
+    // Save post-crop state so redo works
+    saveSnap();
   };
 
   const onDown = e => {
