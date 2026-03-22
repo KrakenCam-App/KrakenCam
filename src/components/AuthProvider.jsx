@@ -21,6 +21,7 @@ export function AuthProvider({ children }) {
   const [profile, setProfile]       = useState(null);
   const [subscription, setSubscription] = useState(null);
   const [loading, setLoading]       = useState(true);
+  const [authKey,       setAuthKey]     = useState(0);
 
   async function loadProfile(userId) {
     const { data, error } = await supabase
@@ -63,7 +64,7 @@ export function AuthProvider({ children }) {
   }
 
   async function hydrateUser(session) {
-    if (!session?.user) {
+     setAuthKey(k => k + 1);
       setUser(null);
       setProfile(null);
       setSubscription(null);
@@ -127,6 +128,7 @@ export function AuthProvider({ children }) {
     signOut,
     isAdmin: profile?.role === 'admin',
     orgId:   profile?.organization_id,
+    authKey,
   };
 
   return (

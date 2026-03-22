@@ -20491,10 +20491,10 @@ function LoginPage({ supabaseUrl, supabaseAnonKey, logo, onSuccess }) {
 
 export default function App() {
   // Pull org profile from AuthProvider (already wraps the whole app)
-  const { profile: authProfile } = useAuth();
-
+const { profile: authProfile, authKey } = useAuth();
   const [authUser,       setAuthUser]       = useState(null);   // null = not logged in
   const [authLoading,    setAuthLoading]    = useState(true);   // checking session on mount
+  const [authKey,       setAuthKey]     = useState(0);
   const [projects,      setProjects]      = useState(SEED_PROJECTS);
   const [activeProject, setActiveProject] = useState(null);
   const [page,          setPage]          = useState("projects");
@@ -20575,8 +20575,7 @@ export default function App() {
         userAvatar: avatarUrl     || prev.userAvatar,
       }));
     }).catch(() => {});
-  }, [authProfile?.organization_id, authProfile?.user_id]);
-
+}, [authProfile?.organization_id, authProfile?.user_id, authKey]);
   // ── One-time migration: push localStorage projects to Supabase ───────────
   // Runs once when authenticated. Finds projects that exist in localStorage
   // but not in Supabase and saves them. Safe to run repeatedly.
@@ -20719,8 +20718,7 @@ export default function App() {
       }
     };
     loadProjectsFromDB();
-  }, [authProfile?.organization_id]);
-
+}, [authProfile?.organization_id, authKey]);
   // ── Realtime subscriptions ────────────────────────────────────────────────
   // Listen for changes made by other team members and update local state live.
   useEffect(() => {
@@ -20887,8 +20885,7 @@ export default function App() {
       }
     };
     loadCalEvents();
-  }, [authProfile?.organization_id]);
-
+}, [authProfile?.organization_id, authKey]);
   // ── Load tasks from Supabase on mount ────────────────────────────────────
   useEffect(() => {
     if (!authProfile?.organization_id) return;
@@ -20919,7 +20916,7 @@ export default function App() {
       }
     };
     loadTasks();
-  }, [authProfile?.organization_id]);
+  }, [authProfile?.organization_id, authKey]);
 
   // 🎥 Load videos from Supabase when active project changes
   useEffect(() => {
