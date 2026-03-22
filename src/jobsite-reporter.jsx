@@ -20600,7 +20600,11 @@ export default function App() {
           try {
             const saved = localStorage.getItem("krakencam_state");
             if (saved) localProjects = JSON.parse(saved)?.projects || [];
+            console.log('[KrakenCam] localStorage projects:', localProjects.length, 
+              'first project photos:', localProjects[0]?.photos?.length,
+              'first photo has dataUrl:', !!localProjects[0]?.photos?.[0]?.dataUrl);
           } catch { /* ignore */ }
+          console.log('[KrakenCam] DB rows:', rows.length, 'first row photos:', rows[0]?.photos?.length);
 
           const mapped = rows.map(row => {
             // Find matching local project to recover photo dataUrls
