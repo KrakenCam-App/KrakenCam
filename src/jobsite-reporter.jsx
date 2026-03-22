@@ -8128,8 +8128,8 @@ function SketchEditor({ sketch, rooms, reports, project, settings, onSave, onClo
           style={{ background:"transparent",border:"none",outline:"none",color:"var(--text)",fontWeight:700,fontSize:15,flex:1,minWidth:0 }} />
         <div style={{ display:"flex",alignItems:"center",gap:6,marginLeft:"auto" }}>
           {saved && <span style={{ fontSize:12,color:"var(--green)" }}>✓ Saved</span>}
-          <button className="btn btn-ghost btn-sm btn-icon desktop-only" title="Undo" onClick={undo}><Icon d={ic.undo} size={16} /></button>
-          <button className="btn btn-ghost btn-sm btn-icon desktop-only" title="Redo" onClick={redo} style={{ transform:"scaleX(-1)" }}><Icon d={ic.undo} size={16} /></button>
+          <button className="btn btn-ghost btn-sm btn-icon desktop-only" title="Undo (Ctrl+Z)" onClick={undo} style={{ width:36,height:36 }}><Icon d={ic.undo} size={22} /></button>
+          <button className="btn btn-ghost btn-sm btn-icon desktop-only" title="Redo (Ctrl+Y)" onClick={redo} style={{ transform:"scaleX(-1)", width:36,height:36 }}><Icon d={ic.undo} size={22} /></button>
           <button className="btn btn-secondary btn-sm" onClick={() => setShowNotes(!showNotes)}>
             <Icon d={ic.text} size={14} /><span className="desktop-only" style={{ marginLeft:5 }}>Notes</span>
           </button>
@@ -8159,13 +8159,13 @@ function SketchEditor({ sketch, rooms, reports, project, settings, onSave, onClo
       <div style={{ flex:1,display:"flex",overflow:"hidden" }}>
 
         {/* ── Left toolbar ── */}
-        <div style={{ width:58,background:"var(--surface)",borderRight:"1px solid var(--border)",display:"flex",flexDirection:"column",alignItems:"center",padding:"8px 0",gap:2,flexShrink:0,overflowY:"auto" }}>
+        <div style={{ width:64,background:"var(--surface)",borderRight:"1px solid var(--border)",display:"flex",flexDirection:"column",alignItems:"center",padding:"8px 0",gap:2,flexShrink:0,overflowY:"auto" }}>
           {SKETCH_TOOLS.map(t => (
             <button key={t.id} title={t.label} onClick={()=>setTool(t.id)}
-              style={{ width:46,height:46,borderRadius:10,border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
+              style={{ width:52,height:52,borderRadius:10,border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
                 background: tool===t.id ? "var(--accent)" : "transparent",
                 color: tool===t.id ? "white" : "var(--text2)" }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
                 <path d={t.icon} />
               </svg>
             </button>
