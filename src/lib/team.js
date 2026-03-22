@@ -70,9 +70,30 @@ export async function removeUser(profileId) {
 
 /**
  * Update a team member's full profile in Supabase.
- * Maps the app's camelCase user object to DB snake_case columns.
+ * If email changed, also updates Supabase Auth login email via edge function.
  */
-export async function updateTeamMember(user) {
+export async function updateTeamMember(user, previousEmail) {
+  // If email changed, update the Auth login email via edge function
+  if (user.email && previousEmail && user.email !== previousEmail && user.user_id) {
+    try {
+      const { data: session } = await supabase.auth.getSession()
+      const token = session?.session?.access_token
+      const url   = import.meta.env.VITE_SUPABASE_URL
+      const anon  = import.meta.env.VITE_SUPABASE_ANON_KEY
+      await fetch(`${url}/functions/v1/admin-update-user-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token || anon}`,
+          'apikey': anon,
+        },
+        body: JSON.stringify({ user_id: user.user_id, new_email: user.email }),
+      })
+    } catch (e) {
+      console.warn('[KrakenCam] Auth email update failed:', e.message)
+    }
+  }
+
   const patch = {
     role:              user.role        || 'user',
     full_name:         `${user.firstName||''} ${user.lastName||''}`.trim(),

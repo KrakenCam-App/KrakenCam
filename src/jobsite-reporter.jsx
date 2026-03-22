@@ -16121,7 +16121,10 @@ function UserModal({ user, projects, settings = {}, currentUserRole = "admin", o
                 <div className="form-group"><label className="form-label">Last Name *</label><input className="form-input" value={form.lastName} onChange={e=>set("lastName",e.target.value)} placeholder="Smith" /></div>
               </div>
               <div className="form-row">
-                <div className="form-group"><label className="form-label">Email Address *</label><input className="form-input" type="email" value={form.email} onChange={e=>set("email",e.target.value)} placeholder="jane@company.com" /></div>
+                <div className="form-group">
+                  <label className="form-label">Email Address * <span style={{ fontSize:11,color:"var(--text3)",fontWeight:400 }}>— also updates login email</span></label>
+                  <input className="form-input" type="email" value={form.email} onChange={e=>set("email",e.target.value)} placeholder="jane@company.com" />
+                </div>
                 <div className="form-group"><label className="form-label">Mobile Phone</label><input className="form-input" value={form.mobile} onChange={e=>set("mobile",e.target.value)} placeholder="+1 (555) 000-0000" /></div>
               </div>
               <div className="form-row">
@@ -16960,9 +16963,10 @@ function AccountPage({ settings, onSettingsChange, projects, users, onUsersChang
     };
     const exists = users.find(x => x.id === normalizedUser.id);
     onUsersChange(exists ? users.map(x => x.id===normalizedUser.id ? normalizedUser : x) : [...users, normalizedUser]);
-    // Persist to Supabase profiles table
+    // Persist to Supabase profiles table (pass previous email so auth email can be updated if changed)
     if (normalizedUser.email) {
-      updateTeamMember(normalizedUser).catch(err =>
+      const previousEmail = exists?.email || null;
+      updateTeamMember(normalizedUser, previousEmail).catch(err =>
         console.warn("[KrakenCam] Failed to save team member:", err.message || err)
       );
     }
