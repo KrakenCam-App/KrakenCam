@@ -4139,6 +4139,8 @@ function ChecklistBuilder({ checklist, rooms = [], onSave, onBack }) {
 function TemplateManagerModal({ templates, setTemplates, onClose }) {
   const [editing, setEditing] = useState(null); // null = list, object = editing a template
   const [newTmplName, setNewTmplName] = useState("");
+  const [tmplSearch, setTmplSearch] = useState("");
+  const [tmplCategory, setTmplCategory] = useState("All");
 
   const startNew = () => {
     setEditing({ id:`tmpl_${uid()}`, name:"", desc:"", completionSettings:{ requireSignature:true, lockAfterComplete:true, requireCompletedBy:true, signatureLabel:"Site Supervisor Signature" }, fields:[] });
@@ -4180,9 +4182,6 @@ function TemplateManagerModal({ templates, setTemplates, onClose }) {
       </div>
     </div>
   );
-
-  const [tmplSearch, setTmplSearch] = React.useState("");
-  const [tmplCategory, setTmplCategory] = React.useState("All");
 
   const allCategories = ["All", ...Array.from(new Set(templates.map(t => t.category || "General").filter(Boolean)))];
   const filteredTmpls = templates.filter(t => {
