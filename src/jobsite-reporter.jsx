@@ -20210,6 +20210,117 @@ export default function App() {
     loadProjectsFromDB();
   }, [authProfile?.organization_id]);
 
+  // ── Realtime subscriptions ────────────────────────────────────────────────
+  // Listen for changes made by other team members and update local state live.
+  useEffect(() => {
+    if (!authProfile?.organization_id) return;
+    const orgId = authProfile.organization_id;
+
+    // Projects channel — someone on the team edits/creates/deletes a project
+    const projectChannel = supabase
+      .channel(`projects:${orgId}`)
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'projects',
+        filter: `organization_id=eq.${orgId}`,
+      }, payload => {
+        if (payload.eventType === 'DELETE') {
+          setProjects(prev => prev.filter(p => p.id !== payload.old.id));
+        } else if (payload.eventType === 'INSERT') {
+          const r = payload.new;
+          setProjects(prev => {
+            if (prev.find(p => p.id === r.id)) return prev;
+            return [...prev, {
+              id: r.id, title: r.title || "Untitled Project",
+              address: r.address || "", city: r.city || "", state: r.state || "", zip: r.zip || "",
+              clientName: r.client_name || "", type: r.type || "", status: r.status || "active",
+              notes: r.notes || "", color: r.color || "#4a90d9", createdAt: r.created_at || "",
+              photos: [], rooms: [], reports: [], videos: [], voiceNotes: [],
+              sketches: [], files: [], checklists: [], tasks: [],
+              organization_id: r.organization_id,
+            }];
+          });
+        } else if (payload.eventType === 'UPDATE') {
+          const r = payload.new;
+          setProjects(prev => prev.map(p => p.id !== r.id ? p : {
+            ...p,
+            title: r.title || p.title,
+            address: r.address ?? p.address,
+            city: r.city ?? p.city, state: r.state ?? p.state,
+            status: r.status ?? p.status, notes: r.notes ?? p.notes,
+            color: r.color ?? p.color, updatedAt: r.updated_at,
+          }));
+        }
+      })
+      .subscribe();
+
+    // Tasks channel — task created, updated, completed
+    const taskChannel = supabase
+      .channel(`tasks:${orgId}`)
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'tasks',
+        filter: `organization_id=eq.${orgId}`,
+      }, payload => {
+        if (payload.eventType === 'DELETE') {
+          setTasks(prev => prev.filter(t => t.id !== payload.old.id));
+        } else if (payload.eventType === 'INSERT') {
+          const r = payload.new;
+          setTasks(prev => {
+            if (prev.find(t => t.id === r.id)) return prev;
+            return [...prev, {
+              id: r.id, title: r.title || "", description: r.description || "",
+              completed: r.completed ?? false, assigneeIds: r.assigned_to ? [r.assigned_to] : [],
+              projectId: r.project_id || "", dueDate: r.due_date || "",
+              status: r.completed ? "done" : "todo", priority: "medium",
+              tags: [], checklist: [], comments: [], _dbId: r.id,
+            }];
+          });
+        } else if (payload.eventType === 'UPDATE') {
+          const r = payload.new;
+          setTasks(prev => prev.map(t => t.id !== r.id ? t : {
+            ...t,
+            title: r.title ?? t.title,
+            completed: r.completed ?? t.completed,
+            status: r.completed ? "done" : "todo",
+            dueDate: r.due_date ?? t.dueDate,
+          }));
+        }
+      })
+      .subscribe();
+
+    // Chat channel — new messages appear live
+    const chatChannel = supabase
+      .channel(`chat:${orgId}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'chat_messages',
+        filter: `organization_id=eq.${orgId}`,
+      }, payload => {
+        const r = payload.new;
+        setChats(prev => {
+          const updated = prev.map(ch => {
+            if (ch.id !== r.chat_room_id) return ch;
+            if ((ch.messages || []).find(m => m.id === r.id)) return ch;
+            return {
+              ...ch,
+              messages: [...(ch.messages || []), {
+                id: r.id, text: r.content || "", senderId: r.sender_id,
+                timestamp: r.created_at, type: r.message_type || "text",
+              }],
+              lastMessage: r.content || "",
+              lastMessageAt: r.created_at,
+            };
+          });
+          return updated;
+        });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(projectChannel);
+      supabase.removeChannel(taskChannel);
+      supabase.removeChannel(chatChannel);
+    };
+  }, [authProfile?.organization_id]);
+
   // ── Load calendar events from Supabase on mount ───────────────────────────
   useEffect(() => {
     if (!authProfile?.organization_id) return;
