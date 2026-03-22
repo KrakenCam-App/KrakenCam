@@ -4136,17 +4136,48 @@ function ChecklistBuilder({ checklist, rooms = [], onSave, onBack }) {
   );
 }
 
+const BUILT_IN_CATEGORIES = ["General","Water Damage","Safety","Fire","Mold","Structural","Electrical","HVAC","Roofing","Flood","Contents"];
+
 function TemplateManagerModal({ templates, setTemplates, onClose }) {
-  const [editing, setEditing] = useState(null); // null = list, object = editing a template
+  const [editing, setEditing] = useState(null);
   const [newTmplName, setNewTmplName] = useState("");
   const [tmplSearch, setTmplSearch] = useState("");
   const [tmplCategory, setTmplCategory] = useState("All");
+  // Local tags string — decoupled from the parsed array so commas work freely
+  const [tagsInput, setTagsInput] = useState("");
+  const [customCatInput, setCustomCatInput] = useState("");
+  // Custom categories saved to localStorage per org
+  const [customCats, setCustomCats] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("kc_cl_custom_cats") || "[]"); } catch { return []; }
+  });
+
+  const allCats = [...BUILT_IN_CATEGORIES, ...customCats.filter(c => !BUILT_IN_CATEGORIES.includes(c))];
+
+  const saveCustomCat = (cat) => {
+    if (!cat.trim() || allCats.includes(cat.trim())) return;
+    const updated = [...customCats, cat.trim()];
+    setCustomCats(updated);
+    localStorage.setItem("kc_cl_custom_cats", JSON.stringify(updated));
+  };
+
+  const openEdit = (t) => {
+    setEditing({...t});
+    setTagsInput((t.tags||[]).join(", "));
+    setCustomCatInput("");
+  };
 
   const startNew = () => {
-    setEditing({ id:`tmpl_${uid()}`, name:"", desc:"", completionSettings:{ requireSignature:true, lockAfterComplete:true, requireCompletedBy:true, signatureLabel:"Site Supervisor Signature" }, fields:[] });
+    const blank = { id:`tmpl_${uid()}`, name:"", desc:"", category:"General", tags:[], completionSettings:{ requireSignature:true, lockAfterComplete:true, requireCompletedBy:true, signatureLabel:"Site Supervisor Signature" }, fields:[] };
+    setEditing(blank);
+    setTagsInput("");
+    setCustomCatInput("");
   };
+
   const saveTmpl = (t) => {
-    setTemplates(prev => prev.find(x=>x.id===t.id) ? prev.map(x=>x.id===t.id?t:x) : [...prev,t]);
+    // Parse tags from the local string input at save time
+    const parsedTags = tagsInput.split(",").map(s=>s.trim()).filter(Boolean);
+    const withMeta = { ...t, tags: parsedTags, category: editing?.category || t.category || "General" };
+    setTemplates(prev => prev.find(x=>x.id===withMeta.id) ? prev.map(x=>x.id===withMeta.id?withMeta:x) : [...prev,withMeta]);
     setEditing(null);
   };
   const deleteTmpl = (id) => setTemplates(prev => prev.filter(t=>t.id!==id));
@@ -4161,31 +4192,33 @@ function TemplateManagerModal({ templates, setTemplates, onClose }) {
         <div className="modal-body" style={{ maxHeight:"60vh", overflowY:"auto" }}>
           <div className="form-group"><label className="form-label">Template Name</label><input className="form-input" value={editing.name} onChange={e=>setEditing(p=>({...p,name:e.target.value}))} placeholder="e.g. Fire Damage Walkthrough" /></div>
           <div className="form-group"><label className="form-label">Description</label><input className="form-input" value={editing.desc||""} onChange={e=>setEditing(p=>({...p,desc:e.target.value}))} placeholder="Short description…" /></div>
-          <div style={{ display:"flex", gap:10, marginBottom:14 }}>
+          <div style={{ display:"flex", gap:10, marginBottom:6 }}>
             <div className="form-group" style={{ flex:1, marginBottom:0 }}>
               <label className="form-label">Category</label>
               <select className="form-input form-select" value={editing.category||"General"}
                 onChange={e => setEditing(p=>({...p, category: e.target.value}))}>
-                {["General","Water Damage","Safety","Fire","Mold","Structural","Electrical","HVAC","Roofing","Flood","Contents","Other"].map(c =>
-                  <option key={c} value={c}>{c}</option>
-                )}
+                {allCats.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div className="form-group" style={{ flex:1, marginBottom:0 }}>
               <label className="form-label">Tags <span style={{ fontSize:11, color:"var(--text3)", fontWeight:400 }}>(comma separated)</span></label>
               <input className="form-input"
-                defaultValue={(editing.tags||[]).join(", ")}
-                onChange={e => {
-                  // Store raw string, parse only when there's a clear delimiter
-                  const raw = e.target.value;
-                  // Only update tags array when user pauses after a comma
-                  const parsed = raw.split(",").map(t=>t.trim()).filter(Boolean);
-                  setEditing(p=>({...p, tags: parsed, _tagsRaw: raw}));
-                }}
+                value={tagsInput}
+                onChange={e => setTagsInput(e.target.value)}
                 placeholder="insurance, restoration, mold"
               />
-              <div style={{ fontSize:11, color:"var(--text3)", marginTop:4 }}>Type a tag then add a comma to separate</div>
             </div>
+          </div>
+          {/* Add custom category */}
+          <div style={{ display:"flex", gap:8, marginBottom:14, alignItems:"center" }}>
+            <input className="form-input" style={{ flex:1, fontSize:12 }}
+              value={customCatInput} onChange={e=>setCustomCatInput(e.target.value)}
+              placeholder="Add custom category…"
+              onKeyDown={e=>{ if(e.key==="Enter"){ saveCustomCat(customCatInput); setEditing(p=>({...p,category:customCatInput.trim()})); setCustomCatInput(""); }}}
+            />
+            <button className="btn btn-secondary btn-sm" disabled={!customCatInput.trim()} onClick={()=>{ saveCustomCat(customCatInput); setEditing(p=>({...p,category:customCatInput.trim()})); setCustomCatInput(""); }}>
+              + Add Category
+            </button>
           </div>
           <ChecklistBuilder checklist={editing} onSave={saveTmpl} onBack={()=>setEditing(null)} />
         </div>
@@ -4256,7 +4289,7 @@ function TemplateManagerModal({ templates, setTemplates, onClose }) {
                     )}
                   </div>
                   <div style={{ display:"flex", gap:6, flexShrink:0 }}>
-                    <button className="btn btn-sm btn-secondary" onClick={()=>setEditing({...t})}><Icon d={ic.edit} size={12} /></button>
+                    <button className="btn btn-sm btn-secondary" onClick={()=>openEdit(t)}><Icon d={ic.edit} size={12} /></button>
                     {!t.id.startsWith("tmpl_general")&&!t.id.startsWith("tmpl_water")&&!t.id.startsWith("tmpl_ppe") && (
                       <button className="btn btn-sm btn-danger btn-icon" onClick={()=>deleteTmpl(t.id)}><Icon d={ic.trash} size={12} /></button>
                     )}
