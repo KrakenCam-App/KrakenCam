@@ -6,6 +6,10 @@
     {
       "path": "/api/check-trials",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/check-deletions",
+      "schedule": "0 10 * * *"
     }
   ]
 }

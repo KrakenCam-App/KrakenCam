@@ -10,6 +10,7 @@ import {
   sendTrialEndingEmail,
   sendPaymentFailedEmail,
   sendCancellationEmail,
+  sendDeletionWarningEmail,
 } from './lib/email.js'
 
 const RESEND_API_KEY       = process.env.RESEND_API_KEY
@@ -127,7 +128,8 @@ export default async function handler(req, res) {
       case 'welcome':        await sendWelcomeEmail({ to, firstName, orgName }); break
       case 'trial_ending':   await sendTrialEndingEmail({ to, firstName, daysLeft, trialEndsAt }); break
       case 'payment_failed': await sendPaymentFailedEmail({ to, orgName }); break
-      case 'cancellation':   await sendCancellationEmail({ to, firstName }); break
+      case 'cancellation':      await sendCancellationEmail({ to, firstName }); break
+      case 'deletion_warning':  await sendDeletionWarningEmail({ to, firstName, orgName: req.body.orgName, deletionDate: req.body.deletionDate }); break
       default: return res.status(400).json({ error: `Unknown email type: ${type}` })
     }
     return res.status(200).json({ success: true })

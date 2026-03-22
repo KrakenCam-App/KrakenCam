@@ -278,6 +278,35 @@ const EMAIL_TEMPLATES = [
 </div>`,
   },
   {
+    id: 'account_deletion_warning',
+    name: '⚠️ Account Deletion Warning',
+    trigger: 'Auto-sent 15 days before permanent data deletion (daily cron at 10am UTC)',
+    subject: '⚠️ Your KrakenCam data will be permanently deleted in 15 days',
+    status: 'active',
+    previewHtml: `<div style="font-family:sans-serif;max-width:520px;margin:auto;color:#111">
+  <div style="background:linear-gradient(135deg,#1e1e2e,#2d1b69);padding:28px;text-align:center;border-radius:12px 12px 0 0">
+    <div style="font-size:36px">🦑</div>
+    <div style="color:#fff;font-size:18px;font-weight:800;margin-top:8px">Your account data is about to be permanently deleted</div>
+  </div>
+  <div style="background:#dc2626;padding:10px;text-align:center">
+    <span style="color:#fff;font-weight:700;font-size:13px">⏰ PERMANENT DELETION IN 15 DAYS</span>
+  </div>
+  <div style="padding:28px">
+    <p>Hi {{first_name}},</p>
+    <p>Your <strong>{{org_name}}</strong> KrakenCam account was cancelled. <strong style="color:#dc2626">All your data will be permanently deleted on {{deletion_date}}.</strong></p>
+    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px;margin:16px 0">
+      <strong style="color:#dc2626">What will be deleted:</strong> All photos, videos, reports, checklists, voice notes, project timelines, and team records.
+    </div>
+    <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:16px;margin:16px 0">
+      <strong>📥 Haven't downloaded your data?</strong><br/>Sign back in → Settings → <strong>Export My Data</strong> to download everything before deletion.
+    </div>
+    <div style="text-align:center;margin:24px 0">
+      <a href="https://app.krakencam.com" style="background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;padding:14px 36px;border-radius:8px;text-decoration:none;font-weight:800">✅ Reactivate My Account →</a>
+    </div>
+  </div>
+</div>`,
+  },
+  {
     id: 'password_reset',
     name: 'Password Reset',
     trigger: 'On password reset request',
