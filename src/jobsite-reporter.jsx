@@ -20462,6 +20462,28 @@ export default function App() {
     } catch(e) { /* ignore corrupt storage */ }
   }, []);
 
+  // ── Seed settings from authProfile on first login ────────────────────────
+  // Fills in user name, email, org name, role from Supabase profile so
+  // Settings > Account shows real data without manual entry.
+  useEffect(() => {
+    if (!authProfile) return;
+    setSettings(prev => {
+      // Only fill in fields that are blank — don't overwrite user-customised values
+      const nameParts = (authProfile.full_name || "").trim().split(" ");
+      const firstName = nameParts[0] || prev.userFirstName || "";
+      const lastName  = nameParts.slice(1).join(" ") || prev.userLastName || "";
+      return {
+        ...prev,
+        userFirstName:   prev.userFirstName || firstName,
+        userLastName:    prev.userLastName  || lastName,
+        userEmail:       prev.userEmail     || authProfile.email || "",
+        userRole:        authProfile.role   || prev.userRole || "admin",
+        companyName:     prev.companyName   || authProfile.organization?.name || authProfile.organizations?.name || "",
+        orgId:           authProfile.organization_id || prev.orgId || "",
+      };
+    });
+  }, [authProfile?.id]);
+
   // ── Load projects from Supabase on mount (when authenticated) ──────────────
   useEffect(() => {
     if (!authProfile?.organization_id) return;  // not authenticated yet
@@ -21492,8 +21514,8 @@ export default function App() {
               </svg>
             </div>
             <div style={{ display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:"var(--radius-sm)",background:"var(--surface2)",cursor:"pointer",width:"100%",boxSizing:"border-box" }}
-              onClick={() => canOpenSettings && setPage("settings")}
-              title={canOpenSettings ? "" : "Settings access is restricted"}>
+              onClick={() => canOpenAccount ? setPage("account") : setPage("settings")}
+              title="Account & Settings">
               <div style={{ width:32,height:32,borderRadius:"50%",background:"var(--accent)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:12,color:"white",flexShrink:0,overflow:"hidden" }}>
                 {settings.userAvatar
                   ? <img src={settings.userAvatar} alt="avatar" style={{ width:"100%",height:"100%",objectFit:"cover" }} />

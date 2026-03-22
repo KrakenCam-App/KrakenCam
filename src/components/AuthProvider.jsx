@@ -32,7 +32,7 @@ export function AuthProvider({ children }) {
         full_name,
         email,
         is_active,
-        organizations(trial_ends_at, subscription_status, subscription_tier)
+        organizations(name, trial_ends_at, subscription_status, subscription_tier)
       `)
       .eq('user_id', userId)
       .single();
