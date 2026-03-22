@@ -7005,14 +7005,20 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
           {filtered.map(photo => (
             <div key={photo.id} className="photo-card">
               <div className="photo-card-img" onClick={() => setViewerPhoto(photo)}>
-                <img
-                  src={photo.dataUrl || ""}
-                  alt={photo.name || "photo"}
-                  style={{ width:"100%",height:"100%",objectFit:"cover",display: photo.dataUrl ? "block" : "none" }}
-                  onError={e => { e.target.style.display='none'; e.target.nextElementSibling.style.display='flex'; }}
-                  onLoad={e => { e.target.style.display='block'; e.target.nextElementSibling.style.display='none'; }}
-                />
-                <div className="photo-placeholder" style={{ display: photo.dataUrl ? "none" : "flex" }}>
+                {photo.dataUrl && photo.dataUrl.length > 10
+                  ? <img
+                      src={photo.dataUrl}
+                      alt={photo.name || "photo"}
+                      style={{ width:"100%",height:"100%",objectFit:"cover",display:"block" }}
+                      onError={e => {
+                        e.target.style.display='none';
+                        const ph = e.target.parentElement?.querySelector('.photo-placeholder');
+                        if (ph) ph.style.display='flex';
+                      }}
+                    />
+                  : null
+                }
+                <div className="photo-placeholder" style={{ display: (photo.dataUrl && photo.dataUrl.length > 10) ? "none" : "flex" }}>
                   <Icon d={ic.image} size={32} stroke={photo.color||"var(--accent)"} />
                   <span style={{ fontSize:10,color:"var(--text3)" }}>{photo.room||"Photo"}</span>
                 </div>
@@ -7124,20 +7130,20 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
               <div style={{ display:"flex",gap:8,alignItems:"center" }}>
                 <button title="Download" onClick={download}
                   style={{ background:"rgba(255,255,255,.12)",border:"1px solid rgba(255,255,255,.18)",color:"white",borderRadius:8,width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer" }}>
-                  <Icon d={ic.download} size={16}/>
+                  <Icon d={ic.download} size={16} stroke="white"/>
                 </button>
                 <button title="Edit photo" onClick={()=>{ setViewerPhoto(null); onEditPhoto(photo); }}
                   style={{ background:"rgba(255,255,255,.12)",border:"1px solid rgba(255,255,255,.18)",color:"white",borderRadius:8,width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer" }}>
-                  <Icon d={ic.edit} size={16}/>
+                  <Icon d={ic.edit} size={16} stroke="white"/>
                 </button>
                 <button title="Photo settings" onClick={()=>{ setViewerPhoto(null); setSettingsPhoto(photo); }}
                   style={{ background:"rgba(255,255,255,.12)",border:"1px solid rgba(255,255,255,.18)",color:"white",borderRadius:8,width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer" }}>
-                  <Icon d={ic.settings} size={16}/>
+                  <Icon d={ic.settings} size={16} stroke="white"/>
                 </button>
                 <button title="Send photo to chat" onClick={()=>{ if (canSharePhotos) openShareModal(photo); }}
                   disabled={!canSharePhotos}
                   style={{ background:"rgba(255,255,255,.12)",border:"1px solid rgba(255,255,255,.18)",color:"white",borderRadius:8,width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",cursor:canSharePhotos?"pointer":"default",opacity:canSharePhotos?1:.45 }}>
-                  <Icon d={ic.message} size={16}/>
+                  <Icon d={ic.message} size={16} stroke="white"/>
                 </button>
                 <button title="Delete" onClick={()=>{ deletePhoto(photo.id); setViewerPhoto(next||prev||null); }}
                   onMouseDown={e=>{
@@ -7154,11 +7160,11 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
                     setTimeout(()=>{ btn.dataset.armed="0"; btn.style.background="rgba(220,60,60,.7)"; btn.style.width="36px"; btn.style.padding="0"; btn.title="Delete"; btn.innerHTML=`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>`; }, 3000);
                   }}
                   style={{ background:"rgba(220,60,60,.7)",border:"none",color:"white",borderRadius:8,width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer" }}>
-                  <Icon d={ic.trash} size={16}/>
+                  <Icon d={ic.trash} size={16} stroke="white"/>
                 </button>
                 <button title="Close (Esc)" onClick={()=>setViewerPhoto(null)}
                   style={{ background:"rgba(255,255,255,.12)",border:"1px solid rgba(255,255,255,.18)",color:"white",borderRadius:8,width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",marginLeft:"auto" }}>
-                  <Icon d={ic.close} size={16}/>
+                  <Icon d={ic.close} size={16} stroke="white"/>
                 </button>
               </div>
             </div>
@@ -7171,7 +7177,7 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
                   style={{ position:"absolute",left:12,zIndex:10,background:"rgba(0,0,0,.55)",border:"1px solid rgba(255,255,255,.15)",color:"white",borderRadius:"50%",width:44,height:44,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"background .15s" }}
                   onMouseEnter={e=>e.currentTarget.style.background="rgba(43,127,232,.7)"}
                   onMouseLeave={e=>e.currentTarget.style.background="rgba(0,0,0,.55)"}>
-                  <Icon d="M15 18l-6-6 6-6" size={20}/>
+                  <Icon d="M15 18l-6-6 6-6" size={20} stroke="white"/>
                 </button>
               )}
 
@@ -7204,7 +7210,7 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
                   style={{ position:"absolute",right:12,zIndex:10,background:"rgba(0,0,0,.55)",border:"1px solid rgba(255,255,255,.15)",color:"white",borderRadius:"50%",width:44,height:44,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"background .15s" }}
                   onMouseEnter={e=>e.currentTarget.style.background="rgba(43,127,232,.7)"}
                   onMouseLeave={e=>e.currentTarget.style.background="rgba(0,0,0,.55)"}>
-                  <Icon d="M9 18l6-6-6-6" size={20}/>
+                  <Icon d="M9 18l6-6-6-6" size={20} stroke="white"/>
                 </button>
               )}
 
@@ -7213,12 +7219,12 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
                 <div className="viewer-arrow-mobile" style={{ display:"none",gap:16,marginTop:10,flexShrink:0 }}>
                   <button onClick={()=>prev&&setViewerPhoto(prev)} disabled={!prev}
                     style={{ background:"rgba(255,255,255,.15)",border:"1px solid rgba(255,255,255,.2)",color:"white",borderRadius:"50%",width:48,height:48,display:"flex",alignItems:"center",justifyContent:"center",cursor:prev?"pointer":"default",opacity:prev?1:.3 }}>
-                    <Icon d="M15 18l-6-6 6-6" size={22}/>
+                    <Icon d="M15 18l-6-6 6-6" size={22} stroke="white"/>
                   </button>
                   <span style={{ color:"rgba(255,255,255,.4)",fontSize:12,alignSelf:"center" }}>{idx+1} / {filtered.length}</span>
                   <button onClick={()=>next&&setViewerPhoto(next)} disabled={!next}
                     style={{ background:"rgba(255,255,255,.15)",border:"1px solid rgba(255,255,255,.2)",color:"white",borderRadius:"50%",width:48,height:48,display:"flex",alignItems:"center",justifyContent:"center",cursor:next?"pointer":"default",opacity:next?1:.3 }}>
-                    <Icon d="M9 18l6-6-6-6" size={22}/>
+                    <Icon d="M9 18l6-6-6-6" size={22} stroke="white"/>
                   </button>
                 </div>
               )}
