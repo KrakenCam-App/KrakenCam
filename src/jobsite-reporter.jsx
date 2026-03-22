@@ -20486,21 +20486,22 @@ export default function App() {
     } catch(e) { /* ignore corrupt storage */ }
   }, []);
 
-  // ── Load settings from Supabase when org is known ────────────────────────
+  // ── Load settings from Supabase when org/user is known ──────────────────
   useEffect(() => {
-    const orgId = authProfile?.organization_id;
-    if (!orgId) return;
-    loadSettingsFromDB(orgId).then(dbSettings => {
-      if (!dbSettings) return; // no saved settings yet, use defaults
+    const orgId  = authProfile?.organization_id;
+    const userId = authProfile?.user_id;
+    if (!orgId || !userId) return;
+    loadSettingsFromDB(orgId, userId).then(dbSettings => {
+      if (!dbSettings) return;
       setSettings(prev => ({
         ...prev,
         ...dbSettings,
-        // Always keep binary fields from localStorage (not stored in DB)
+        // Binary fields stay from localStorage
         logo:       prev.logo,
         userAvatar: prev.userAvatar,
       }));
     }).catch(() => {});
-  }, [authProfile?.organization_id]);
+  }, [authProfile?.organization_id, authProfile?.user_id]);
 
   // ── Seed settings from authProfile on first login ────────────────────────
   // Fills in user name, email, org name, role from Supabase profile so
@@ -21764,8 +21765,9 @@ export default function App() {
           {page === "settings" && canOpenSettings && (
             <SettingsPage settings={settings} onSave={s => {
               setSettings(s);
-              const orgId = authProfile?.organization_id;
-              if (orgId) saveSettingsToDB(orgId, s).catch(() => {});
+              const orgId  = authProfile?.organization_id;
+              const userId = authProfile?.user_id;
+              if (orgId || userId) saveSettingsToDB(orgId, userId, s).catch(() => {});
             }} projects={projects} users={teamUsers}
             onDeleteAccount={() => {
               setProjects([]);
