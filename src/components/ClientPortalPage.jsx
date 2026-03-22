@@ -127,14 +127,32 @@ export default function ClientPortalPage({ slug }) {
 
   const sendNote = async () => {
     if (!clientNote.trim()) return
-    // Append note to published_portals client_notes via upsert
+    const noteId = Math.random().toString(36).slice(2)
+    const note = { id: noteId, text: clientNote.trim(), createdAt: new Date().toISOString() }
+
+    // 1. Append note to published_portals
     const existing = portalRow.project_data?.clientNotes || []
-    const updated = [...existing, { id: Math.random().toString(36).slice(2), text: clientNote.trim(), createdAt: new Date().toISOString() }]
     await fetch(`${SUPABASE_URL}/rest/v1/published_portals?slug=eq.${encodeURIComponent(slug)}`, {
       method: 'PATCH',
       headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify({ project_data: { ...portalRow.project_data, clientNotes: updated } })
+      body: JSON.stringify({ project_data: { ...portalRow.project_data, clientNotes: [...existing, note] } })
     })
+
+    // 2. Write a portal_notifications row — triggers Realtime on the admin app
+    if (portalRow.org_id) {
+      await fetch(`${SUPABASE_URL}/rest/v1/portal_notifications`, {
+        method: 'POST',
+        headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          organization_id: portalRow.org_id,
+          project_id:      project.id || '',
+          project_title:   project.title || 'Project',
+          slug,
+          client_note:     note.text,
+        })
+      }).catch(() => {}) // non-fatal
+    }
+
     setClientNote(''); setNoteSent(true)
     setTimeout(() => setNoteSent(false), 3000)
   }

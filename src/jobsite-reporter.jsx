@@ -20720,10 +20720,37 @@ export default function App() {
       })
       .subscribe();
 
+    // Portal notifications — client sent a note from the portal
+    const portalNotifChannel = supabase
+      .channel(`portal_notif:${orgId}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'portal_notifications',
+        filter: `organization_id=eq.${orgId}`,
+      }, payload => {
+        // Only notify admins and managers, not regular users
+        const role = authProfile?.role || 'user';
+        if (role === 'user') return;
+        const n = payload.new;
+        setNotifications(prev => [{
+          id:            uid(),
+          type:          'portal-message',
+          author:        'Client Portal',
+          authorInitials:'CP',
+          authorColor:   '#3dba7e',
+          context:       n.project_title || 'Project',
+          preview:       n.client_note?.slice(0, 80) || 'New client message',
+          read:          false,
+          action:        'sent a message via',
+          timestamp:     n.created_at,
+        }, ...prev]);
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(projectChannel);
       supabase.removeChannel(taskChannel);
       supabase.removeChannel(chatChannel);
+      supabase.removeChannel(portalNotifChannel);
     };
   }, [authProfile?.organization_id]);
 
