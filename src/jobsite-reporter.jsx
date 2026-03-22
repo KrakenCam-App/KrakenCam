@@ -8129,12 +8129,7 @@ function SketchEditor({ sketch, rooms, reports, project, settings, onSave, onClo
           style={{ background:"transparent",border:"none",outline:"none",color:"var(--text)",fontWeight:700,fontSize:15,flex:1,minWidth:0 }} />
         <div style={{ display:"flex",alignItems:"center",gap:6,marginLeft:"auto" }}>
           {saved && <span style={{ fontSize:12,color:"var(--green)" }}>✓ Saved</span>}
-          <button className="btn btn-ghost btn-sm desktop-only" title="Undo (Ctrl+Z)" onClick={undo} style={{ display:"flex",alignItems:"center",gap:4,padding:"0 10px",height:34,fontSize:13,fontWeight:600,color:"var(--text2)" }}>
-            <span style={{ fontSize:16 }}>↩</span> Undo
-          </button>
-          <button className="btn btn-ghost btn-sm desktop-only" title="Redo (Ctrl+Y)" onClick={redo} style={{ display:"flex",alignItems:"center",gap:4,padding:"0 10px",height:34,fontSize:13,fontWeight:600,color:"var(--text2)" }}>
-            <span style={{ fontSize:16 }}>↪</span> Redo
-          </button>
+
           <button className="btn btn-secondary btn-sm" onClick={() => setShowNotes(!showNotes)}>
             <Icon d={ic.text} size={14} /><span className="desktop-only" style={{ marginLeft:5 }}>Notes</span>
           </button>
@@ -8271,15 +8266,15 @@ function SketchEditor({ sketch, rooms, reports, project, settings, onSave, onClo
             </div>
           </div>
 
-          {/* ── Undo/Redo overlay — top-right, mobile only ── */}
-          <div className="mobile-only" style={{ position:"absolute",top:12,right:12,display:"flex",flexDirection:"row",gap:4,zIndex:20 }}>
+          {/* ── Undo/Redo overlay — top-right, always visible ── */}
+          <div style={{ position:"absolute",top:12,right:12,display:"flex",flexDirection:"row",gap:4,zIndex:20 }}>
             <button onClick={undo} title="Undo"
-              style={{ width:40,height:40,borderRadius:10,background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 12px rgba(0,0,0,.4)" }}>
-              <Icon d={ic.undo} size={16} />
+              style={{ height:40,padding:"0 12px",borderRadius:10,background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5,boxShadow:"0 2px 12px rgba(0,0,0,.4)",fontSize:14,fontWeight:600 }}>
+              ↩ <span style={{ fontSize:12 }}>Undo</span>
             </button>
             <button onClick={redo} title="Redo"
-              style={{ width:40,height:40,borderRadius:10,background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 12px rgba(0,0,0,.4)",transform:"scaleX(-1)" }}>
-              <Icon d={ic.undo} size={16} />
+              style={{ height:40,padding:"0 12px",borderRadius:10,background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5,boxShadow:"0 2px 12px rgba(0,0,0,.4)",fontSize:14,fontWeight:600 }}>
+              ↪ <span style={{ fontSize:12 }}>Redo</span>
             </button>
           </div>
 
