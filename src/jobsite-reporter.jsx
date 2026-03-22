@@ -20595,42 +20595,60 @@ export default function App() {
       try {
         const rows = await dbGetProjects();
         if (rows && rows.length > 0) {
-          // Map DB rows to the local project shape the app expects.
-          // DB rows use snake_case; local state uses camelCase with extra fields.
-          const mapped = rows.map(row => ({
-            // Core fields present in both DB and local shape
-            id:            row.id,
-            title:         row.title || "Untitled Project",
-            address:       row.address || "",
-            city:          row.city || "",
-            state:         row.state || "",
-            zip:           row.zip || "",
-            lat:           row.lat ? String(row.lat) : "",
-            lng:           row.lng ? String(row.lng) : "",
-            clientName:    row.client_name || "",
-            clientEmail:   row.client_email || "",
-            clientPhone:   row.client_phone || "",
-            contractorName:  row.contractor_name || "",
-            contractorPhone: row.contractor_phone || "",
-            type:          row.type || "",
-            status:        row.status || "active",
-            notes:         row.notes || "",
-            color:         row.color || "#4a90d9",
-            createdAt:     row.created_at || "",
-            updatedAt:     row.updated_at || "",
-            // Carry over rich local fields that DB doesn't store (keep defaults)
-            photos:        row.photos   || [],
-            rooms:         row.rooms    || [],
-            reports:       row.reports  || [],
-            videos:        row.videos   || [],
-            voiceNotes:    row.voice_notes || [],
-            sketches:      row.sketches || [],
-            files:         row.files    || [],
-            checklists:    row.checklists || [],
-            tasks:         row.tasks    || [],
-            // Keep org reference
-            organization_id: row.organization_id,
-          }));
+          // Load localStorage projects to recover base64 images not yet in Storage
+          let localProjects = [];
+          try {
+            const saved = localStorage.getItem("krakencam_state");
+            if (saved) localProjects = JSON.parse(saved)?.projects || [];
+          } catch { /* ignore */ }
+
+          const mapped = rows.map(row => {
+            // Find matching local project to recover photo dataUrls
+            const localProj = localProjects.find(p => p.id === row.id);
+
+            // Merge photos: DB photos may have hasImage:true but no dataUrl.
+            // Restore dataUrl from localStorage if available.
+            const mergedPhotos = (row.photos || []).map(dbPhoto => {
+              if (dbPhoto.dataUrl) return dbPhoto; // already has URL (Storage)
+              if (!dbPhoto.hasImage) return dbPhoto; // no image at all
+              // Try to find the base64 in localStorage
+              const localPhoto = (localProj?.photos || []).find(p => p.id === dbPhoto.id);
+              if (localPhoto?.dataUrl) return { ...dbPhoto, dataUrl: localPhoto.dataUrl };
+              return dbPhoto; // hasImage but no local copy either
+            });
+
+            return {
+              id:            row.id,
+              title:         row.title || "Untitled Project",
+              address:       row.address || "",
+              city:          row.city || "",
+              state:         row.state || "",
+              zip:           row.zip || "",
+              lat:           row.lat ? String(row.lat) : "",
+              lng:           row.lng ? String(row.lng) : "",
+              clientName:    row.client_name || "",
+              clientEmail:   row.client_email || "",
+              clientPhone:   row.client_phone || "",
+              contractorName:  row.contractor_name || "",
+              contractorPhone: row.contractor_phone || "",
+              type:          row.type || "",
+              status:        row.status || "active",
+              notes:         row.notes || "",
+              color:         row.color || "#4a90d9",
+              createdAt:     row.created_at || "",
+              updatedAt:     row.updated_at || "",
+              photos:        mergedPhotos,
+              rooms:         row.rooms    || [],
+              reports:       row.reports  || [],
+              videos:        row.videos   || [],
+              voiceNotes:    row.voice_notes || [],
+              sketches:      row.sketches || [],
+              files:         row.files    || [],
+              checklists:    row.checklists || [],
+              tasks:         row.tasks    || [],
+              organization_id: row.organization_id,
+            };
+          });
           setProjects(mapped);
         }
       } catch (err) {
