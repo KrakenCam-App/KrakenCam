@@ -6,19 +6,14 @@
 
 import { supabase } from './supabase';
 
-// Fields that are too large for DB (base64 images) — stripped before save
-const STRIP_FROM_PHOTOS = ['dataUrl'];
-const STRIP_FROM_FILES  = ['dataUrl'];
-
 function stripPhotos(photos = []) {
   return photos.map(p => {
-    // Only strip actual base64 data — keep Storage URLs (they're short strings)
     const isBase64 = p.dataUrl && p.dataUrl.startsWith('data:');
     if (isBase64) {
       const { dataUrl, ...rest } = p;
       return { ...rest, hasImage: true };
     }
-    return p; // keep dataUrl if it's a Storage URL
+    return p;
   });
 }
 
@@ -44,6 +39,7 @@ function stripVideos(videos = []) {
 function toDbRow(p) {
   return {
     id:                p.id,
+    organization_id:   p.organization_id   || null,  // ← fixed
     title:             p.title             || '',
     address:           p.address           || '',
     city:              p.city              || '',
@@ -81,9 +77,8 @@ function toDbRow(p) {
     rooms:             p.rooms             || [],
     reports:           p.reports           || [],
     checklists:        p.checklists        || [],
-    // Strip binary data from photos/files/videos before saving
-    photos:            stripPhotos(p.photos  || []),
-    files:             stripFiles(p.files    || []),
+    photos:            stripPhotos(p.photos || []),
+    files:             stripFiles(p.files   || []),
   };
 }
 
@@ -91,6 +86,7 @@ function toDbRow(p) {
 function fromDbRow(row) {
   return {
     id:               row.id,
+    organization_id:  row.organization_id,
     title:            row.title             || 'Untitled Project',
     address:          row.address           || '',
     city:             row.city              || '',
@@ -136,7 +132,6 @@ function fromDbRow(row) {
     tasks:            row.tasks             || [],
     createdAt:        row.created_at        || '',
     updatedAt:        row.updated_at        || '',
-    organization_id:  row.organization_id,
   };
 }
 
@@ -162,7 +157,7 @@ export async function createProject(project) {
 
 export async function updateProject(id, project) {
   const row = toDbRow(project);
-  delete row.id; // don't update PK
+  delete row.id;
   const { data, error } = await supabase
     .from('projects')
     .update({ ...row, updated_at: new Date().toISOString() })
