@@ -7006,11 +7006,15 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
   const [addingTag,     setAddingTag]     = useState(false);
   const [newTagInput,   setNewTagInput]   = useState("");
   const [settingsPhoto, setSettingsPhoto] = useState(null);
-  const [viewerPhoto,   setViewerPhoto]   = useState(null); // lightbox viewer
+  const [viewerPhoto,   setViewerPhoto]   = useState(null);
   const [sharePhoto,    setSharePhoto]    = useState(null);
   const [shareMode,     setShareMode]     = useState("dm");
   const [shareTargetId, setShareTargetId] = useState("");
   const [shareText,     setShareText]     = useState("");
+  const [selectedPhotoIds, setSelectedPhotoIds] = useState(new Set());
+  const [selectMode,    setSelectMode]    = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(null); // null | "single" | "batch"
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
 
   // Before & After
   const [showBAModal,   setShowBAModal]   = useState(false);
@@ -7026,7 +7030,7 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
   const canBeforeAfter = currentPlan === "pro" || currentPlan === "command";
   const baPairs = project.beforeAfterPairs || [];
   const availableUsers = useMemo(() => teamUsers.filter(u => u.status === "active"), [teamUsers]);
-  const shareableChats = useMemo(() => chats.filter(chat => chat && (chat.memberIds || []).includes("__admin__")), [chats]);
+  const shareableChats = useMemo(() => chats.filter(chat => chat && chat.id), [chats]);
   const canSharePhotos = typeof onSendPhotoToChat === "function" && (availableUsers.length > 0 || shareableChats.length > 0);
 
   const openShareModal = (photo) => {
@@ -7084,8 +7088,20 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
 
   const updatePhoto = (id, patch) =>
     onUpdateProject({ ...project, photos: photos.map(p => p.id===id ? { ...p, ...patch } : p) });
-  const deletePhoto = (id) =>
-    onUpdateProject({ ...project, photos: photos.filter(p => p.id!==id) });
+  const deletePhoto = (id) => {
+    onUpdateProject({ ...project, photos: photos.filter(p => p.id !== id) });
+    setSelectedPhotoIds(prev => { const n = new Set(prev); n.delete(id); return n; });
+  };
+  const deleteBatch = () => {
+    onUpdateProject({ ...project, photos: photos.filter(p => !selectedPhotoIds.has(p.id)) });
+    setSelectedPhotoIds(new Set());
+    setSelectMode(false);
+  };
+  const toggleSelect = (id) => setSelectedPhotoIds(prev => {
+    const n = new Set(prev);
+    n.has(id) ? n.delete(id) : n.add(id);
+    return n;
+  });
   const saveTags = (tags) => onUpdateProject({ ...project, photoTags: tags });
 
   const togglePhotoTag = (photoId, tag) => {
@@ -7129,20 +7145,42 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
   return (
     <div>
       {/* Top bar */}
-      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,gap:10 }}>
-        <div style={{ fontSize:13,color:"var(--text2)" }}>{filtered.length} of {photos.length} photo{photos.length!==1?"s":""}</div>
-        <div style={{ display:"flex",gap:8 }}>
-          {canBeforeAfter ? (
-            <button className="btn btn-secondary btn-sm" onClick={() => setShowBAModal(true)}>
-              <Icon d={ic.layers} size={13} /> Before & After
-            </button>
-          ) : (
-            <button className="btn btn-secondary btn-sm" style={{ opacity:0.5,cursor:"default" }} title="Available on Intelligence II and above">
-              <Icon d={ic.layers} size={13} /> Before & After <span style={{ fontSize:10,marginLeft:3,fontWeight:700,color:"var(--accent)" }}>II+</span>
-            </button>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,gap:10,flexWrap:"wrap" }}>
+        <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+          <div style={{ fontSize:13,color:"var(--text2)" }}>{filtered.length} of {photos.length} photo{photos.length!==1?"s":""}</div>
+          {selectMode && selectedPhotoIds.size > 0 && (
+            <span style={{ fontSize:12,fontWeight:700,color:"var(--accent)" }}>{selectedPhotoIds.size} selected</span>
           )}
-          <button className="btn btn-secondary btn-sm" onClick={() => fileRef.current?.click()}><Icon d={ic.image} size={13} /> Upload</button>
-          <button className="btn btn-primary btn-sm desktop-only" onClick={() => onOpenCamera(project)}><Icon d={ic.camera} size={13} /> Live Camera</button>
+        </div>
+        <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
+          {selectMode ? (<>
+            <button className="btn btn-secondary btn-sm" onClick={() => {
+              setSelectMode(false); setSelectedPhotoIds(new Set());
+            }}>Cancel</button>
+            {selectedPhotoIds.size > 0 && (
+              <button className="btn btn-sm" style={{ background:"#e85a3a",color:"white",border:"none" }}
+                onClick={() => setConfirmDelete("batch")}>
+                <Icon d={ic.trash} size={13} /> Delete {selectedPhotoIds.size}
+              </button>
+            )}
+          </>) : (<>
+            {photos.length > 0 && (
+              <button className="btn btn-secondary btn-sm" onClick={() => setSelectMode(true)}>
+                ☑ Select
+              </button>
+            )}
+            {canBeforeAfter ? (
+              <button className="btn btn-secondary btn-sm" onClick={() => setShowBAModal(true)}>
+                <Icon d={ic.layers} size={13} /> Before & After
+              </button>
+            ) : (
+              <button className="btn btn-secondary btn-sm" style={{ opacity:0.5,cursor:"default" }} title="Available on Intelligence II and above">
+                <Icon d={ic.layers} size={13} /> Before & After <span style={{ fontSize:10,marginLeft:3,fontWeight:700,color:"var(--accent)" }}>II+</span>
+              </button>
+            )}
+            <button className="btn btn-secondary btn-sm" onClick={() => fileRef.current?.click()}><Icon d={ic.image} size={13} /> Upload</button>
+            <button className="btn btn-primary btn-sm desktop-only" onClick={() => onOpenCamera(project)}><Icon d={ic.camera} size={13} /> Live Camera</button>
+          </>)}
         </div>
       </div>
       <input ref={fileRef} type="file" multiple accept="image/*" style={{ display:"none" }} onChange={e => addUploadedPhotos(e.target.files)} />
@@ -7236,8 +7274,18 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
       ) : (
         <div className="grid-4">
           {filtered.map(photo => (
-            <div key={photo.id} className="photo-card">
-              <div className="photo-card-img" onClick={() => setViewerPhoto(photo)}>
+            <div key={photo.id} className="photo-card" style={{ outline: selectedPhotoIds.has(photo.id) ? "2.5px solid var(--accent)" : "none", borderRadius: 12 }}>
+              {selectMode && (
+                <div style={{ position:"absolute",top:8,left:8,zIndex:10 }}
+                  onClick={e => { e.stopPropagation(); toggleSelect(photo.id); }}>
+                  <div style={{ width:22,height:22,borderRadius:6,border:`2px solid ${selectedPhotoIds.has(photo.id)?"var(--accent)":"rgba(255,255,255,0.7)"}`,
+                    background:selectedPhotoIds.has(photo.id)?"var(--accent)":"rgba(0,0,0,0.4)",
+                    display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer" }}>
+                    {selectedPhotoIds.has(photo.id) && <Icon d="M20 6L9 17l-5-5" size={13} stroke="white" strokeWidth={2.5} />}
+                  </div>
+                </div>
+              )}
+              <div className="photo-card-img" onClick={() => selectMode ? toggleSelect(photo.id) : setViewerPhoto(photo)}>
                 {photo.dataUrl && photo.dataUrl.length > 10 && (
                   <img src={photo.dataUrl} alt={photo.name || "photo"} />
                 )}
@@ -7270,7 +7318,7 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
                     <Icon d={ic.message} size={16} />
                   </button>
                   <button className="btn btn-sm btn-icon photo-action-btn" style={{ background:"#dc3c3c",border:"none",color:"white",width:36,height:36 }}
-                    onClick={e => { e.stopPropagation(); deletePhoto(photo.id); }}>
+                    onClick={e => { e.stopPropagation(); setPendingDeleteId(photo.id); setConfirmDelete("single"); }}>
                     <Icon d={ic.trash} size={16} />
                   </button>
                 </div>
@@ -7680,6 +7728,36 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
                 }}
               >
                 <Icon d={ic.check} size={13} /> Send Photo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {confirmDelete && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setConfirmDelete(null)}>
+          <div className="modal fade-in" style={{ maxWidth:380 }}>
+            <div className="modal-header">
+              <div className="modal-title" style={{ color:"#e85a3a" }}><Icon d={ic.trash} size={15} /> Delete Photo{confirmDelete === "batch" ? "s" : ""}</div>
+              <button className="btn btn-ghost btn-sm btn-icon" onClick={() => setConfirmDelete(null)}><Icon d={ic.close} size={16} /></button>
+            </div>
+            <div className="modal-body">
+              <p style={{ fontSize:14,color:"var(--text2)",lineHeight:1.6,margin:0 }}>
+                {confirmDelete === "batch"
+                  ? `Are you sure you want to delete ${selectedPhotoIds.size} photo${selectedPhotoIds.size !== 1 ? "s" : ""}? This cannot be undone.`
+                  : "Are you sure you want to delete this photo? This cannot be undone."}
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary btn-sm" onClick={() => { setConfirmDelete(null); setPendingDeleteId(null); }}>Cancel</button>
+              <button className="btn btn-sm" style={{ background:"#e85a3a",color:"white",border:"none" }}
+                onClick={() => {
+                  if (confirmDelete === "batch") deleteBatch();
+                  else if (pendingDeleteId) deletePhoto(pendingDeleteId);
+                  setConfirmDelete(null); setPendingDeleteId(null);
+                }}>
+                <Icon d={ic.trash} size={13} /> Delete
               </button>
             </div>
           </div>
@@ -21668,6 +21746,22 @@ useEffect(() => {
     if (targetChatId) {
       setChatDeepLinkId(targetChatId);
       setChatOpen(true);
+      // Persist to Supabase
+      const orgId = authProfile?.organization_id;
+      if (orgId && isValidUuid(targetChatId)) {
+        const fingerprint = `${msg.authorName}::${(text||'').slice(0,40)}::${targetChatId}`;
+        _sentChatDbIds.add(fingerprint);
+        setTimeout(() => _sentChatDbIds.delete(fingerprint), 30000);
+        dbSendChatMessage(orgId, targetChatId, {
+          senderId:    null,
+          senderName:  msg.authorName,
+          content:     text || `📷 Photo from ${project.title}`,
+          messageType: 'image',
+          attachment:  attachment,
+        }).then(saved => {
+          if (saved?.id) { _sentChatDbIds.add(saved.id); setTimeout(() => _sentChatDbIds.delete(saved.id), 30000); }
+        }).catch(e => console.warn('[KrakenCam] Photo share to chat save failed:', e.message));
+      }
     }
     if (notifyUserIds.length) {
       addNotification({
