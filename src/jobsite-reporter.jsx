@@ -1385,23 +1385,22 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
     tmpCtx.drawImage(video, 0, 0, sw, sh);
     tmpCtx.setTransform(1, 0, 0, 1, 0, 0);
 
-    // Step 2: check if output orientation matches device orientation
-    // If device is landscape but image is portrait (or vice versa) → rotate 90°
-    const deviceLandscape = window.innerWidth > window.innerHeight;
-    const imageLandscape  = sw > sh;
-    const needsRotation   = deviceLandscape !== imageLandscape;
+    // Use the video element's rendered bounding rect — most reliable signal on
+    // Android/iOS when the page itself is portrait-locked. If the video element
+    // is rendering wider than tall, the user is holding the phone landscape even
+    // though all orientation APIs return 0 and the stream is still portrait pixels.
+    const rect = video.getBoundingClientRect();
+    const viewIsLandscape  = rect.width > rect.height;
+    const streamIsPortrait = vh > vw;
+    const needsRotation    = viewIsLandscape && streamIsPortrait;
 
     if (needsRotation) {
-      // Rotate 90° — direction: landscape-right (most common) = CW
-      // landscape-left = CCW. Use window.orientation as hint; default CW.
-      const wo = window.orientation ?? screen.orientation?.angle ?? 90;
-      const cw = !(wo === -90 || wo === 270);
       canvas.width  = sh;
       canvas.height = sw;
       const ctx = canvas.getContext("2d");
       ctx.save();
-      if (cw) { ctx.translate(sh, 0); ctx.rotate(Math.PI / 2); }
-      else    { ctx.translate(0, sw); ctx.rotate(-Math.PI / 2); }
+      ctx.translate(sh, 0);
+      ctx.rotate(Math.PI / 2);
       ctx.drawImage(tmp, 0, 0);
       ctx.restore();
     } else {
@@ -1409,14 +1408,6 @@ function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
       canvas.height = sh;
       canvas.getContext("2d").drawImage(tmp, 0, 0);
     }
-
-    // DEBUG — remove after orientation fix confirmed
-    const dbgCtx = canvas.getContext("2d");
-    dbgCtx.fillStyle = "rgba(0,0,0,0.8)";
-    dbgCtx.fillRect(10, 10, 560, 80);
-    dbgCtx.fillStyle = "#0f0"; dbgCtx.font = "bold 18px monospace";
-    dbgCtx.fillText(`vid:${vw}x${vh} out:${canvas.width}x${canvas.height}`, 16, 38);
-    dbgCtx.fillText(`scrAngle:${screen.orientation?.angle ?? "?"} winOrient:${window.orientation ?? "?"} rotated:${needsRotation}`, 16, 64);
 
     drawOverlay(canvas);
     setReviewImg(canvas.toDataURL("image/jpeg", jpegQuality));
