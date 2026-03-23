@@ -48,8 +48,10 @@ import {
   deleteProjectFile  as dbDeleteProjectFile,
 } from "./lib/projectFiles.js";
 import {
-  getChatMessages as dbGetChatMessages,
-  sendChatMessage as dbSendChatMessage,
+  getChatMessages    as dbGetChatMessages,
+  sendChatMessage    as dbSendChatMessage,
+  upsertChatRoom     as dbUpsertChatRoom,
+  deleteChatRoom     as dbDeleteChatRoom,
 } from "./lib/chat.js";
 // ── Icons ──────────────────────────────────────────────────────────────────────
 const Icon = ({ d, size = 20, stroke = "currentColor", fill = "none", strokeWidth = 1.8 }) => (
@@ -13576,16 +13578,20 @@ function ChatPanel({ chats, onChatsChange, teamUsers, settings, currentUserId, i
       ...c,
       messages: [...(c.messages||[]), msg],
     }));
-    // Fire-and-forget: persist message to Supabase
-    if (orgId && text) {
-      dbSendChatMessage({
-        organizationId: orgId,
-        channel: activeChat?.id || activeChatId || 'general',
-        projectId: activeChat?.projectId || null,
-        content: text,
-        senderId: currentUserId !== '__admin__' ? currentUserId : null,
-        senderName: msg.authorName,
-        messageType: 'text',
+    // Fire-and-forget: persist message + attachment to Supabase
+    if (orgId && activeChatId) {
+      // Ensure the chat room exists in DB first
+      if (activeChat) {
+        dbUpsertChatRoom(orgId, activeChat).catch(() => {});
+      }
+      dbSendChatMessage(orgId, activeChatId, {
+        senderId:    currentUserId !== '__admin__' ? currentUserId : null,
+        senderName:  msg.authorName,
+        content:     text || '',
+        messageType: attachFile?.type?.startsWith('audio') ? 'voice'
+                   : attachFile?.type?.startsWith('image') ? 'image'
+                   : attachFile ? 'file' : 'text',
+        attachment:  attachFile || null,
       }).catch(e => console.error('[KrakenCam] Chat save failed:', e));
     }
     setNewMsg("");
@@ -13606,6 +13612,7 @@ function ChatPanel({ chats, onChatsChange, teamUsers, settings, currentUserId, i
       createdAt: new Date().toISOString(),
     };
     onChatsChange(prev => [...prev, chat]);
+    if (orgId) dbUpsertChatRoom(orgId, chat).catch(e => console.warn('[KrakenCam] Chat room save failed:', e));
     setShowNewChat(false);
     openChat(chat);
   };
@@ -21131,16 +21138,24 @@ useEffect(() => {
   useEffect(() => {
     if (!authProfile?.organization_id || !chats?.length) return;
     chats.forEach(chat => {
-      dbGetChatMessages(chat.id, null, 100).then(rows => {
+      dbGetChatMessages(chat.id, 100).then(rows => {
         if (!rows?.length) return;
         const dbMessages = rows.map(row => ({
-          id: row.id,
-          authorId: row.sender_id,
-          authorName: row.sender_name,
-          text: row.content,
-          timestamp: row.created_at,
-          readBy: [],
-          fromDb: true,
+          id:          row.id,
+          authorId:    row.sender_id,
+          authorName:  row.sender_name,
+          text:        row.content,
+          timestamp:   row.created_at,
+          readBy:      [],
+          fromDb:      true,
+          messageType: row.message_type,
+          attachment:  row.attachment_url ? {
+            dataUrl: row.attachment_url,
+            name:    row.attachment_name,
+            size:    row.attachment_size,
+            type:    row.message_type === 'voice' ? 'audio/webm'
+                   : row.message_type === 'image' ? 'image/jpeg' : 'application/octet-stream',
+          } : null,
         }));
         setChats(prev => prev.map(c => {
           if (c.id !== chat.id) return c;

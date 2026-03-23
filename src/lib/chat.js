@@ -1,87 +1,133 @@
 /**
  * src/lib/chat.js
- *
- * Supabase CRUD helpers for chat_messages.
- * Supports org-wide and project-scoped channels.
- * All queries are org-scoped via RLS.
- *
- * NOTE: The in-app chat uses a rich local state model (chats array with
- * embedded messages, member lists, etc.). This lib stores messages in the
- * chat_messages table for persistence and cross-device sync. The local
- * chats/messages state remains the source of truth for UI rendering.
+ * Supabase CRUD for chat_rooms, chat_members, and chat_messages.
+ * Supports text, image, file, and voice attachments.
  */
 
 import { supabase } from './supabase';
 
-/**
- * Fetch recent chat messages for a channel.
- *
- * @param {string}      channel          - Channel name (e.g. "general", chat group id)
- * @param {string|null} [projectId=null] - Filter to project-scoped messages (optional)
- * @param {number}      [limit=100]      - Max messages to return
- */
-export async function getChatMessages(channel, projectId = null, limit = 100) {
-  let query = supabase
-    .from('chat_messages')
-    .select('*')
-    .eq('channel', channel)
-    .order('created_at', { ascending: true })
-    .limit(limit);
+const MSG_BUCKET = 'chat-attachments';
 
-  if (projectId) {
-    query = query.eq('project_id', projectId);
-  } else {
-    query = query.is('project_id', null);
-  }
+// ── Chat Rooms ────────────────────────────────────────────────────────────────
 
-  const { data, error } = await query;
+export async function getChatRooms(orgId) {
+  const { data, error } = await supabase
+    .from('chat_rooms')
+    .select('*, chat_members(*)')
+    .eq('organization_id', orgId)
+    .order('updated_at', { ascending: false });
   if (error) throw error;
   return data || [];
 }
 
-/**
- * Insert a new chat message.
- *
- * @param {Object} data
- * @param {string}      data.organizationId  - organizations.id (required)
- * @param {string}      data.channel         - Channel name
- * @param {string|null} [data.projectId]     - Project scope (optional)
- * @param {string|null} [data.senderId]      - auth.users.id of sender
- * @param {string}      [data.senderName]    - Display name of sender
- * @param {string}      data.content         - Message text
- * @param {string}      [data.messageType]   - 'text' | 'image' | 'file' | 'voice'
- * @param {string|null} [data.attachmentPath]- Storage path of attachment (optional)
- * @returns {Object} The newly inserted chat_messages row
- */
-export async function sendChatMessage(data) {
-  const { data: row, error } = await supabase
+export async function upsertChatRoom(orgId, chat) {
+  const { data, error } = await supabase
+    .from('chat_rooms')
+    .upsert({
+      id:              chat.id,
+      organization_id: orgId,
+      name:            chat.name || '',
+      is_group:        chat.isGroup || false,
+      created_by:      chat.createdBy || null,
+      updated_at:      new Date().toISOString(),
+    }, { onConflict: 'id' })
+    .select()
+    .single();
+  if (error) throw error;
+
+  // Upsert members
+  if (chat.memberIds?.length) {
+    const members = chat.memberIds.map(uid => ({
+      chat_room_id:    chat.id,
+      organization_id: orgId,
+      user_id:         uid,
+    }));
+    await supabase.from('chat_members').upsert(members, { onConflict: 'chat_room_id,user_id', ignoreDuplicates: true });
+  }
+
+  return data;
+}
+
+export async function deleteChatRoom(id) {
+  const { error } = await supabase.from('chat_rooms').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ── Chat Messages ─────────────────────────────────────────────────────────────
+
+export async function getChatMessages(chatRoomId, limit = 100) {
+  const { data, error } = await supabase
+    .from('chat_messages')
+    .select('*')
+    .eq('chat_room_id', chatRoomId)
+    .order('created_at', { ascending: true })
+    .limit(limit);
+  if (error) throw error;
+  return data || [];
+}
+
+export async function sendChatMessage(orgId, chatRoomId, msg) {
+  let attachmentPath = null;
+  let attachmentUrl  = null;
+  let attachmentName = null;
+  let attachmentSize = null;
+  let messageType    = msg.messageType || 'text';
+
+  // Upload attachment to storage if present
+  if (msg.attachment?.dataUrl) {
+    try {
+      const att = msg.attachment;
+      const isVoice = att.type?.startsWith('audio') || messageType === 'voice';
+      const isImage = att.type?.startsWith('image') || messageType === 'image';
+      messageType = isVoice ? 'voice' : isImage ? 'image' : 'file';
+
+      // Convert dataUrl to blob
+      const arr  = att.dataUrl.split(',');
+      const mime = (arr[0].match(/:(.*?);/) || [])[1] || att.type || 'application/octet-stream';
+      const bstr = atob(arr[1]);
+      let n = bstr.length;
+      const u8 = new Uint8Array(n);
+      while (n--) u8[n] = bstr.charCodeAt(n);
+      const blob = new Blob([u8], { type: mime });
+      const ext  = mime.split('/')[1]?.split(';')[0] || 'bin';
+      const path = `${orgId}/${chatRoomId}/${Date.now()}_${att.name || `attachment.${ext}`}`;
+
+      const { error: upErr } = await supabase.storage.from(MSG_BUCKET).upload(path, blob, { contentType: mime, upsert: false });
+      if (!upErr) {
+        const { data: urlData } = supabase.storage.from(MSG_BUCKET).getPublicUrl(path);
+        attachmentPath = path;
+        attachmentUrl  = urlData.publicUrl;
+        attachmentName = att.name || `attachment.${ext}`;
+        attachmentSize = blob.size;
+      }
+    } catch (e) {
+      console.warn('[KrakenCam] Chat attachment upload failed:', e.message);
+    }
+  }
+
+  const { data, error } = await supabase
     .from('chat_messages')
     .insert([{
-      organization_id: data.organizationId,
-      project_id:      data.projectId || null,
-      channel:         data.channel || 'general',
-      sender_id:       data.senderId || null,
-      sender_name:     data.senderName || null,
-      content:         data.content,
-      message_type:    data.messageType || 'text',
-      attachment_path: data.attachmentPath || null,
+      organization_id: orgId,
+      chat_room_id:    chatRoomId,
+      channel:         chatRoomId,
+      sender_id:       msg.senderId || null,
+      sender_name:     msg.senderName || null,
+      content:         msg.content || '',
+      message_type:    messageType,
+      attachment_path: attachmentPath,
+      attachment_url:  attachmentUrl,
+      attachment_name: attachmentName,
+      attachment_size: attachmentSize,
     }])
     .select()
     .single();
 
   if (error) throw error;
-  return row;
+  return data;
 }
 
-/**
- * Delete a chat message by ID.
- * @param {string} id - chat_messages.id
- */
 export async function deleteChatMessage(id) {
-  const { error } = await supabase
-    .from('chat_messages')
-    .delete()
-    .eq('id', id);
-
+  const { error } = await supabase.from('chat_messages').delete().eq('id', id);
   if (error) throw error;
 }
