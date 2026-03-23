@@ -3898,6 +3898,34 @@ function ChecklistsTab({ project, onUpdateProject }) {
   const [editingTmpl, setEditingTmpl] = useState(null);
   const roomOptions = ["General", ...(project.rooms || []).map(r => r.name).filter(Boolean)];
 
+  // Load custom templates from Supabase on mount
+  useEffect(() => {
+    const loadTemplates = async () => {
+      try {
+        const url = import.meta.env.VITE_SUPABASE_URL;
+        const { data: sess } = await supabase.auth.getSession();
+        const uid = sess?.session?.user?.id; if (!uid) return;
+        const h1 = await getAuthHeaders();
+        const profRes = await fetch(`${url}/rest/v1/profiles?user_id=eq.${uid}&select=organization_id`, { headers: h1 });
+        const profs = await profRes.json();
+        const oid = profs?.[0]?.organization_id; if (!oid) return;
+        const h2 = await getAuthHeaders();
+        const tmplRes = await fetch(`${url}/rest/v1/checklist_templates?organization_id=eq.${oid}&select=*&order=created_at`, { headers: h2 });
+        const rows = await tmplRes.json();
+        if (Array.isArray(rows) && rows.length > 0) {
+          const dbTmpls = rows.map(r => ({ id: r.id, name: r.name, desc: r.description || '', category: r.category || 'General', tags: r.tags || [], fields: r.fields || [], completionSettings: r.completion_settings || {} }));
+          // Merge: keep built-ins that aren't overridden, add DB templates
+          setTemplates(prev => {
+            const dbIds = new Set(dbTmpls.map(t => t.id));
+            const kept = prev.filter(t => !dbIds.has(t.id));
+            return [...kept, ...dbTmpls];
+          });
+        }
+      } catch {}
+    };
+    loadTemplates();
+  }, []);
+
   const normalizeField = (field) => ({
     ...field,
     value: field?.value ?? (field?.type === "multi_checkbox" ? [] : field?.type === "checkbox" ? false : ""),
@@ -4051,21 +4079,32 @@ function ChecklistsTab({ project, onUpdateProject }) {
 }
 
 function ChecklistRunner({ checklist, project, onSave, onBack }) {
-  const [cl, setCl] = useState({
-    ...checklist,
-    completionSettings: {
-      requireSignature: checklist?.completionSettings?.requireSignature ?? true,
-      lockAfterComplete: checklist?.completionSettings?.lockAfterComplete ?? true,
-      requireCompletedBy: checklist?.completionSettings?.requireCompletedBy ?? true,
-      signatureLabel: checklist?.completionSettings?.signatureLabel || "Site Supervisor Signature",
-    },
-    completion: {
-      completedBy: checklist?.completion?.completedBy || "",
-      completedTitle: checklist?.completion?.completedTitle || "",
-      completionNotes: checklist?.completion?.completionNotes || "",
-      signatureImg: checklist?.completion?.signatureImg || null,
-    },
-    fields: (checklist.fields || []).map(f => ({ ...f, photos: [...(f.photos || [])], issue: f.issue ? { ...f.issue } : null }))
+  const _draftKey = `kc_cl_draft_${checklist?.id || 'new'}`;
+  const [cl, setCl] = useState(() => {
+    // Restore draft progress if available
+    try {
+      const draft = localStorage.getItem(_draftKey);
+      if (draft) {
+        const saved = JSON.parse(draft);
+        if (saved.id === checklist?.id) return saved;
+      }
+    } catch {}
+    return {
+      ...checklist,
+      completionSettings: {
+        requireSignature: checklist?.completionSettings?.requireSignature ?? true,
+        lockAfterComplete: checklist?.completionSettings?.lockAfterComplete ?? true,
+        requireCompletedBy: checklist?.completionSettings?.requireCompletedBy ?? true,
+        signatureLabel: checklist?.completionSettings?.signatureLabel || "Site Supervisor Signature",
+      },
+      completion: {
+        completedBy: checklist?.completion?.completedBy || "",
+        completedTitle: checklist?.completion?.completedTitle || "",
+        completionNotes: checklist?.completion?.completionNotes || "",
+        signatureImg: checklist?.completion?.signatureImg || null,
+      },
+      fields: (checklist.fields || []).map(f => ({ ...f, photos: [...(f.photos || [])], issue: f.issue ? { ...f.issue } : null }))
+    };
   });
   const [roomFilter, setRoomFilter] = useState("All Items");
   const [showSignatureDraw, setShowSignatureDraw] = useState(false);
@@ -4081,6 +4120,11 @@ function ChecklistRunner({ checklist, project, onSave, onBack }) {
     if (patch.responseStatus === "fail" && next.createIssueOnFail !== false && !next.issue) next.issue = { id: uid(), title: f.label, assignee:"", dueDate:"", status:"open", notes:"" };
     return next;
   }) }));
+  // Auto-save progress to localStorage on every change (large checklists won't lose work)
+  useEffect(() => {
+    try { localStorage.setItem(_draftKey, JSON.stringify(cl)); } catch {}
+  }, [cl]);
+
   const updateFieldValue = (id, value) => patchField(id, { value });
   const toggleMulti = (id, opt) => {
     const field = cl.fields.find(f => f.id === id);
@@ -4130,8 +4174,8 @@ function ChecklistRunner({ checklist, project, onSave, onBack }) {
         <div style={{ flex:1, minWidth:150 }}><div style={{ fontWeight:700, fontSize:16 }}>{cl.name}</div><div style={{ fontSize:12, color:"var(--text2)", marginTop:2 }}>{complete}/{total} completed · {pct}% · {failedCount} failed · {openIssues} issues</div></div>
         <div style={{ display:"flex", gap:8, marginLeft:"auto", flexWrap:"wrap" }}>
           {isLocked && <button className="btn btn-sm btn-secondary" onClick={() => setCl(prev => ({ ...prev, status:"in_progress", completedAt:null }))}>Reopen Checklist</button>}
-          <button className="btn btn-sm btn-secondary" onClick={() => onSave({ ...cl, status:isLocked ? "complete" : "in_progress" })}>Save Draft</button>
-          <button className="btn btn-sm btn-primary" disabled={!canMarkComplete} onClick={() => onSave({ ...cl, status:"complete", completedAt:today() })}><Icon d={ic.check} size={13} /> Mark Complete</button>
+          <button className="btn btn-sm btn-secondary" onClick={() => { try { localStorage.removeItem(_draftKey); } catch {} onSave({ ...cl, status:isLocked ? "complete" : "in_progress" }); }}>Save Draft</button>
+          <button className="btn btn-sm btn-primary" disabled={!canMarkComplete} onClick={() => { try { localStorage.removeItem(_draftKey); } catch {} onSave({ ...cl, status:"complete", completedAt:today() }); }}><Icon d={ic.check} size={13} /> Mark Complete</button>
         </div>
       </div>
 
@@ -4478,14 +4522,35 @@ function TemplateManagerModal({ templates, setTemplates, onClose }) {
     setCustomCatInput("");
   };
 
+  const upsertTmplDB = async (tmpl, oid) => {
+    if (!oid) return;
+    const url = import.meta.env.VITE_SUPABASE_URL;
+    const headers = await getAuthHeaders({ 'Content-Type':'application/json', Prefer:'resolution=merge-duplicates,return=minimal' });
+    fetch(`${url}/rest/v1/checklist_templates?on_conflict=id`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ id: tmpl.id, organization_id: oid, name: tmpl.name || '', description: tmpl.desc || '', category: tmpl.category || 'General', tags: tmpl.tags || [], fields: tmpl.fields || [], completion_settings: tmpl.completionSettings || {}, updated_at: new Date().toISOString() }),
+    }).catch(() => {});
+  };
+
+  const deleteTmplDB = async (id, oid) => {
+    if (!oid) return;
+    const url = import.meta.env.VITE_SUPABASE_URL;
+    const headers = await getAuthHeaders();
+    fetch(`${url}/rest/v1/checklist_templates?id=eq.${id}`, { method: 'DELETE', headers }).catch(() => {});
+  };
+
   const saveTmpl = (t) => {
     // Parse tags from the local string input at save time
     const parsedTags = tagsInput.split(",").map(s=>s.trim()).filter(Boolean);
     const withMeta = { ...t, tags: parsedTags, category: editing?.category || t.category || "General" };
     setTemplates(prev => prev.find(x=>x.id===withMeta.id) ? prev.map(x=>x.id===withMeta.id?withMeta:x) : [...prev,withMeta]);
+    upsertTmplDB(withMeta, orgId);
     setEditing(null);
   };
-  const deleteTmpl = (id) => setTemplates(prev => prev.filter(t=>t.id!==id));
+  const deleteTmpl = (id) => {
+    setTemplates(prev => prev.filter(t=>t.id!==id));
+    deleteTmplDB(id, orgId);
+  };
 
   if (editing) return (
     <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setEditing(null)}>
