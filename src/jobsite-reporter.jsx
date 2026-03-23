@@ -139,6 +139,7 @@ const ic = {
 
 // ── Seed data helpers ──────────────────────────────────────────────────────────
 const uid = () => Math.random().toString(36).slice(2, 10);
+const isValidUuid = id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
 /**
  * Read EXIF orientation tag from a Blob/File (JPEG only).
@@ -21135,7 +21136,6 @@ useEffect(() => {
   }, [activeProject?.id, authProfile?.organization_id]);
 
   // 💬 Load chat history from Supabase on login / when chats change
-  const isValidUuid = id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
   useEffect(() => {
     if (!authProfile?.organization_id || !chats?.length) return;
     chats.forEach(chat => {
