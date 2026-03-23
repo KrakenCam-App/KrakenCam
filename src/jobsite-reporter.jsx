@@ -21064,8 +21064,14 @@ const { profile: authProfile, user: authUser, loading: authLoading } = useAuth()
       if (s.tasks)            setTasks(s.tasks);
       if (s.notifications)    setNotifications(s.notifications);
       if (s.reportTemplates)  setReportTemplates(s.reportTemplates);
-      if (s.chats)           setChats(s.chats);
+      if (s.chats)            setChats(s.chats);
       if (s.calEvents)        setCalEvents(s.calEvents);
+      // Restore last page/project so switching tabs doesn't reset navigation
+      if (s._page && s._page !== 'camera' && s._page !== 'editor') setPage(s._page);
+      if (s._activeProjectId && s.projects) {
+        const proj = s.projects.find(p => p.id === s._activeProjectId);
+        if (proj) setActiveProject(proj);
+      }
     } catch(e) { /* ignore corrupt storage */ }
   }, []);
 
@@ -21618,6 +21624,8 @@ useEffect(() => {
           reportTemplates,
           chats,
           calEvents,
+          _page: page,
+          _activeProjectId: activeProject?.id || null,
         }));
       } catch(e) { /* storage full or unavailable */ }
     }, 800);
