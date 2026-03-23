@@ -1,7 +1,6 @@
 /**
  * src/lib/projects.js
- * Supabase CRUD for projects — full rich data including rooms, photos,
- * reports, checklists, activity log, portal config, and all metadata.
+ * Supabase CRUD for projects — mapped exactly to DB schema.
  */
 
 import { supabase } from './supabase';
@@ -17,42 +16,31 @@ function stripPhotos(photos = []) {
   });
 }
 
-function stripFiles(files = []) {
-  return files.map(f => {
-    const isBase64 = f.dataUrl && f.dataUrl.startsWith('data:');
-    if (isBase64) {
-      const { dataUrl, ...rest } = f;
-      return { ...rest, hasFile: true };
-    }
-    return f;
-  });
-}
-
-function stripVideos(videos = []) {
-  return videos.map(v => {
-    const { dataUrl, _blob, ...rest } = v;
-    return rest;
-  });
-}
-
-/** Convert app camelCase project → DB snake_case row */
+/** Convert app project → DB row (only columns that exist in DB) */
 function toDbRow(p) {
   return {
     id:                p.id,
-    organization_id:   p.organization_id   || null,  // ← fixed
-    title:             p.title             || '',
-    address:           p.address           || '',
-    city:              p.city              || '',
-    state:             p.state             || '',
-    zip:               p.zip               || '',
-    lat:               p.lat               || '',
-    lng:               p.lng               || '',
+    organization_id:   p.organization_id   || null,
+    name:              p.name || p.title   || '',       // DB uses "name" not "title"
+    description:       p.description || p.notes || '',  // DB uses "description" not "notes"
+    location:          p.location || p.address || '',   // DB uses "location" not "address"
+    status:            p.status            || 'active',
     color:             p.color             || '#4a90d9',
     type:              p.type              || '',
-    status:            p.status            || 'active',
     date:              p.date              || '',
-    notes:             p.notes             || '',
     scope:             p.scope             || '',
+    manual_gps:        p.manualGps         || false,
+    coords:            p.coords            || null,
+    lat:               p.lat               || '',
+    lng:               p.lng               || '',
+    timeline_stage:    p.timelineStage     || '',
+    timeline_notes:    p.timelineNotes     || {},
+    scratch_pad:       p.scratchPad        || '',
+    photo_tags:        p.photoTags         || [],
+    ba_pairs:          p.baPairs           || [],
+    client_portal:     p.clientPortal      || {},
+    portal_config:     p.portalConfig      || {},
+    activity_log:      p.activityLog       || [],
     client_name:       p.clientName        || '',
     client_email:      p.clientEmail       || '',
     client_phone:      p.clientPhone       || '',
@@ -64,74 +52,63 @@ function toDbRow(p) {
     adjuster_phone:    p.adjusterPhone     || '',
     deductible:        p.deductible        || '',
     policy_number:     p.policyNumber      || '',
-    manual_gps:        p.manualGps         || false,
-    coords:            p.coords            || null,
-    timeline_stage:    p.timelineStage     || '',
-    timeline_notes:    p.timelineNotes     || {},
-    scratch_pad:       p.scratchPad        || '',
-    photo_tags:        p.photoTags         || [],
-    ba_pairs:          p.baPairs           || [],
-    client_portal:     p.clientPortal      || {},
-    portal_config:     p.portalConfig      || {},
-    activity_log:      p.activityLog       || [],
     rooms:             p.rooms             || [],
     reports:           p.reports           || [],
     checklists:        p.checklists        || [],
     photos:            stripPhotos(p.photos || []),
-    files:             stripFiles(p.files   || []),
   };
 }
 
-/** Convert DB snake_case row → app camelCase project */
+/** Convert DB row → app project */
 function fromDbRow(row) {
   return {
     id:               row.id,
     organization_id:  row.organization_id,
-    title:            row.title             || 'Untitled Project',
-    address:          row.address           || '',
-    city:             row.city              || '',
-    state:            row.state             || '',
-    zip:              row.zip               || '',
-    lat:              row.lat               || '',
-    lng:              row.lng               || '',
-    color:            row.color             || '#4a90d9',
-    type:             row.type              || '',
-    status:           row.status            || 'active',
-    date:             row.date              || '',
-    notes:            row.notes             || '',
-    scope:            row.scope             || '',
-    clientName:       row.client_name       || '',
-    clientEmail:      row.client_email      || '',
-    clientPhone:      row.client_phone      || '',
-    contractorName:   row.contractor_name   || '',
-    contractorPhone:  row.contractor_phone  || '',
+    name:             row.name             || 'Untitled Project',
+    title:            row.name             || 'Untitled Project',
+    description:      row.description      || '',
+    notes:            row.description      || '',
+    location:         row.location         || '',
+    address:          row.location         || '',
+    status:           row.status           || 'active',
+    color:            row.color            || '#4a90d9',
+    type:             row.type             || '',
+    date:             row.date             || '',
+    scope:            row.scope            || '',
+    manualGps:        row.manual_gps       || false,
+    coords:           row.coords           || null,
+    lat:              row.lat              || '',
+    lng:              row.lng              || '',
+    timelineStage:    row.timeline_stage   || '',
+    timelineNotes:    row.timeline_notes   || {},
+    scratchPad:       row.scratch_pad      || '',
+    photoTags:        row.photo_tags       || [],
+    baPairs:          row.ba_pairs         || [],
+    clientPortal:     row.client_portal    || {},
+    portalConfig:     row.portal_config    || {},
+    activityLog:      row.activity_log     || [],
+    clientName:       row.client_name      || '',
+    clientEmail:      row.client_email     || '',
+    clientPhone:      row.client_phone     || '',
+    contractorName:   row.contractor_name  || '',
+    contractorPhone:  row.contractor_phone || '',
     insuranceCompany: row.insurance_company || '',
-    claimNumber:      row.claim_number      || '',
-    adjusterName:     row.adjuster_name     || '',
-    adjusterPhone:    row.adjuster_phone    || '',
-    deductible:       row.deductible        || '',
-    policyNumber:     row.policy_number     || '',
-    manualGps:        row.manual_gps        || false,
-    coords:           row.coords            || null,
-    timelineStage:    row.timeline_stage    || '',
-    timelineNotes:    row.timeline_notes    || {},
-    scratchPad:       row.scratch_pad       || '',
-    photoTags:        row.photo_tags        || [],
-    baPairs:          row.ba_pairs          || [],
-    clientPortal:     row.client_portal     || {},
-    portalConfig:     row.portal_config     || {},
-    activityLog:      row.activity_log      || [],
-    rooms:            row.rooms             || [],
-    reports:          row.reports           || [],
-    checklists:       row.checklists        || [],
-    photos:           row.photos            || [],
-    videos:           row.videos            || [],
-    voiceNotes:       row.voice_notes       || [],
-    sketches:         row.sketches          || [],
-    files:            row.files             || [],
-    tasks:            row.tasks             || [],
-    createdAt:        row.created_at        || '',
-    updatedAt:        row.updated_at        || '',
+    claimNumber:      row.claim_number     || '',
+    adjusterName:     row.adjuster_name    || '',
+    adjusterPhone:    row.adjuster_phone   || '',
+    deductible:       row.deductible       || '',
+    policyNumber:     row.policy_number    || '',
+    rooms:            row.rooms            || [],
+    reports:          row.reports          || [],
+    checklists:       row.checklists       || [],
+    photos:           row.photos           || [],
+    videos:           [],
+    voiceNotes:       [],
+    sketches:         [],
+    files:            [],
+    tasks:            [],
+    createdAt:        row.created_at       || '',
+    createdBy:        row.created_by       || '',
   };
 }
 
@@ -146,6 +123,7 @@ export async function getProjects() {
 
 export async function createProject(project) {
   const row = toDbRow(project);
+  delete row.id;
   const { data, error } = await supabase
     .from('projects')
     .insert([row])
@@ -160,7 +138,7 @@ export async function updateProject(id, project) {
   delete row.id;
   const { data, error } = await supabase
     .from('projects')
-    .update({ ...row, updated_at: new Date().toISOString() })
+    .update(row)
     .eq('id', id)
     .select()
     .single();
@@ -222,7 +200,14 @@ export async function uploadPicture(folderId, projectId, orgId, file) {
   if (uploadError) throw uploadError;
   const { data: row, error: insertError } = await supabase
     .from('pictures')
-    .insert([{ folder_id: folderId, project_id: projectId, storage_path: storagePath, filename: file.name, size_bytes: file.size, mime_type: file.type }])
+    .insert([{
+      folder_id: folderId,
+      project_id: projectId,
+      storage_path: storagePath,
+      filename: file.name,
+      size_bytes: file.size,
+      mime_type: file.type,
+    }])
     .select()
     .single();
   if (insertError) throw insertError;
@@ -236,7 +221,9 @@ export async function deletePicture(id, storagePath) {
 }
 
 export async function getPictureUrl(storagePath, expiresIn = 3600) {
-  const { data, error } = await supabase.storage.from('project-photos').createSignedUrl(storagePath, expiresIn);
+  const { data, error } = await supabase.storage
+    .from('project-photos')
+    .createSignedUrl(storagePath, expiresIn);
   if (error) throw error;
   return data.signedUrl;
 }
