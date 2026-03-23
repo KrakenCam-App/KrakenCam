@@ -1773,6 +1773,7 @@ function ImageEditor({ photo, onClose, onSave }) {
     const ctx = c.getContext("2d");
     if (photo?.dataUrl) {
       const img = new Image();
+      img.crossOrigin = "anonymous";
       img.onload = () => {
         const MAX_W = 1920, MAX_H = 1080;
         const scale = Math.min(1, MAX_W / img.width, MAX_H / img.height);
