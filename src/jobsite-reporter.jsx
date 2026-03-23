@@ -5378,14 +5378,13 @@ function VoiceNotesTab({ project, teamUsers = [], settings = {}, onUpdateProject
       if (orgId && project.id) {
         const durationSeconds = Math.round(durationMs / 1000);
         dbUploadVoiceNote(project.id, orgId, blob, durationSeconds, title, authorName, durationMs).then(row => {
-          if (!row) return;
-          const supaUrl = import.meta.env.VITE_SUPABASE_URL;
-          const publicUrl = `${supaUrl}/storage/v1/object/public/project-photos/${row.storage_path}`;
-          // onUpdateProject expects a full project object — update the note in the current project
-          const updatedNotes = (project.voiceNotes || []).map(n =>
-            n.id === note.id ? { ...n, supabaseId: row.id, dataUrl: publicUrl, storagePath: row.storage_path } : n
-          );
-          onUpdateProject({ ...project, voiceNotes: updatedNotes });
+          // Base64 dataUrl already works for playback this session.
+          // Just tag the note with its DB id in local state so delete works later.
+          // Don't call onUpdateProject again — the stale project closure would wipe the note.
+          if (row?.id) {
+            note.supabaseId  = row.id;
+            note.storagePath = row.storage_path;
+          }
         }).catch(err => console.warn("[KrakenCam] Voice note Supabase upload failed:", err.message || err));
       }
     };
