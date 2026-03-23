@@ -65,7 +65,8 @@ export function AuthProvider({ children }) {
 
   async function hydrateUser(session) {
      setAuthKey(k => k + 1);
-      setUser(null);
+    if (!session?.user) {
+    setUser(null);
       setProfile(null);
       setSubscription(null);
       return;
