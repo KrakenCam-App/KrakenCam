@@ -8097,6 +8097,37 @@ function SketchEditor({ sketch, rooms, reports, project, settings, onSave, onClo
 
   const elementsRef = ur(elements);
   ue(() => { elementsRef.current = elements; }, [elements]);
+
+  // Auto-save sketch progress to localStorage so switching browser tabs doesn't lose work
+  const _draftKey = `kc_sketch_draft_${sketch?.id || project?.id + "_new"}`;
+  ue(() => {
+    try {
+      localStorage.setItem(_draftKey, JSON.stringify({
+        elements, title, notes, scale, roomTag, editorMode, floorLabel, snapToGrid,
+      }));
+    } catch {}
+  }, [elements, title, notes, scale, roomTag, editorMode, floorLabel, snapToGrid]);
+
+  // On mount: restore draft if available (only when no existing sketch data)
+  ue(() => {
+    try {
+      const draft = localStorage.getItem(_draftKey);
+      if (draft) {
+        const d = JSON.parse(draft);
+        if (d.elements?.length && (!sketch?.elements?.length)) {
+          setElements(d.elements);
+          if (d.title)      setTitle(d.title);
+          if (d.notes)      setNotes(d.notes);
+          if (d.scale)      setScale(d.scale);
+          if (d.roomTag)    setRoomTag(d.roomTag);
+          if (d.editorMode) setEditorMode(d.editorMode);
+          if (d.floorLabel) setFloorLabel(d.floorLabel);
+          if (d.snapToGrid !== undefined) setSnapToGrid(d.snapToGrid);
+        }
+      }
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const historyRef = ur(history);
   ue(() => { historyRef.current = history; }, [history]);
   const histIdxRef = ur(histIdx);
@@ -8803,6 +8834,8 @@ function SketchEditor({ sketch, rooms, reports, project, settings, onSave, onClo
   function handleSave() {
     const dataUrl = exportDataUrl();
     onSave({ id: sketch?.id || uid(), title, notes, scale, roomTag, editorMode, floorLabel, snapToGrid, elements, dataUrl, date: today() });
+    // Clear draft on explicit save
+    try { localStorage.removeItem(_draftKey); } catch {}
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -9427,8 +9460,35 @@ function ProjectActivityFeed({ project, onUpdateProject, settings }) {
 
 // ── Project Detail (tabs: Overview, Photos, Rooms, Reports, Checklists) ────────
 function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onEdit, onOpenCamera, onEditPhoto, onUpdateProject, onOpenReportCreator, onSendVoiceNoteToChat, onSendFileToChat, onSendPhotoToChat, settings, orgId }) {
-  const [tab, setTab] = useState("overview");
+  const _tabKey = `kc_tab_${project?.id}`;
+  const _sketchKey = `kc_sketch_${project?.id}`;
+  const [tab, setTab] = useState(() => {
+    try { return localStorage.getItem(_tabKey) || "overview"; } catch { return "overview"; }
+  });
   const [editingSketch, setEditingSketch] = useState(null); // null=list, "new"=new, sketch obj=edit
+
+  // Persist tab so switching browser tabs doesn't lose it
+  const setTabPersist = (t) => { setTab(t); try { localStorage.setItem(_tabKey, t); } catch {} };
+  // Persist editing sketch id so we can reopen it after tab switch
+  const setEditingSketchPersist = (sk) => {
+    setEditingSketch(sk);
+    try {
+      if (sk && sk !== "new") localStorage.setItem(_sketchKey, sk.id);
+      else localStorage.removeItem(_sketchKey);
+    } catch {}
+  };
+
+  // On mount: if we were editing a sketch, reopen it
+  useEffect(() => {
+    try {
+      const sid = localStorage.getItem(_sketchKey);
+      if (sid && project?.sketches) {
+        const found = project.sketches.find(s => s.id === sid);
+        if (found) setEditingSketch(found);
+      }
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [scratchPad, setScratchPad] = useState(project.scratchPad || "");
   const [scratchSaved, setScratchSaved] = useState(false);
   const fileRef = useRef();
@@ -9661,7 +9721,7 @@ function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onEdit, on
                 className={`btn btn-ghost btn-sm tab-item${t.desktopOnly?" desktop-only":""}`}
                 title={t.label}
                 style={{ borderBottom:`2px solid ${tab===t.id?"var(--accent)":"transparent"}`,borderRadius:0,paddingBottom:10,paddingLeft:12,paddingRight:12,color:tab===t.id?"var(--accent)":"var(--text2)",fontWeight:tab===t.id?700:500,whiteSpace:"nowrap",flexShrink:0,display:"flex",alignItems:"center",gap:5 }}
-                onClick={() => setTab(t.id)}>
+                onClick={() => setTabPersist(t.id)}>
                 <Icon d={t.icon} size={13} />
                 <span style={{ fontSize:12 }}>{short}</span>
                 {count && count !== "0" && <span style={{ fontSize:10,fontWeight:700,padding:"1px 5px",borderRadius:10,background:tab===t.id?"var(--accent)":"var(--surface3)",color:tab===t.id?"white":"var(--text3)",lineHeight:1.4 }}>{count}</span>}
@@ -9807,7 +9867,7 @@ function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onEdit, on
                 <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
                   <button className="btn btn-primary" style={{ display:"flex",justifyContent:"center",alignItems:"center",gap:7,width:"100%" }} onClick={() => onOpenCamera(project)}><Icon d={ic.camera} size={15} /> Open Live Camera</button>
                   <button className="btn btn-secondary" style={{ display:"flex",justifyContent:"center",alignItems:"center",gap:7,width:"100%" }} onClick={() => { fileRef.current?.click(); }}><Icon d={ic.image} size={15} /> Upload Photos</button>
-                  <button className="btn btn-secondary desktop-only" style={{ display:"flex",justifyContent:"center",alignItems:"center",gap:7,width:"100%" }} onClick={() => setTab("reports")}><Icon d={ic.reports} size={15} /> Create Report</button>
+                  <button className="btn btn-secondary desktop-only" style={{ display:"flex",justifyContent:"center",alignItems:"center",gap:7,width:"100%" }} onClick={() => setTabPersist("reports")}><Icon d={ic.reports} size={15} /> Create Report</button>
                   <button className="btn btn-secondary" style={{ display:"flex",justifyContent:"center",alignItems:"center",gap:7,width:"100%" }} onClick={() => onEdit(project)}><Icon d={ic.edit} size={15} /> Edit Project Info</button>
                 </div>
                 <input ref={fileRef} type="file" multiple accept="image/*" style={{ display:"none" }} onChange={e => addUploadedPhotos(e.target.files)} />
@@ -9916,8 +9976,8 @@ function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onEdit, on
         <SketchesTab
           project={project}
           onUpdateProject={onUpdateProject}
-          onNewSketch={() => setEditingSketch("new")}
-          onEditSketch={sk => setEditingSketch(sk)}
+          onNewSketch={() => setEditingSketchPersist("new")}
+          onEditSketch={sk => setEditingSketchPersist(sk)}
         />
       )}
       {tab === "checklists" && (
@@ -9992,9 +10052,9 @@ function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onEdit, on
                 console.warn("[KrakenCam] Could not convert sketch dataUrl for upload:", convErr);
               }
             }
-            setEditingSketch(null);
+            setEditingSketchPersist(null);
           }}
-          onClose={() => setEditingSketch(null)}
+          onClose={() => setEditingSketchPersist(null)}
         />
       )}
     </div>
@@ -21066,12 +21126,13 @@ const { profile: authProfile, user: authUser, loading: authLoading } = useAuth()
       if (s.reportTemplates)  setReportTemplates(s.reportTemplates);
       if (s.chats)            setChats(s.chats);
       if (s.calEvents)        setCalEvents(s.calEvents);
-      // Restore last page/project so switching tabs doesn't reset navigation
+      // Restore last page/project/tab so switching tabs doesn't reset navigation
       if (s._page && s._page !== 'camera' && s._page !== 'editor') setPage(s._page);
       if (s._activeProjectId && s.projects) {
         const proj = s.projects.find(p => p.id === s._activeProjectId);
         if (proj) setActiveProject(proj);
       }
+      // _activeTab and _editingSketchId are restored inside ProjectDetail via localStorage directly
     } catch(e) { /* ignore corrupt storage */ }
   }, []);
 
