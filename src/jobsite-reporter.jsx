@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from "react";
-import { supabase } from "./lib/supabase";
+import { supabase, getAuthHeaders } from "./lib/supabase";
 import { loadSettingsFromDB, saveSettingsToDB, stripBinary } from "./lib/settingsSync";
 import { uploadOrgLogo, uploadUserAvatar } from "./lib/uploadImage";
 import { updateTeamMember, removeUser as dbRemoveUser } from "./lib/team";
@@ -4160,37 +4160,35 @@ function TemplateManagerModal({ templates, setTemplates, onClose }) {
 
   // Load categories from Supabase on mount
   useEffect(() => {
-    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    const url     = import.meta.env.VITE_SUPABASE_URL;
-    // Get org_id from current session profile
-    supabase.auth.getSession().then(({ data }) => {
+    const url = import.meta.env.VITE_SUPABASE_URL;
+    supabase.auth.getSession().then(async ({ data }) => {
       const uid = data?.session?.user?.id;
       if (!uid) return;
-      fetch(`${url}/rest/v1/profiles?user_id=eq.${uid}&select=organization_id`, {
-        headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` }
-      }).then(r => r.json()).then(rows => {
-        const oid = rows?.[0]?.organization_id;
-        if (!oid) return;
-        setOrgId(oid);
-        fetch(`${url}/rest/v1/checklist_categories?organization_id=eq.${oid}&select=custom_cats,hidden_cats`, {
-          headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` }
-        }).then(r => r.json()).then(data => {
-          if (data?.[0]) {
-            setCustomCats(data[0].custom_cats || []);
-            setHiddenBuiltIn(data[0].hidden_cats || []);
-          }
+      const headers = await getAuthHeaders();
+      fetch(`${url}/rest/v1/profiles?user_id=eq.${uid}&select=organization_id`, { headers })
+        .then(r => r.json()).then(async rows => {
+          const oid = rows?.[0]?.organization_id;
+          if (!oid) return;
+          setOrgId(oid);
+          const headers2 = await getAuthHeaders();
+          fetch(`${url}/rest/v1/checklist_categories?organization_id=eq.${oid}&select=custom_cats,hidden_cats`, { headers: headers2 })
+            .then(r => r.json()).then(data => {
+              if (data?.[0]) {
+                setCustomCats(data[0].custom_cats || []);
+                setHiddenBuiltIn(data[0].hidden_cats || []);
+              }
+            }).catch(() => {});
         }).catch(() => {});
-      }).catch(() => {});
     }).catch(() => {});
   }, []);
 
-  const persistCats = (custom, hidden, oid) => {
+  const persistCats = async (custom, hidden, oid) => {
     if (!oid) return;
-    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    const url     = import.meta.env.VITE_SUPABASE_URL;
+    const url = import.meta.env.VITE_SUPABASE_URL;
+    const headers = await getAuthHeaders({ 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' });
     fetch(`${url}/rest/v1/checklist_categories`, {
       method: 'POST',
-      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+      headers,
       body: JSON.stringify({ organization_id: oid, custom_cats: custom, hidden_cats: hidden, updated_at: new Date().toISOString() }),
     }).catch(() => {});
     // Also keep localStorage as fast local cache
@@ -6097,7 +6095,7 @@ function ClientPortalTab({ project, settings = {}, onUpdateProject }) {
                 };
                 await fetch(`${SUPABASE_URL}/rest/v1/published_portals`, {
                   method: "POST",
-                  headers: { apikey:SUPABASE_ANON, Authorization:`Bearer ${SUPABASE_ANON}`, "Content-Type":"application/json", Prefer:"resolution=merge-duplicates,return=minimal" },
+                  headers: await getAuthHeaders({ "Content-Type":"application/json", Prefer:"resolution=merge-duplicates,return=minimal" }),
                   body: JSON.stringify(payload),
                 }).catch(e => console.warn("Portal publish error:", e));
                 await copyLink();
@@ -9026,12 +9024,12 @@ function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onEdit, on
       if (orgId && project.id) {
         try {
           const supaUrl = import.meta.env.VITE_SUPABASE_URL;
-          const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
           const ext = file.name.split('.').pop() || 'jpg';
           const path = `${orgId}/${project.id}/${photoId}.${ext}`;
+          const uploadHeaders = await getAuthHeaders({ 'Content-Type': file.type || 'image/jpeg', 'x-upsert': 'true' });
           const uploadRes = await fetch(`${supaUrl}/storage/v1/object/project-photos/${path}`, {
             method: 'POST',
-            headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, 'Content-Type': file.type || 'image/jpeg', 'x-upsert': 'true' },
+            headers: uploadHeaders,
             body: file,
           });
           if (uploadRes.ok) {
@@ -20539,14 +20537,14 @@ const { profile: authProfile } = useAuth();
     const orgId = authProfile?.organization_id;
     if (!orgId) return;
     const url = import.meta.env.VITE_SUPABASE_URL;
-    const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    fetch(`${url}/rest/v1/report_templates?organization_id=eq.${orgId}&select=*&order=created_at`, {
-      headers: { apikey: key, Authorization: `Bearer ${key}` }
-    }).then(r => r.json()).then(rows => {
-      if (Array.isArray(rows) && rows.length > 0) {
-        setReportTemplates(rows.map(r => ({ ...((r.sections && typeof r.sections === 'object' && !Array.isArray(r.sections)) ? r.sections : {}), id: r.id, name: r.name, type: r.type, color: r.color, sections: r.sections })));
-      }
-    }).catch(() => {});
+    getAuthHeaders().then(headers => {
+      fetch(`${url}/rest/v1/report_templates?organization_id=eq.${orgId}&select=*&order=created_at`, { headers })
+        .then(r => r.json()).then(rows => {
+          if (Array.isArray(rows) && rows.length > 0) {
+            setReportTemplates(rows.map(r => ({ ...((r.sections && typeof r.sections === 'object' && !Array.isArray(r.sections)) ? r.sections : {}), id: r.id, name: r.name, type: r.type, color: r.color, sections: r.sections })));
+          }
+        }).catch(() => {});
+    });
   }, [authProfile?.organization_id]);
 
   // ── Load settings from Supabase when org/user is known ──────────────────
@@ -20556,17 +20554,16 @@ const { profile: authProfile } = useAuth();
     if (!orgId || !userId) return;
 
     // Load settings + logo_url + avatar_url in parallel
-    Promise.all([
+    const supaUrl = import.meta.env.VITE_SUPABASE_URL;
+    getAuthHeaders().then(headers => Promise.all([
       loadSettingsFromDB(orgId, userId),
       // Load logo URL from org_settings
-      fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/org_settings?organization_id=eq.${orgId}&select=logo_url&limit=1`, {
-        headers: { apikey: import.meta.env.VITE_SUPABASE_ANON_KEY, Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` }
-      }).then(r => r.json()).then(d => d?.[0]?.logo_url || null).catch(() => null),
+      fetch(`${supaUrl}/rest/v1/org_settings?organization_id=eq.${orgId}&select=logo_url&limit=1`, { headers })
+        .then(r => r.json()).then(d => d?.[0]?.logo_url || null).catch(() => null),
       // Load avatar URL from profiles
-      fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/profiles?user_id=eq.${userId}&select=avatar_url&limit=1`, {
-        headers: { apikey: import.meta.env.VITE_SUPABASE_ANON_KEY, Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` }
-      }).then(r => r.json()).then(d => d?.[0]?.avatar_url || null).catch(() => null),
-    ]).then(([dbSettings, logoUrl, avatarUrl]) => {
+      fetch(`${supaUrl}/rest/v1/profiles?user_id=eq.${userId}&select=avatar_url&limit=1`, { headers })
+        .then(r => r.json()).then(d => d?.[0]?.avatar_url || null).catch(() => null),
+    ])).then(([dbSettings, logoUrl, avatarUrl]) => {
       setSettings(prev => ({
         ...prev,
         ...(dbSettings || {}),
@@ -21465,10 +21462,10 @@ useEffect(() => {
           const file = new File([new Blob([u8arr], { type: mime })], `${photo.id}.${ext}`, { type: mime });
           const path = `${orgId}/${latestProj.id}/${photo.id}.${ext}`;
           const supaUrl = import.meta.env.VITE_SUPABASE_URL;
-          const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+          const uploadHeaders = await getAuthHeaders({ 'Content-Type': mime, 'x-upsert': 'true' });
           await fetch(`${supaUrl}/storage/v1/object/project-photos/${path}`, {
             method: 'POST',
-            headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, 'Content-Type': mime, 'x-upsert': 'true' },
+            headers: uploadHeaders,
             body: file,
           });
           const publicUrl = `${supaUrl}/storage/v1/object/public/project-photos/${path}`;
@@ -21971,12 +21968,13 @@ useEffect(() => {
                   const withUrl = { ...s, logo: url };
                   saveSettingsToDB(orgId, userId, withUrl).catch(() => {});
                   // Also update org_settings.logo_url
-                  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
                   const supaUrl = import.meta.env.VITE_SUPABASE_URL;
-                  fetch(`${supaUrl}/rest/v1/org_settings?organization_id=eq.${orgId}`, {
-                    method: 'PATCH', headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-                    body: JSON.stringify({ logo_url: url }),
-                  }).catch(() => {});
+                  getAuthHeaders({ 'Content-Type': 'application/json', Prefer: 'return=minimal' }).then(h => {
+                    fetch(`${supaUrl}/rest/v1/org_settings?organization_id=eq.${orgId}`, {
+                      method: 'PATCH', headers: h,
+                      body: JSON.stringify({ logo_url: url }),
+                    }).catch(() => {});
+                  });
                 }).catch(err => console.warn('[KrakenCam] Logo upload failed:', err.message));
               }
 
@@ -21985,12 +21983,13 @@ useEffect(() => {
                 uploadUserAvatar(userId, s.userAvatar).then(url => {
                   setSettings(prev => ({ ...prev, userAvatar: url }));
                   // Update profile avatar_url in Supabase
-                  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
                   const supaUrl = import.meta.env.VITE_SUPABASE_URL;
-                  fetch(`${supaUrl}/rest/v1/profiles?user_id=eq.${userId}`, {
-                    method: 'PATCH', headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-                    body: JSON.stringify({ avatar_url: url }),
-                  }).catch(() => {});
+                  getAuthHeaders({ 'Content-Type': 'application/json', Prefer: 'return=minimal' }).then(h => {
+                    fetch(`${supaUrl}/rest/v1/profiles?user_id=eq.${userId}`, {
+                      method: 'PATCH', headers: h,
+                      body: JSON.stringify({ avatar_url: url }),
+                    }).catch(() => {});
+                  });
                 }).catch(err => console.warn('[KrakenCam] Avatar upload failed:', err.message));
               }
 

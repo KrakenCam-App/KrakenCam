@@ -45,3 +45,22 @@ export async function getAccessToken() {
   const { data: { session } } = await supabase.auth.getSession();
   return session?.access_token || null;
 }
+
+/**
+ * Build Authorization headers for raw fetch() calls to Supabase REST/Storage.
+ * Always uses the real session JWT — never the anon key as Bearer.
+ * The anon key is still required as `apikey` for rate limiting.
+ *
+ * Usage:
+ *   const headers = await getAuthHeaders();
+ *   fetch(`${SUPABASE_URL}/rest/v1/...`, { headers })
+ */
+export async function getAuthHeaders(extra = {}) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token || supabaseAnon; // fallback for public tables only
+  return {
+    apikey:        supabaseAnon,
+    Authorization: `Bearer ${token}`,
+    ...extra,
+  };
+}
