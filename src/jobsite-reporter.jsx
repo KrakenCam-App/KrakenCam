@@ -5381,12 +5381,11 @@ function VoiceNotesTab({ project, teamUsers = [], settings = {}, onUpdateProject
           if (!row) return;
           const supaUrl = import.meta.env.VITE_SUPABASE_URL;
           const publicUrl = `${supaUrl}/storage/v1/object/public/project-photos/${row.storage_path}`;
-          onUpdateProject(prev => ({
-            ...prev,
-            voiceNotes: (prev.voiceNotes || []).map(n =>
-              n.id === note.id ? { ...n, supabaseId: row.id, dataUrl: publicUrl, storagePath: row.storage_path } : n
-            ),
-          }));
+          // onUpdateProject expects a full project object — update the note in the current project
+          const updatedNotes = (project.voiceNotes || []).map(n =>
+            n.id === note.id ? { ...n, supabaseId: row.id, dataUrl: publicUrl, storagePath: row.storage_path } : n
+          );
+          onUpdateProject({ ...project, voiceNotes: updatedNotes });
         }).catch(err => console.warn("[KrakenCam] Voice note Supabase upload failed:", err.message || err));
       }
     };

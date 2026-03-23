@@ -6,9 +6,10 @@
  * All queries are org-scoped via RLS.
  */
 
-import { supabase } from './supabase';
+import { supabase, getAuthHeaders } from './supabase';
 
 const BUCKET = 'project-photos';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 /**
  * Fetch all voice notes for a project.
@@ -42,15 +43,16 @@ export async function uploadVoiceNote(projectId, orgId, audioBlob, durationSecon
   const ext = mime.includes('ogg') ? 'ogg' : mime.includes('mp4') ? 'm4a' : 'webm';
   const storagePath = `${orgId}/${projectId}/voice/${timestamp}.${ext}`;
 
-  const { error: uploadError } = await supabase.storage
-    .from(BUCKET)
-    .upload(storagePath, audioBlob, {
-      cacheControl: '3600',
-      upsert: false,
-      contentType: mime,
-    });
-
-  if (uploadError) throw uploadError;
+  // Use raw fetch with auth headers (same as project photo uploads — avoids RLS issues)
+  const uploadHeaders = await getAuthHeaders({ 'Content-Type': mime, 'x-upsert': 'false' });
+  const uploadRes = await fetch(
+    `${SUPABASE_URL}/storage/v1/object/${BUCKET}/${storagePath}`,
+    { method: 'POST', headers: uploadHeaders, body: audioBlob }
+  );
+  if (!uploadRes.ok) {
+    const errText = await uploadRes.text().catch(() => uploadRes.status);
+    throw new Error(`Voice note upload failed: ${errText}`);
+  }
 
   const { data: row, error: insertError } = await supabase
     .from('voice_notes')
