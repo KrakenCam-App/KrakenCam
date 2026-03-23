@@ -20867,21 +20867,8 @@ useEffect(() => {
       try {
         const rows = await dbGetCalEvents();
         if (rows && rows.length > 0) {
-          // Map DB snake_case to the local camelCase shape CalendarPage expects
-          const mapped = rows.map(row => ({
-            id:          row.id,
-            title:       row.title || "",
-            description: row.description || "",
-            startDate:   row.start_at ? row.start_at.slice(0, 10) : "",
-            endDate:     row.end_at   ? row.end_at.slice(0, 10)   : "",
-            startTime:   row.start_at ? row.start_at.slice(11, 16) : "",
-            endTime:     row.end_at   ? row.end_at.slice(11, 16)   : "",
-            allDay:      row.all_day  ?? false,
-            projectId:   row.project_id || "",
-            createdBy:   row.created_by || "",
-            _dbId:       row.id,  // preserve DB id for updates/deletes
-          }));
-          setCalEvents(mapped);
+          // getCalEvents() already calls fromDbRow() — fully mapped
+          setCalEvents(rows);
         }
       } catch (err) {
         console.warn("[KrakenCam] Could not load cal_events from Supabase:", err.message || err);
@@ -21871,21 +21858,7 @@ useEffect(() => {
             // Detect added events
             newEvents.filter(e => !prev.find(p => p.id === e.id)).forEach(async (ev) => {
               try {
-                const startIso = ev.startDate && ev.startTime
-                  ? `${ev.startDate}T${ev.startTime}:00`
-                  : ev.startDate ? `${ev.startDate}T00:00:00` : null;
-                const endIso = ev.endDate && ev.endTime
-                  ? `${ev.endDate}T${ev.endTime}:00`
-                  : ev.endDate ? `${ev.endDate}T23:59:59` : null;
-                await dbCreateCalEvent({
-                  id: ev.id,
-                  title: ev.title,
-                  description: ev.description || null,
-                  start_at: startIso,
-                  end_at: endIso,
-                  all_day: ev.allDay ?? false,
-                  project_id: ev.projectId || null,
-                });
+                await dbCreateCalEvent({ ...ev, organization_id: authProfile.organization_id });
               } catch(e) { console.warn("[KrakenCam] calEvents sync create failed:", e.message); }
             });
             // Detect updated events
@@ -21894,20 +21867,7 @@ useEffect(() => {
               return p && JSON.stringify(p) !== JSON.stringify(e);
             }).forEach(async (ev) => {
               try {
-                const startIso = ev.startDate && ev.startTime
-                  ? `${ev.startDate}T${ev.startTime}:00`
-                  : ev.startDate ? `${ev.startDate}T00:00:00` : null;
-                const endIso = ev.endDate && ev.endTime
-                  ? `${ev.endDate}T${ev.endTime}:00`
-                  : ev.endDate ? `${ev.endDate}T23:59:59` : null;
-                await dbUpdateCalEvent(ev.id, {
-                  title: ev.title,
-                  description: ev.description || null,
-                  start_at: startIso,
-                  end_at: endIso,
-                  all_day: ev.allDay ?? false,
-                  project_id: ev.projectId || null,
-                });
+                await dbUpdateCalEvent(ev.id, ev);
               } catch(e) { console.warn("[KrakenCam] calEvents sync update failed:", e.message); }
             });
             // Detect deleted events
