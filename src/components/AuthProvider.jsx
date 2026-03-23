@@ -28,6 +28,7 @@ export function AuthProvider({ children }) {
       .from('profiles')
       .select(`
         id,
+        user_id,
         organization_id,
         role,
         full_name,

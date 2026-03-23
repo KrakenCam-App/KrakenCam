@@ -21842,7 +21842,7 @@ useEffect(() => {
           )}
           {page === "tasks"     && <TasksPage projects={projects} teamUsers={teamUsers} settings={settings} tasks={tasks} onTasksChange={(newTasks) => {
             // Wire tasks create/update/delete to Supabase (fire-and-forget)
-            if (!authProfile?.organization_id) { setTasks(newTasks); return; }
+            if (!authProfile?.organization_id) { console.warn("[KrakenCam] tasks: no org_id, authProfile=", authProfile); setTasks(newTasks); return; }
             const prev = tasks;
             setTasks(newTasks);
             // Detect added tasks
