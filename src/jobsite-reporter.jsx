@@ -2140,41 +2140,41 @@ function ImageEditor({ photo, onClose, onSave }) {
       {/* ── Mobile bottom action bar ── */}
       <div className="editor-actions-mobile" style={{ display:"none",flexDirection:"column",gap:0,background:"var(--surface)",borderTop:"1px solid var(--border)",flexShrink:0 }}>
         {tool === "text" && (
-          <div style={{ padding:"10px 16px 8px",borderBottom:"1px solid var(--border)",display:"flex",flexDirection:"column",gap:10 }}>
-            <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",gap:8 }}>
-              <div style={{ fontSize:11,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",color:"var(--text3)" }}>Text Editor</div>
-              <button className="btn btn-sm btn-secondary" onClick={() => addTextLayer()}><Icon d={ic.plus} size={14} /> Add Text</button>
-            </div>
-            {activeTextLayer ? (
-              <>
-                <textarea
-                  value={activeTextLayer.text}
-                  onChange={e => updateTextLayer(activeTextLayer.id, { text: e.target.value })}
-                  rows={3}
-                  placeholder="Type your note"
-                  style={{ width:"100%",resize:"none",minHeight:86,borderRadius:12,border:"1px solid var(--border)",background:"var(--panel)",color:"var(--text)",padding:"10px 12px",fontSize:16 }}
-                />
-                <div style={{ display:"flex",alignItems:"center",gap:8 }}>
-                  <button className="btn btn-sm btn-secondary" onClick={() => updateTextLayer(activeTextLayer.id, { fontSize: Math.max(18, (activeTextLayer.fontSize || 42) - 2) })}>A-</button>
-                  <input
-                    type="range"
-                    min="18"
-                    max="120"
-                    value={activeTextLayer.fontSize || 42}
-                    onChange={e => updateTextLayer(activeTextLayer.id, { fontSize:+e.target.value })}
-                    className="size-slider"
-                    style={{ flex:1,margin:0 }}
-                  />
-                  <button className="btn btn-sm btn-secondary" onClick={() => updateTextLayer(activeTextLayer.id, { fontSize: Math.min(120, (activeTextLayer.fontSize || 42) + 2) })}>A+</button>
-                </div>
-                <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap" }}>
-                  <div style={{ fontSize:12,color:"var(--text2)" }}>{activeTextLayer.fontSize || 42}px</div>
-                  <button className="btn btn-sm btn-ghost" onClick={removeActiveTextLayer}><Icon d={ic.trash} size={14} /> Delete</button>
-                </div>
-              </>
-            ) : (
-              <div style={{ fontSize:12,color:"var(--text2)",lineHeight:1.5 }}>
-                Tap the photo to place a label, then type and resize it here.
+          <div style={{ borderBottom:"1px solid var(--border)" }}>
+            <button onClick={() => setMobileControlsOpen(v => !v)}
+              style={{ width:"100%",background:"none",border:"none",padding:"9px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",color:"var(--text)",fontSize:13,fontWeight:600,cursor:"pointer" }}>
+              <span>✏️ Text Editor {activeTextLayer ? <span style={{ fontSize:11,color:"var(--accent)",fontWeight:400 }}>— {activeTextLayer.fontSize||42}px</span> : ""}</span>
+              <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+                <button className="btn btn-sm btn-secondary" style={{ padding:"3px 10px",fontSize:12 }} onClick={e => { e.stopPropagation(); addTextLayer(); setMobileControlsOpen(true); }}><Icon d={ic.plus} size={13} /> Add</button>
+                <Icon d={mobileControlsOpen ? "M18 15l-6-6-6 6" : "M6 9l6 6 6-6"} size={16} stroke="var(--text3)" />
+              </div>
+            </button>
+            {mobileControlsOpen && (
+              <div style={{ padding:"0 16px 12px",display:"flex",flexDirection:"column",gap:10 }}>
+                {activeTextLayer ? (
+                  <>
+                    <textarea
+                      value={activeTextLayer.text}
+                      onChange={e => updateTextLayer(activeTextLayer.id, { text: e.target.value })}
+                      rows={3}
+                      placeholder="Type your note"
+                      style={{ width:"100%",resize:"none",minHeight:86,borderRadius:12,border:"1px solid var(--border)",background:"var(--panel)",color:"var(--text)",padding:"10px 12px",fontSize:16 }}
+                    />
+                    <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+                      <button className="btn btn-sm btn-secondary" onClick={() => updateTextLayer(activeTextLayer.id, { fontSize: Math.max(18, (activeTextLayer.fontSize || 42) - 2) })}>A-</button>
+                      <input type="range" min="18" max="120" value={activeTextLayer.fontSize || 42}
+                        onChange={e => updateTextLayer(activeTextLayer.id, { fontSize:+e.target.value })}
+                        className="size-slider" style={{ flex:1,margin:0 }} />
+                      <button className="btn btn-sm btn-secondary" onClick={() => updateTextLayer(activeTextLayer.id, { fontSize: Math.min(120, (activeTextLayer.fontSize || 42) + 2) })}>A+</button>
+                    </div>
+                    <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between" }}>
+                      <div style={{ fontSize:12,color:"var(--text2)" }}>{activeTextLayer.fontSize||42}px</div>
+                      <button className="btn btn-sm btn-ghost" onClick={removeActiveTextLayer}><Icon d={ic.trash} size={14} /> Delete</button>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ fontSize:12,color:"var(--text2)",lineHeight:1.5 }}>Tap the photo to place a label, then type and resize it here.</div>
+                )}
               </div>
             )}
           </div>
