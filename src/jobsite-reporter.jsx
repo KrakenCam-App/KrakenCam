@@ -19960,6 +19960,7 @@ function TemplatesPage({ projects, onUseTemplate, templates: templatesProp, onTe
     const [secText,   setSecText]   = useState(() => {
       const d = {}; TEXT_SECTIONS.forEach(s => { d[s] = base.sections?.[s]?.text || ""; }); return d;
     });
+    const [recipient, setRecipient] = useState(base.recipient || "Client");
     const [sigImg,    setSigImg]    = useState(base.signatureImg || null);
     const [expanded,  setExpanded]  = useState({});
     const sigRef = useRef();
@@ -19981,7 +19982,7 @@ function TemplatesPage({ projects, onUseTemplate, templates: templatesProp, onTe
       const saved = {
         ...base,
         id: isNew ? uid() : base.id,
-        name: name.trim(), type, desc,
+        name: name.trim(), type, desc, recipient,
         color: colorForType(type),
         sections: Object.fromEntries(ALL_SECTIONS.map(s => [s, { enabled: secEnabled[s], text: secText[s]||"" }])),
         signatureImg: sigImg,
@@ -19992,7 +19993,7 @@ function TemplatesPage({ projects, onUseTemplate, templates: templatesProp, onTe
 
     return (
       <div className="modal-overlay" onClick={e => e.target===e.currentTarget && onClose()}>
-        <div className="modal fade-in modal-lg">
+        <div className="modal fade-in modal-lg" style={{ maxWidth:700 }}>
           <div className="modal-header">
             <div className="modal-title">{isNew ? "Create Template" : `Edit: ${base.name}`}</div>
             <button className="btn btn-ghost btn-icon" style={{ width:44,height:44 }} onClick={onClose}><Icon d={ic.close} size={22} /></button>
@@ -20016,7 +20017,7 @@ function TemplatesPage({ projects, onUseTemplate, templates: templatesProp, onTe
               </div>
               <div className="form-group">
                 <label className="form-label">Recipient</label>
-                <select className="form-input form-select" defaultValue={base.recipient||"Client"}>
+                <select className="form-input form-select" value={recipient} onChange={e => setRecipient(e.target.value)}>
                   {["Client","Adjuster","Insurance Company","Contractor","N/A","Other"].map(t => <option key={t}>{t}</option>)}
                 </select>
               </div>
@@ -20038,11 +20039,11 @@ function TemplatesPage({ projects, onUseTemplate, templates: templatesProp, onTe
                 return (
                   <div key={s} style={{ borderBottom:"1px solid var(--border)" }}>
                     <div style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 0" }}>
-                      <input type="checkbox" checked={!!isOn} onChange={() => toggle(s)} style={{ accentColor:"var(--accent)", flexShrink:0 }} />
-                      <span style={{ fontSize:13, flex:1, fontWeight:500 }}>{s}</span>
-                      {isAuto && <span style={{ fontSize:11, color:"var(--text3)", background:"var(--surface2)", padding:"2px 8px", borderRadius:10 }}>Auto-filled</span>}
+                      <input type="checkbox" checked={!!isOn} onChange={() => toggle(s)} style={{ accentColor:"var(--accent)", flexShrink:0, width:16, height:16 }} />
+                      <span style={{ fontSize:13.5, flex:1, fontWeight:500, color:"var(--text)" }}>{s}</span>
+                      {isAuto && <span style={{ fontSize:11, color:"var(--text3)", background:"var(--surface2)", padding:"2px 8px", borderRadius:10, flexShrink:0, whiteSpace:"nowrap" }}>Auto-filled</span>}
                       {isText && isOn && (
-                        <button onClick={() => toggleExpand(s)} style={{ background:"none", border:"1px solid var(--border)", borderRadius:6, padding:"3px 10px", fontSize:11.5, color:"var(--text2)", cursor:"pointer", display:"flex", alignItems:"center", gap:4 }}>
+                        <button onClick={() => toggleExpand(s)} style={{ background:"none", border:"1px solid var(--border)", borderRadius:6, padding:"4px 12px", fontSize:12, color:"var(--text2)", cursor:"pointer", display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
                           {isOpen ? "▲ Hide" : "▼ Edit"}
                         </button>
                       )}
@@ -21809,13 +21810,25 @@ useEffect(() => {
                 const orgId = authProfile?.organization_id;
                 if (!orgId) return;
                 const url = import.meta.env.VITE_SUPABASE_URL;
-                const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
-                // Upsert all templates for this org
-                await fetch(`${url}/rest/v1/report_templates`, {
-                  method: 'POST',
-                  headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
-                  body: JSON.stringify(newTemplates.map(t => ({ id: t.id, organization_id: orgId, name: t.name, type: t.type || '', color: t.color || '#4a90d9', sections: t.sections || t, updated_at: new Date().toISOString() }))),
-                }).catch(() => {});
+                // Upsert all templates with full data
+                getAuthHeaders({ 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' }).then(headers => {
+                  fetch(`${url}/rest/v1/report_templates`, {
+                    method: 'POST', headers,
+                    body: JSON.stringify(newTemplates.map(t => ({
+                      id: t.id,
+                      organization_id: orgId,
+                      name: t.name,
+                      type: t.type || '',
+                      color: t.color || '#4a90d9',
+                      desc: t.desc || '',
+                      recipient: t.recipient || 'Client',
+                      cover_img: (t.coverImg && t.coverImg.startsWith('data:')) ? null : (t.coverImg || null),
+                      signature_img: (t.signatureImg && t.signatureImg.startsWith('data:')) ? null : (t.signatureImg || null),
+                      sections: t.sections || {},
+                      updated_at: new Date().toISOString(),
+                    }))),
+                  }).catch(() => {});
+                });
               }} projects={projects} onUseTemplate={(tmpl, proj) => { openReportCreator(proj, { id:uid(), title:tmpl.name, type:tmpl.type, reportType:tmpl.type, date:today(), status:"draft", photos:0, color:tmpl.color, _fromTemplate:tmpl.id }); }} />
             </div>
           )}
