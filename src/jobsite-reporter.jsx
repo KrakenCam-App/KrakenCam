@@ -5987,44 +5987,70 @@ function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpdateProje
         </div>
       )}
 
-      {viewerFile && (
-        <div className="modal-overlay" onClick={e => e.target===e.currentTarget && setViewerFile(null)}>
-          <div className="modal modal-lg fade-in" style={{ maxWidth: viewerFile.type === "application/pdf" ? 980 : 860 }}>
-            <div className="modal-header">
-              <div className="modal-title" style={{ minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
-                <Icon d={ic.folder} size={15} /> {viewerFile.name}
-              </div>
-              <div style={{ display:"flex",gap:8,alignItems:"center" }}>
-                <button className="btn btn-secondary btn-sm" onClick={() => openFile(viewerFile)}><Icon d={ic.arrowUpRight} size={13} /> Open</button>
-                <button className="btn btn-ghost btn-sm btn-icon" onClick={() => setViewerFile(null)}><Icon d={ic.close} size={16} /></button>
-              </div>
-            </div>
-            <div className="modal-body" style={{ minHeight:420,maxHeight:"75vh",overflow:"auto" }}>
-              {viewerFile.type?.startsWith("image/") ? (
-                <img src={viewerFile.dataUrl} alt={viewerFile.name} style={{ width:"100%",display:"block",borderRadius:8 }} />
-              ) : viewerFile.type === "application/pdf" ? (
-                <iframe
-                  src={viewerFile.dataUrl}
-                  title={viewerFile.name}
-                  style={{ width:"100%",height:"70vh",border:"1px solid var(--border)",borderRadius:8,background:"white" }}
-                />
-              ) : viewerFile.dataUrl?.startsWith("http") ? (
-                // Storage URL — can't decode inline, open in new tab
-                <div style={{ textAlign:"center",padding:"60px 24px",color:"var(--text2)" }}>
-                  <p style={{ marginBottom:16,fontSize:14 }}>This file cannot be previewed inline.</p>
-                  <button className="btn btn-primary" onClick={() => openFile(viewerFile)}>
-                    <Icon d={ic.arrowUpRight} size={14}/> Open in New Tab
-                  </button>
+      {viewerFile && (() => {
+        const FileViewer = () => {
+          const [imgZoom, setImgZoom] = React.useState(1);
+          const [imgPan, setImgPan]   = React.useState({x:0,y:0});
+          const panStart = React.useRef(null);
+          const url = viewerFile.dataUrl || "";
+          const isImg = viewerFile.type?.startsWith("image/");
+          const isPdf = viewerFile.type === "application/pdf";
+          const isText = viewerFile.type?.startsWith("text/") || ["txt","csv","json","md"].includes(getFileExtension(viewerFile.name));
+          const isStorageUrl = url.startsWith("http");
+
+          const onImgMouseDown = e => { e.preventDefault(); panStart.current = { mx: e.clientX, my: e.clientY, px: imgPan.x, py: imgPan.y }; };
+          const onImgMouseMove = e => { if (!panStart.current) return; setImgPan({ x: panStart.current.px + e.clientX - panStart.current.mx, y: panStart.current.py + e.clientY - panStart.current.my }); };
+          const onImgMouseUp   = () => { panStart.current = null; };
+          const onWheel = e => { e.preventDefault(); setImgZoom(z => Math.max(0.2, Math.min(8, z * (e.deltaY < 0 ? 1.15 : 0.87)))); };
+
+          return (
+            <div style={{ position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,0.92)",display:"flex",flexDirection:"column" }}>
+              {/* Header */}
+              <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",background:"rgba(0,0,0,0.7)",borderBottom:"1px solid rgba(255,255,255,0.1)",flexShrink:0 }}>
+                <div style={{ fontSize:13.5,fontWeight:600,color:"white",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"60vw" }}>{viewerFile.name}</div>
+                <div style={{ display:"flex",gap:8,alignItems:"center" }}>
+                  {isImg && <>
+                    <button className="btn btn-sm btn-secondary" onClick={() => { setImgZoom(1); setImgPan({x:0,y:0}); }} style={{ fontSize:11 }}>Reset</button>
+                    <button className="btn btn-sm btn-secondary" onClick={() => setImgZoom(z => Math.min(8, z*1.3))} style={{ minWidth:32 }}>+</button>
+                    <span style={{ color:"rgba(255,255,255,.6)",fontSize:12,minWidth:44,textAlign:"center" }}>{Math.round(imgZoom*100)}%</span>
+                    <button className="btn btn-sm btn-secondary" onClick={() => setImgZoom(z => Math.max(0.2, z*0.77))} style={{ minWidth:32 }}>−</button>
+                  </>}
+                  <button className="btn btn-sm btn-secondary" onClick={() => openFile(viewerFile)}><Icon d={ic.arrowUpRight} size={13}/> Open</button>
+                  <button className="btn btn-ghost btn-icon" style={{ color:"white",width:34,height:34 }} onClick={() => setViewerFile(null)}><Icon d={ic.close} size={20}/></button>
                 </div>
-              ) : (
-                <pre style={{ margin:0,whiteSpace:"pre-wrap",wordBreak:"break-word",fontFamily:"ui-monospace, SFMono-Regular, Consolas, monospace",fontSize:12.5,lineHeight:1.6,background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,padding:16 }}>
-                  {decodeDataUrlText(viewerFile.dataUrl)}
-                </pre>
-              )}
+              </div>
+              {/* Body */}
+              <div style={{ flex:1,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",position:"relative" }}>
+                {isImg ? (
+                  <div style={{ width:"100%",height:"100%",overflow:"hidden",cursor: imgZoom>1?"grab":"default",userSelect:"none" }}
+                    onMouseDown={onImgMouseDown} onMouseMove={onImgMouseMove} onMouseUp={onImgMouseUp} onMouseLeave={onImgMouseUp}
+                    onWheel={onWheel}>
+                    <img src={url} alt={viewerFile.name}
+                      style={{ transformOrigin:"center center",transform:`translate(${imgPan.x}px,${imgPan.y}px) scale(${imgZoom})`,display:"block",maxWidth:"100%",maxHeight:"100%",margin:"auto",pointerEvents:"none",transition:"transform .05s" }}
+                    />
+                  </div>
+                ) : isPdf ? (
+                  <iframe src={url} title={viewerFile.name} style={{ width:"100%",height:"100%",border:"none",background:"white" }} />
+                ) : isText && !isStorageUrl ? (
+                  <div style={{ width:"100%",height:"100%",overflow:"auto",padding:24 }}>
+                    <pre style={{ margin:0,whiteSpace:"pre-wrap",wordBreak:"break-word",fontFamily:"ui-monospace,SFMono-Regular,Consolas,monospace",fontSize:13,lineHeight:1.7,color:"rgba(255,255,255,.88)" }}>
+                      {decodeDataUrlText(url)}
+                    </pre>
+                  </div>
+                ) : (
+                  <div style={{ textAlign:"center",color:"rgba(255,255,255,.7)" }}>
+                    <div style={{ fontSize:48,marginBottom:16 }}>📄</div>
+                    <div style={{ fontSize:15,marginBottom:8,fontWeight:600,color:"white" }}>{viewerFile.name}</div>
+                    <div style={{ fontSize:13,marginBottom:24,color:"rgba(255,255,255,.5)" }}>This file type cannot be previewed inline.</div>
+                    <button className="btn btn-primary" onClick={() => openFile(viewerFile)}><Icon d={ic.arrowUpRight} size={14}/> Open in New Tab</button>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          );
+        };
+        return <FileViewer />;
+      })()}
 
       {activeShareFile && (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShareFileId(null)}>
@@ -22089,7 +22115,12 @@ useEffect(() => {
     });
   };
   const sendProjectFileToDirectMessage = (project, file, recipientId) => {
-    if (!recipientId || !file?.dataUrl) return;
+    if (!recipientId || (!file?.dataUrl && !file?.storagePath)) return;
+    // Prefer storage URL over base64 for chat attachments
+    if (file && !file.dataUrl && file.storagePath) {
+      const supaUrl = import.meta.env.VITE_SUPABASE_URL;
+      file = { ...file, dataUrl: `${supaUrl}/storage/v1/object/public/project-photos/${file.storagePath}` };
+    }
     const recipient = teamUsers.find(u => u.id === recipientId);
     const chatName = `${recipient?.firstName || ""} ${recipient?.lastName || ""}`.trim() || "Direct Message";
     const attachment = {
