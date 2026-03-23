@@ -5103,15 +5103,16 @@ function PhotoSettingsModal({ photo, rooms, photoTags, onSave, onClose }) {
 }
 
 // ── Videos Tab ────────────────────────────────────────────────────────────────
-function VideosTab({ project, onUpdateProject, onOpenCamera }) {
+function VideosTab({ project, onUpdateProject, onOpenCamera, orgId }) {
   const videos = project.videos || [];
-  const [playing,     setPlaying]     = useState(null);  // video id being viewed
-  const [editingVid,  setEditingVid]  = useState(null);  // { id, name, room }
-  const [confirmDel,  setConfirmDel]  = useState(null);
-  const [filterRoom,  setFilterRoom]  = useState("all");
+  const [playing,      setPlaying]      = useState(null);
+  const [editingVid,   setEditingVid]   = useState(null);
+  const [confirmDel,   setConfirmDel]   = useState(null); // null | video obj | "batch"
+  const [filterRoom,   setFilterRoom]   = useState("all");
+  const [selectMode,   setSelectMode]   = useState(false);
+  const [selectedIds,  setSelectedIds]  = useState(new Set());
 
   const rooms = ["all", ...(project.rooms?.map(r => r.name) || [])];
-
   const filtered = filterRoom === "all" ? videos : videos.filter(v => v.room === filterRoom);
 
   const fmtTime = s => {
@@ -5119,9 +5120,24 @@ function VideosTab({ project, onUpdateProject, onOpenCamera }) {
     return `${String(Math.floor(s/60)).padStart(2,"0")}:${String(Math.floor(s%60)).padStart(2,"0")}`;
   };
 
+  const toggleSelect = id => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
   const deleteVideo = (id) => {
+    const vid = videos.find(v => v.id === id);
     onUpdateProject({ ...project, videos: videos.filter(v => v.id !== id) });
     if (playing === id) setPlaying(null);
+    setConfirmDel(null);
+    // Remove from Supabase
+    if (vid?.supabaseId) dbDeleteVideo(vid.supabaseId, vid.storagePath).catch(() => {});
+  };
+
+  const deleteBatch = () => {
+    const toDelete = videos.filter(v => selectedIds.has(v.id));
+    onUpdateProject({ ...project, videos: videos.filter(v => !selectedIds.has(v.id)) });
+    if (selectedIds.has(playing)) setPlaying(null);
+    toDelete.forEach(v => { if (v.supabaseId) dbDeleteVideo(v.supabaseId, v.storagePath).catch(() => {}); });
+    setSelectedIds(new Set());
+    setSelectMode(false);
     setConfirmDel(null);
   };
 
@@ -5141,15 +5157,25 @@ function VideosTab({ project, onUpdateProject, onOpenCamera }) {
           <div className="section-title" style={{ marginBottom:0 }}>Videos</div>
           <span style={{ fontSize:12,color:"var(--text3)",padding:"2px 9px",background:"var(--surface2)",borderRadius:10,border:"1px solid var(--border)" }}>{videos.length} clip{videos.length!==1?"s":""}</span>
         </div>
-        <div style={{ display:"flex",gap:8,alignItems:"center" }}>
+        <div style={{ display:"flex",gap:8,alignItems:"center",flexWrap:"wrap" }}>
           {rooms.length > 2 && (
             <select className="form-input form-select" value={filterRoom} onChange={e=>setFilterRoom(e.target.value)} style={{ width:"auto",fontSize:12.5,padding:"5px 28px 5px 10px",height:"auto" }}>
               {rooms.map(r=><option key={r} value={r}>{r==="all"?"All Rooms":r}</option>)}
             </select>
           )}
-          <button className="btn btn-primary btn-sm" onClick={()=>onOpenCamera(project)}>
-            <Icon d={ic.video} size={14}/> Record Video
-          </button>
+          {selectMode ? (<>
+            {selectedIds.size > 0 && (
+              <button className="btn btn-sm" style={{ background:"#e85a3a",color:"white",border:"none" }} onClick={() => setConfirmDel("batch")}>
+                <Icon d={ic.trash} size={13}/> Delete {selectedIds.size}
+              </button>
+            )}
+            <button className="btn btn-secondary btn-sm" onClick={() => { setSelectMode(false); setSelectedIds(new Set()); }}>Cancel</button>
+          </>) : (<>
+            {videos.length > 0 && <button className="btn btn-secondary btn-sm" onClick={() => setSelectMode(true)}>☑ Select</button>}
+            <button className="btn btn-primary btn-sm" onClick={()=>onOpenCamera(project)}>
+              <Icon d={ic.video} size={14}/> Record Video
+            </button>
+          </>)}
         </div>
       </div>
 
@@ -5167,12 +5193,21 @@ function VideosTab({ project, onUpdateProject, onOpenCamera }) {
       {filtered.length > 0 && (
         <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:14 }}>
           {filtered.map(v => (
-            <div key={v.id} style={{ background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius)",overflow:"hidden",transition:"box-shadow .15s" }}
+            <div key={v.id} style={{ background:"var(--surface)",border:`1px solid ${selectedIds.has(v.id)?"var(--accent)":"var(--border)"}`,borderRadius:"var(--radius)",overflow:"hidden",transition:"box-shadow .15s",position:"relative" }}
               onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 18px rgba(0,0,0,.18)"}
               onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}>
+              {selectMode && (
+                <div style={{ position:"absolute",top:8,left:8,zIndex:10 }} onClick={e=>{e.stopPropagation();toggleSelect(v.id);}}>
+                  <div style={{ width:22,height:22,borderRadius:6,border:`2px solid ${selectedIds.has(v.id)?"var(--accent)":"rgba(255,255,255,0.7)"}`,
+                    background:selectedIds.has(v.id)?"var(--accent)":"rgba(0,0,0,0.4)",
+                    display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer" }}>
+                    {selectedIds.has(v.id) && <Icon d="M20 6L9 17l-5-5" size={13} stroke="white" strokeWidth={2.5}/>}
+                  </div>
+                </div>
+              )}
               {/* Thumbnail / play area */}
               <div style={{ position:"relative",aspectRatio:"16/9",background:"#0d0f14",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}
-                onClick={()=>setPlaying(v.id)}>
+                onClick={()=>selectMode ? toggleSelect(v.id) : setPlaying(v.id)}>
                 <div style={{ width:52,height:52,borderRadius:"50%",background:"rgba(255,255,255,.12)",border:"2px solid rgba(255,255,255,.3)",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)",transition:"transform .15s" }}
                   onMouseEnter={e=>e.currentTarget.style.transform="scale(1.1)"}
                   onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>
@@ -5201,7 +5236,7 @@ function VideosTab({ project, onUpdateProject, onOpenCamera }) {
                   <button className="btn btn-ghost btn-sm btn-icon" style={{ width:30 }} onClick={()=>setEditingVid({ id:v.id, name:v.name, room:v.room||"General" })}>
                     <Icon d={ic.edit} size={13}/>
                   </button>
-                  <button className="btn btn-ghost btn-sm btn-icon" style={{ width:30,color:"#e85a3a" }} onClick={()=>setConfirmDel(v)}>
+                  <button className="btn btn-ghost btn-sm btn-icon" style={{ width:30,color:"#e85a3a" }} onClick={()=>setConfirmDel(v)} title="Delete">
                     <Icon d={ic.trash} size={13}/>
                   </button>
                 </div>
@@ -5260,11 +5295,23 @@ function VideosTab({ project, onUpdateProject, onOpenCamera }) {
       {confirmDel && (
         <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setConfirmDel(null)}>
           <div className="modal" style={{ maxWidth:380 }}>
-            <div className="modal-header"><div className="modal-title">Delete Video?</div><button className="btn btn-ghost btn-icon" onClick={()=>setConfirmDel(null)}><Icon d={ic.close} size={16}/></button></div>
-            <div className="modal-body"><p style={{ fontSize:13.5,color:"var(--text2)",margin:0 }}>"{confirmDel.name}" will be permanently deleted.</p></div>
+            <div className="modal-header">
+              <div className="modal-title" style={{ color:"#e85a3a" }}><Icon d={ic.trash} size={15}/> Delete Video{confirmDel==="batch"?"s":""}</div>
+              <button className="btn btn-ghost btn-icon" onClick={()=>setConfirmDel(null)}><Icon d={ic.close} size={16}/></button>
+            </div>
+            <div className="modal-body">
+              <p style={{ fontSize:13.5,color:"var(--text2)",margin:0 }}>
+                {confirmDel === "batch"
+                  ? `Delete ${selectedIds.size} video${selectedIds.size!==1?"s":""}? This cannot be undone.`
+                  : `"${confirmDel.name}" will be permanently deleted. This cannot be undone.`}
+              </p>
+            </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={()=>setConfirmDel(null)}>Cancel</button>
-              <button className="btn btn-danger" onClick={()=>deleteVideo(confirmDel.id)}><Icon d={ic.trash} size={14}/> Delete</button>
+              <button className="btn btn-sm" style={{ background:"#e85a3a",color:"white",border:"none" }}
+                onClick={()=>confirmDel==="batch" ? deleteBatch() : deleteVideo(confirmDel.id)}>
+                <Icon d={ic.trash} size={14}/> Delete
+              </button>
             </div>
           </div>
         </div>
@@ -9713,6 +9760,7 @@ function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onEdit, on
           project={project}
           onUpdateProject={onUpdateProject}
           onOpenCamera={onOpenCamera}
+          orgId={orgId}
         />
       )}
 
@@ -21211,14 +21259,32 @@ useEffect(() => {
   // 🎥 Load videos from Supabase when active project changes
   useEffect(() => {
     if (!authProfile?.organization_id || !activeProject?.id) return;
-    dbGetVideos(activeProject.id).then(rows => {
-      if (rows?.length) {
-        setProjects(prev => prev.map(p =>
-          p.id === activeProject.id
-            ? { ...p, videos: [...(p.videos || []), ...rows.filter(r => !p.videos?.find(v => v.supabaseId === r.id))] }
-            : p
-        ));
-      }
+    dbGetVideos(activeProject.id).then(async rows => {
+      if (!rows?.length) return;
+      const supaUrl = import.meta.env.VITE_SUPABASE_URL;
+      const mapped = rows.map(r => ({
+        id:          r.id,
+        supabaseId:  r.id,
+        name:        r.title || 'Video',
+        room:        r.room  || '',
+        date:        r.created_at?.slice(0,10) || '',
+        duration:    r.duration_seconds || null,
+        storagePath: r.storage_path,
+        // Public URL for playback — project-photos bucket is public
+        dataUrl:     r.storage_path
+                       ? `${supaUrl}/storage/v1/object/public/project-photos/${r.storage_path}`
+                       : null,
+        gps:         r.gps || null,
+        mimeType:    r.mime_type || 'video/webm',
+        isVideo:     true,
+      }));
+      setProjects(prev => prev.map(p => {
+        if (p.id !== activeProject.id) return p;
+        const existingIds = new Set((p.videos || []).map(v => v.supabaseId || v.id));
+        const newVids = mapped.filter(v => !existingIds.has(v.supabaseId));
+        if (!newVids.length) return p;
+        return { ...p, videos: [...(p.videos || []), ...newVids] };
+      }));
     }).catch(e => console.warn('[KrakenCam] Could not load videos from Supabase:', e));
   }, [activeProject?.id, authProfile?.organization_id]);
 
@@ -21856,7 +21922,19 @@ useEffect(() => {
         if (video._blob) {
           const title = video.name || `${latestProj.title} - Video`;
           const durationSeconds = video.duration || null;
-          dbUploadVideo(latestProj.id, orgId, video._blob, title, durationSeconds).catch(err =>
+          dbUploadVideo(latestProj.id, orgId, video._blob, title, durationSeconds, video.room || null, video.gps || null).then(row => {
+            if (!row) return;
+            const supaUrl = import.meta.env.VITE_SUPABASE_URL;
+            // Replace local blob URL with persistent Storage URL
+            setProjects(prev => prev.map(p => {
+              if (p.id !== latestProj.id) return p;
+              return { ...p, videos: (p.videos || []).map(v =>
+                v.id === video.id
+                  ? { ...v, supabaseId: row.id, dataUrl: `${supaUrl}/storage/v1/object/public/project-photos/${row.storage_path}`, storagePath: row.storage_path }
+                  : v
+              )};
+            }));
+          }).catch(err =>
             console.warn("[KrakenCam] Camera video Supabase upload failed:", err.message || err)
           );
         }

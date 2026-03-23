@@ -37,7 +37,7 @@ export async function getVideos(projectId) {
  * @param {number} [durationSeconds] - Duration in seconds
  * @returns {Object} The newly inserted video_recordings row
  */
-export async function uploadVideo(projectId, orgId, videoBlob, title, durationSeconds) {
+export async function uploadVideo(projectId, orgId, videoBlob, title, durationSeconds, room = null, gps = null) {
   const timestamp = Date.now();
   const mimeType = videoBlob.type || 'video/webm';
   const ext = mimeType.includes('mp4') ? 'mp4' : mimeType.includes('ogg') ? 'ogv' : 'webm';
@@ -61,6 +61,9 @@ export async function uploadVideo(projectId, orgId, videoBlob, title, durationSe
       title:            title || null,
       storage_path:     storagePath,
       duration_seconds: durationSeconds ? Math.round(durationSeconds) : null,
+      mime_type:        mimeType,
+      room:             room || null,
+      gps:              gps  || null,
     }])
     .select()
     .single();
