@@ -75,9 +75,10 @@ export async function sendChatMessage(orgId, chatRoomId, msg) {
   let messageType    = msg.messageType || 'text';
 
   // Upload attachment to storage if present
-  if (msg.attachment?.dataUrl) {
+  const attDataUrl = msg.attachment?.dataUrl || msg.attachment?.url || null;
+  if (attDataUrl) {
     try {
-      const att = msg.attachment;
+      const att = { ...msg.attachment, dataUrl: attDataUrl };
       const isVoice = att.type?.startsWith('audio') || messageType === 'voice';
       const isImage = att.type?.startsWith('image') || messageType === 'image';
       messageType = isVoice ? 'voice' : isImage ? 'image' : 'file';
@@ -85,12 +86,14 @@ export async function sendChatMessage(orgId, chatRoomId, msg) {
       let blob;
       const dataUrl = att.dataUrl;
 
-      if (dataUrl.startsWith('http')) {
-        // Already a hosted URL (e.g. Supabase Storage) — use it directly, no re-upload needed
+      if (!dataUrl) {
+        blob = null; // nothing to upload
+      } else if (dataUrl.startsWith('http') || dataUrl.startsWith('/')) {
+        // Already a hosted URL (e.g. Supabase Storage) — use it directly
         attachmentUrl  = dataUrl;
         attachmentName = att.name || 'attachment';
         attachmentSize = att.size || null;
-        blob = null; // skip upload
+        blob = null;
       } else if (dataUrl.startsWith('data:')) {
         // Base64 dataUrl — decode to blob
         const arr  = dataUrl.split(',');
