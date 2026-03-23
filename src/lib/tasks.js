@@ -124,19 +124,13 @@ export async function createTask(task) {
     row.id = newUuid();
   }
 
-  console.log('[tasks.js] inserting row:', JSON.stringify(row, null, 2));
-
   const { data, error } = await supabase
     .from('tasks')
     .insert([row])
     .select()
     .single();
 
-  if (error) {
-    console.error('[tasks.js] insert error:', error);
-    throw error;
-  }
-  console.log('[tasks.js] saved row from DB:', JSON.stringify(data, null, 2));
+  if (error) throw error;
   return fromDbRow(data);
 }
 

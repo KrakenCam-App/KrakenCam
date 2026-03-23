@@ -20884,23 +20884,8 @@ useEffect(() => {
       try {
         const rows = await dbGetTasks();
         if (rows && rows.length > 0) {
-          const mapped = rows.map(row => ({
-            id:          row.id,
-            title:       row.title || "",
-            description: row.description || "",
-            completed:   row.completed ?? false,
-            assigneeIds: row.assigned_to ? [row.assigned_to] : [],
-            projectId:   row.project_id || "",
-            dueDate:     row.due_date || "",
-            createdAt:   row.created_at || "",
-            status:      row.completed ? "done" : "todo",
-            priority:    "medium",
-            tags:        [],
-            checklist:   [],
-            comments:    [],
-            _dbId:       row.id,
-          }));
-          setTasks(mapped);
+          // dbGetTasks() already calls fromDbRow() internally — rows are fully mapped
+          setTasks(rows);
         }
       } catch (err) {
         console.warn("[KrakenCam] Could not load tasks from Supabase:", err.message || err);
@@ -21842,7 +21827,7 @@ useEffect(() => {
           )}
           {page === "tasks"     && <TasksPage projects={projects} teamUsers={teamUsers} settings={settings} tasks={tasks} onTasksChange={(newTasks) => {
             // Wire tasks create/update/delete to Supabase (fire-and-forget)
-            if (!authProfile?.organization_id) { console.warn("[KrakenCam] tasks: no org_id, authProfile=", authProfile); setTasks(newTasks); return; }
+            if (!authProfile?.organization_id) { setTasks(newTasks); return; }
             const prev = tasks;
             setTasks(newTasks);
             // Detect added tasks
