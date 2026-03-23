@@ -9975,17 +9975,15 @@ function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onEdit, on
                 const existingPath = savedSketch.storagePath || null;
                 dbSaveSketch(project.id, orgId, savedSketch.title || "Sketch", canvasData, imageBlob, existingId, existingPath).then(row => {
                   if (row?.id && !existingId) {
-                    // New sketch — tag with DB id
+                    // Tag the new sketch with its DB id via onUpdateProject (has access to latest project state)
                     const supaUrl = import.meta.env.VITE_SUPABASE_URL;
-                    setProjects(prev => prev.map(p => {
-                      if (p.id !== project.id) return p;
-                      return { ...p, sketches: (p.sketches || []).map(s =>
-                        s.id === savedSketch.id
-                          ? { ...s, supabaseId: row.id, storagePath: row.storage_path,
-                              dataUrl: row.storage_path ? `${supaUrl}/storage/v1/object/public/project-photos/${row.storage_path}` : s.dataUrl }
-                          : s
-                      )};
-                    }));
+                    const latestProj = projects.find(p => p.id === project.id) || project;
+                    onUpdateProject({ ...latestProj, sketches: (latestProj.sketches || []).map(s =>
+                      s.id === savedSketch.id
+                        ? { ...s, supabaseId: row.id, storagePath: row.storage_path,
+                            dataUrl: row.storage_path ? `${supaUrl}/storage/v1/object/public/project-photos/${row.storage_path}` : s.dataUrl }
+                        : s
+                    )});
                   }
                 }).catch(err =>
                   console.warn("[KrakenCam] Sketch Supabase save failed:", err.message || err)
