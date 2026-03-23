@@ -21188,10 +21188,27 @@ useEffect(() => {
         }));
         setChats(prev => prev.map(c => {
           if (c.id !== chat.id) return c;
-          const existingIds = new Set((c.messages || []).map(m => m.id));
-          const newMessages = dbMessages.filter(m => !existingIds.has(m.id));
+          // Dedup by DB id, local id, AND content fingerprint (local msgs have short ids, DB rows have UUIDs)
+          const existingIds  = new Set((c.messages || []).map(m => m.id));
+          const existingDbIds = new Set((c.messages || []).map(m => m._dbId).filter(Boolean));
+          const existingFps  = new Set((c.messages || []).map(m => `${m.authorName}::${(m.text||'').slice(0,40)}::${m.timestamp?.slice(0,16)}`));
+          const newMessages = dbMessages.filter(m => {
+            if (existingIds.has(m.id)) return false;
+            if (existingDbIds.has(m.id)) return false;
+            const fp = `${m.authorName}::${(m.text||'').slice(0,40)}::${m.timestamp?.slice(0,16)}`;
+            if (existingFps.has(fp)) return false;
+            return true;
+          });
           if (!newMessages.length) return c;
-          const merged = [...(c.messages || []), ...newMessages]
+          // Replace local optimistic messages with their DB counterparts (same content, different id)
+          // Keep only DB messages, drop unmatched local ones that now have DB versions
+          const localOnly = (c.messages || []).filter(m => {
+            if (m.fromDb) return true; // already from DB, keep
+            const fp = `${m.authorName}::${(m.text||'').slice(0,40)}::${m.timestamp?.slice(0,16)}`;
+            // Drop local msg if a DB version with same fingerprint now exists
+            return !dbMessages.some(db => `${db.authorName}::${(db.text||'').slice(0,40)}::${db.timestamp?.slice(0,16)}` === fp);
+          });
+          const merged = [...localOnly, ...dbMessages]
             .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
           return { ...c, messages: merged };
         }));
