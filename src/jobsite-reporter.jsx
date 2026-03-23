@@ -1766,6 +1766,8 @@ function ImageEditor({ photo, onClose, onSave }) {
   const [activeTextId,       setActiveTextId]       = useState(null);
   const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
   const [zoom,               setZoom]               = useState(1);
+  const [pan,                setPan]                = useState({ x:0, y:0 });
+  const panStartRef = useRef(null);
   const cropStartRef  = useRef(null);
 
   const COLORS = ["#e86c3a","#4a90d9","#3dba7e","#8b7cf8","#e8c53a","#ff6b6b","#fff","#000","#a0b0cc","#f0954e","#3ab8e8","#e85a3a"];
@@ -1957,6 +1959,11 @@ function ImageEditor({ photo, onClose, onSave }) {
   };
 
   const onDown = e => {
+    if (tool === "hand") {
+      const src = e.touches ? e.touches[0] : e;
+      panStartRef.current = { clientX: src.clientX, clientY: src.clientY, panX: pan.x, panY: pan.y };
+      return;
+    }
     if (tool === "text") {
       const p = pt(e);
       addTextLayer(p);
@@ -1980,6 +1987,14 @@ function ImageEditor({ photo, onClose, onSave }) {
   
 
   const onMove = e => {
+    if (tool === "hand" && panStartRef.current) {
+      const src = e.touches ? e.touches[0] : e;
+      setPan({
+        x: panStartRef.current.panX + (src.clientX - panStartRef.current.clientX),
+        y: panStartRef.current.panY + (src.clientY - panStartRef.current.clientY),
+      });
+      return;
+    }
     if (tool === "crop" && cropStartRef.current) {
       const p = pt(e);
       setCropRect({ x: cropStartRef.current.x, y: cropStartRef.current.y, w: p.x - cropStartRef.current.x, h: p.y - cropStartRef.current.y });
@@ -2007,6 +2022,7 @@ function ImageEditor({ photo, onClose, onSave }) {
   };
 
   const onUp = e => {
+    if (tool === "hand") { panStartRef.current = null; return; }
     if (tool === "crop") { cropStartRef.current = null; return; }
     if (!drawing) return;
     setDrawing(false);
@@ -2081,6 +2097,7 @@ function ImageEditor({ photo, onClose, onSave }) {
   };
 
   const tools = [
+    { id:"hand",   icon:"M18 11V6a2 2 0 00-2-2 2 2 0 00-2 2 2 2 0 00-2-2 2 2 0 00-2 2v1a2 2 0 00-2-2 2 2 0 00-2 2v6c0 3.31 2.69 6 6 6h2a6 6 0 006-6v-5a2 2 0 00-2-2z", label:"Pan / Move" },
     { id:"pen",    icon:ic.pen,    label:"Draw"   },
     { id:"line",   icon:"M4 20L20 4", label:"Line" },
     { id:"arrow",  icon:"M5 12h14 M12 5l7 7-7 7", label:"Arrow"  },
@@ -2091,7 +2108,7 @@ function ImageEditor({ photo, onClose, onSave }) {
     { id:"crop",   icon:"M6 2v14a2 2 0 002 2h14 M18 22V8a2 2 0 00-2-2H2", label:"Crop" },
   ];
 
-  const cursor = tool === "text" ? "default" : "crosshair";
+  const cursor = tool === "hand" ? "grab" : tool === "text" ? "default" : "crosshair";
 
   return (
     <div className="editor-wrap fade-in">
@@ -2179,7 +2196,7 @@ function ImageEditor({ photo, onClose, onSave }) {
                   <button className="btn btn-sm btn-secondary" style={{ minWidth:36 }} onClick={() => setZoom(z => Math.max(0.25, +(z-0.25).toFixed(2)))}>−</button>
                   <input type="range" min="25" max="300" value={Math.round(zoom*100)} onChange={e => setZoom(+e.target.value/100)} className="size-slider" style={{ flex:1,margin:0 }} />
                   <button className="btn btn-sm btn-secondary" style={{ minWidth:36 }} onClick={() => setZoom(z => Math.min(3, +(z+0.25).toFixed(2)))}>+</button>
-                  {zoom !== 1 && <button className="btn btn-sm btn-ghost" style={{ fontSize:11 }} onClick={() => setZoom(1)}>Reset</button>}
+                  {(zoom !== 1 || pan.x !== 0 || pan.y !== 0) && <button className="btn btn-sm btn-ghost" style={{ fontSize:11 }} onClick={() => { setZoom(1); setPan({x:0,y:0}); }}>Reset</button>}
                 </div>
               </div>
               {/* Stroke color */}
@@ -2244,11 +2261,11 @@ function ImageEditor({ photo, onClose, onSave }) {
       {/* ── Body ── */}
       <div className="editor-body">
         <div className="canvas-area">
-          <div style={{ position:"relative", display:"inline-block", lineHeight:0, transform:`scale(${zoom})`, transformOrigin:"top center", transition:"transform .15s" }} onMouseMove={moveTextDrag} onMouseUp={endTextDrag} onMouseLeave={endTextDrag} onTouchMove={moveTextDrag} onTouchEnd={endTextDrag}>
+          <div style={{ position:"relative", display:"inline-block", lineHeight:0, transform:`translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin:"top center", transition:"transform .1s", cursor: tool === "hand" ? (panStartRef.current ? "grabbing" : "grab") : undefined }} onMouseMove={e => { moveTextDrag(e); onMove(e); }} onMouseUp={e => { endTextDrag(); onUp(e); }} onMouseLeave={e => { endTextDrag(); onUp(e); }} onTouchMove={e => { moveTextDrag(e); onMove(e); }} onTouchEnd={e => { endTextDrag(); onUp(e); }}>
           <canvas ref={canvasRef} width={1280} height={960}
             style={{ borderRadius:8, cursor, border:"1px solid var(--border)", maxWidth:"100%", maxHeight:"100%", display:"block" }}
-            onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp}
-            onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp}
+            onMouseDown={onDown}
+            onTouchStart={onDown}
           />
           {canvasRef.current && textLayers.map(layer => {
             const rect = canvasRef.current.getBoundingClientRect();
@@ -2345,7 +2362,7 @@ function ImageEditor({ photo, onClose, onSave }) {
             <button className="btn btn-sm btn-secondary" style={{ minWidth:30 }} onClick={() => setZoom(z => Math.max(0.25, +(z-0.25).toFixed(2)))}>−</button>
             <input type="range" min="25" max="300" value={Math.round(zoom*100)} onChange={e => setZoom(+e.target.value/100)} className="size-slider" style={{ flex:1 }} />
             <button className="btn btn-sm btn-secondary" style={{ minWidth:30 }} onClick={() => setZoom(z => Math.min(3, +(z+0.25).toFixed(2)))}>+</button>
-            {zoom !== 1 && <button className="btn btn-sm btn-ghost" style={{ fontSize:11,padding:"2px 6px" }} onClick={() => setZoom(1)}>1:1</button>}
+            {(zoom !== 1 || pan.x !== 0 || pan.y !== 0) && <button className="btn btn-sm btn-ghost" style={{ fontSize:11,padding:"2px 6px" }} onClick={() => { setZoom(1); setPan({x:0,y:0}); }}>1:1</button>}
           </div>
           <h4>Stroke Color</h4>
           <div className="color-grid">
