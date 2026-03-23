@@ -81,24 +81,46 @@ export async function sendChatMessage(orgId, chatRoomId, msg) {
       const isImage = att.type?.startsWith('image') || messageType === 'image';
       messageType = isVoice ? 'voice' : isImage ? 'image' : 'file';
 
-      // Convert dataUrl to blob
-      const arr  = att.dataUrl.split(',');
-      const mime = (arr[0].match(/:(.*?);/) || [])[1] || att.type || 'application/octet-stream';
-      const bstr = atob(arr[1]);
-      let n = bstr.length;
-      const u8 = new Uint8Array(n);
-      while (n--) u8[n] = bstr.charCodeAt(n);
-      const blob = new Blob([u8], { type: mime });
-      const ext  = mime.split('/')[1]?.split(';')[0] || 'bin';
-      const path = `${orgId}/${chatRoomId}/${Date.now()}_${att.name || `attachment.${ext}`}`;
+      let blob;
+      const dataUrl = att.dataUrl;
 
-      const { error: upErr } = await supabase.storage.from(MSG_BUCKET).upload(path, blob, { contentType: mime, upsert: false });
-      if (!upErr) {
-        const { data: urlData } = supabase.storage.from(MSG_BUCKET).getPublicUrl(path);
-        attachmentPath = path;
-        attachmentUrl  = urlData.publicUrl;
-        attachmentName = att.name || `attachment.${ext}`;
-        attachmentSize = blob.size;
+      if (dataUrl.startsWith('data:')) {
+        // Base64 dataUrl
+        const arr  = dataUrl.split(',');
+        const mime = (arr[0].match(/:(.*?);/) || [])[1] || att.type || 'application/octet-stream';
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8 = new Uint8Array(n);
+        while (n--) u8[n] = bstr.charCodeAt(n);
+        blob = new Blob([u8], { type: mime });
+      } else if (dataUrl.startsWith('blob:')) {
+        // Blob URL — fetch to get actual bytes
+        const res = await fetch(dataUrl);
+        blob = await res.blob();
+      } else {
+        console.warn('[KrakenCam] Unsupported attachment dataUrl format');
+        blob = null;
+      }
+
+      if (blob && blob.size > 0) {
+        const mime = blob.type || att.type || 'application/octet-stream';
+        const ext  = mime.split('/')[1]?.split(';')[0]?.replace(/[^a-z0-9]/gi, '') || 'bin';
+        const safeName = (att.name || `attachment.${ext}`).replace(/[^a-zA-Z0-9._-]/g, '_');
+        const path = `${orgId}/${chatRoomId}/${Date.now()}_${safeName}`;
+
+        const { error: upErr } = await supabase.storage
+          .from(MSG_BUCKET)
+          .upload(path, blob, { contentType: mime, upsert: false });
+
+        if (!upErr) {
+          const { data: urlData } = supabase.storage.from(MSG_BUCKET).getPublicUrl(path);
+          attachmentPath = path;
+          attachmentUrl  = urlData.publicUrl;
+          attachmentName = att.name || `attachment.${ext}`;
+          attachmentSize = blob.size;
+        } else {
+          console.warn('[KrakenCam] Chat attachment upload error:', upErr.message);
+        }
       }
     } catch (e) {
       console.warn('[KrakenCam] Chat attachment upload failed:', e.message);

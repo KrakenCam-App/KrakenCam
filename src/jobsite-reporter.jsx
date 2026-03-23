@@ -21022,7 +21022,11 @@ useEffect(() => {
           const updated = prev.map(ch => {
             if (ch.id !== r.chat_room_id) return ch;
             // Skip if this message is already in local state (we sent it)
+            // Check both DB id tag and sender — don't echo our own messages back
             if ((ch.messages || []).find(m => m.id === r.id || m._dbId === r.id)) return ch;
+            // Also skip if the message was sent by us in the last 10 seconds (timing window)
+            const isOurs = r.sender_id === null && (Date.now() - new Date(r.created_at).getTime()) < 10000;
+            if (isOurs) return ch;
             return {
               ...ch,
               messages: [...(ch.messages || []), {
