@@ -5615,6 +5615,9 @@ function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpdateProje
   const [reportFileId, setReportFileId] = useState(null);
   const [reportTargetId, setReportTargetId] = useState("");
   const [draftTagInputs, setDraftTagInputs] = useState({});
+  const [selectMode,   setSelectMode]   = useState(false);
+  const [selectedIds,  setSelectedIds]  = useState(new Set());
+  const [confirmDel,   setConfirmDel]   = useState(null); // null | fileId | "batch"
   const filePerms = getEffectivePermissions(settings?.userRole || "admin", settings?.userPermissions, settings);
   const filePolicies = getPermissionPolicies(settings);
   const canUploadFiles = hasPermissionLevel(filePerms, "files", "edit") && (settings?.userRole !== "user" || filePolicies.allowUserFileUploads);
@@ -5673,28 +5676,55 @@ function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpdateProje
     }
     const nextFiles = [];
     selected.forEach(file => {
-      // Upload to Supabase storage (fire-and-forget)
-      if (orgId && project?.id) {
-        dbUploadProjectFile(project.id, orgId, file)
-          .catch(e => console.error('[KrakenCam] Project file upload failed:', e));
-      }
+      const fileId = uid();
       const reader = new FileReader();
-      reader.onload = ev => {
-        nextFiles.push({
-          id: uid(),
+      reader.onload = async ev => {
+        const newFile = {
+          id: fileId,
           name: file.name,
           type: file.type || "",
           size: file.size || 0,
-          dataUrl: ev.target.result,
+          dataUrl: ev.target.result, // base64 for instant display
           uploadedAt: new Date().toISOString(),
           uploadedByName: `${settings?.userFirstName || "Admin"} ${settings?.userLastName || ""}`.trim(),
           category: uploadCategory.trim() || "General",
           tags: parseTagInput(uploadTagsInput),
           kind: inferProjectFileKind(file),
-        });
+        };
+        nextFiles.push(newFile);
         if (nextFiles.length === selected.length) {
           nextFiles.sort((a, b) => a.name.localeCompare(b.name));
           patchFiles([...nextFiles.reverse(), ...files]);
+        }
+        // Upload to Supabase using raw fetch (avoids RLS issues with JS client)
+        if (orgId && project?.id) {
+          try {
+            const supaUrl = import.meta.env.VITE_SUPABASE_URL;
+            const timestamp = Date.now();
+            const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+            const storagePath = `${orgId}/${project.id}/files/${timestamp}_${safeName}`;
+            const uploadHeaders = await getAuthHeaders({ 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'true' });
+            const uploadRes = await fetch(`${supaUrl}/storage/v1/object/project-photos/${storagePath}`, {
+              method: 'POST', headers: uploadHeaders, body: file,
+            });
+            if (uploadRes.ok) {
+              const publicUrl = `${supaUrl}/storage/v1/object/public/project-photos/${storagePath}`;
+              // Insert DB row
+              const headers = await getAuthHeaders({ 'Content-Type': 'application/json', 'Prefer': 'return=representation' });
+              const dbRes = await fetch(`${supaUrl}/rest/v1/project_files`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ organization_id: orgId, project_id: project.id, name: file.name, storage_path: storagePath, file_size: file.size || null, mime_type: file.type || null }),
+              });
+              const dbRow = dbRes.ok ? (await dbRes.json())[0] : null;
+              // Replace base64 with Storage URL in local state
+              patchFiles(prev => (prev || files).map(f =>
+                f.id === fileId ? { ...f, dataUrl: publicUrl, storagePath, supabaseId: dbRow?.id } : f
+              ));
+            }
+          } catch (err) {
+            console.error('[KrakenCam] Project file upload failed:', err.message || err);
+          }
         }
       };
       reader.readAsDataURL(file);
@@ -5703,14 +5733,34 @@ function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpdateProje
   };
 
   const openFile = (file) => {
-    const w = window.open(file.dataUrl, "_blank", "noopener,noreferrer");
+    // Use the storage URL if available, otherwise fall back to dataUrl
+    const url = file.dataUrl?.startsWith("http") ? file.dataUrl : file.dataUrl;
+    if (!url) { alert("File URL unavailable."); return; }
+    const w = window.open(url, "_blank", "noopener,noreferrer");
     if (!w) alert("Please allow pop-ups to open files.");
   };
 
+  const toggleSelect = id => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
   const deleteFile = (fileId) => {
-    if (!window.confirm("Delete this file?")) return;
+    const file = files.find(f => f.id === fileId);
     patchFiles(files.filter(f => f.id !== fileId));
     if (viewerFile?.id === fileId) setViewerFile(null);
+    setConfirmDel(null);
+    // Remove from Supabase
+    if (file?.supabaseId && file?.storagePath) {
+      dbDeleteProjectFile(file.supabaseId, file.storagePath).catch(() => {});
+    }
+  };
+
+  const deleteBatch = () => {
+    const toDelete = files.filter(f => selectedIds.has(f.id));
+    patchFiles(files.filter(f => !selectedIds.has(f.id)));
+    if (viewerFile && selectedIds.has(viewerFile.id)) setViewerFile(null);
+    toDelete.forEach(f => { if (f.supabaseId && f.storagePath) dbDeleteProjectFile(f.supabaseId, f.storagePath).catch(() => {}); });
+    setSelectedIds(new Set());
+    setSelectMode(false);
+    setConfirmDel(null);
   };
 
   const attachFileToReport = (fileId, reportId) => {
@@ -5753,9 +5803,24 @@ function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpdateProje
   return (
     <div style={{ display:"flex",flexDirection:"column",gap:16 }}>
       <div className="card">
-        <div className="card-header" style={{ display:"flex",alignItems:"center",justifyContent:"space-between",gap:12 }}>
-          <span style={{ fontWeight:700 }}>Jobsite Files</span>
-          <button className="btn btn-primary btn-sm" onClick={() => canUploadFiles && uploadRef.current?.click()} disabled={!canUploadFiles}><Icon d={ic.upload} size={13} /> Upload Files</button>
+        <div className="card-header" style={{ display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap" }}>
+          <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+            <span style={{ fontWeight:700 }}>Jobsite Files</span>
+            {selectMode && selectedIds.size > 0 && <span style={{ fontSize:12,fontWeight:700,color:"var(--accent)" }}>{selectedIds.size} selected</span>}
+          </div>
+          <div style={{ display:"flex",gap:8 }}>
+            {selectMode ? (<>
+              {selectedIds.size > 0 && (
+                <button className="btn btn-sm" style={{ background:"#e85a3a",color:"white",border:"none" }} onClick={() => setConfirmDel("batch")}>
+                  <Icon d={ic.trash} size={13}/> Delete {selectedIds.size}
+                </button>
+              )}
+              <button className="btn btn-secondary btn-sm" onClick={() => { setSelectMode(false); setSelectedIds(new Set()); }}>Cancel</button>
+            </>) : (<>
+              {files.length > 0 && <button className="btn btn-secondary btn-sm" onClick={() => setSelectMode(true)}>☑ Select</button>}
+              <button className="btn btn-primary btn-sm" onClick={() => canUploadFiles && uploadRef.current?.click()} disabled={!canUploadFiles}><Icon d={ic.upload} size={13} /> Upload Files</button>
+            </>)}
+          </div>
         </div>
         <div className="card-body" style={{ display:"grid",gap:12 }}>
           <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap" }}>
@@ -5823,8 +5888,15 @@ function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpdateProje
             const previewable = isPreviewableFile(file);
             const ext = getFileExtension(file.name).toUpperCase() || "FILE";
             return (
-              <div key={file.id} className="card">
+              <div key={file.id} className="card" style={{ outline: selectedIds.has(file.id) ? "2px solid var(--accent)" : "none", borderRadius:12 }}>
                 <div className="card-body" style={{ display:"flex",alignItems:"center",gap:14,flexWrap:"wrap" }}>
+                  {selectMode && (
+                    <div style={{ cursor:"pointer",flexShrink:0 }} onClick={() => toggleSelect(file.id)}>
+                      <div style={{ width:20,height:20,borderRadius:5,border:`2px solid ${selectedIds.has(file.id)?"var(--accent)":"var(--border)"}`,background:selectedIds.has(file.id)?"var(--accent)":"var(--surface2)",display:"flex",alignItems:"center",justifyContent:"center" }}>
+                        {selectedIds.has(file.id) && <Icon d="M20 6L9 17l-5-5" size={12} stroke="white" strokeWidth={2.5}/>}
+                      </div>
+                    </div>
+                  )}
                   <div style={{ width:54,height:54,borderRadius:12,background:"var(--surface2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:"var(--accent)",flexShrink:0,border:"1px solid var(--border)",overflow:"hidden" }}>
                     {file.type?.startsWith("image/")
                       ? <img src={file.dataUrl} alt={file.name} style={{ width:"100%",height:"100%",objectFit:"cover" }} />
@@ -5845,16 +5917,21 @@ function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpdateProje
                       <span>{formatDateTimeLabel(file.uploadedAt, settings)}</span>
                     </div>
                   </div>
+                  {!selectMode && (
                   <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,max-content))",gap:8,justifyContent:"end" }}>
-                    {previewable && <button className="btn btn-secondary btn-sm" onClick={() => setViewerFile(file)}><Icon d={ic.eye} size={13} /> Preview</button>}
-                    <button className="btn btn-secondary btn-sm" onClick={() => openFile(file)}><Icon d={ic.arrowUpRight} size={13} /> Open</button>
+                    {/* Single Preview button — opens in new tab for all types, or shows inline viewer for supported types */}
+                    <button className="btn btn-secondary btn-sm" onClick={() => {
+                      if (previewable) setViewerFile(file);
+                      else openFile(file);
+                    }}><Icon d={ic.eye} size={13} /> Preview</button>
                     {availableUsers.length > 0 && <button className="btn btn-secondary btn-sm" onClick={() => { if (!canShareToDm) return; setShareFileId(file.id); setShareTargetId(availableUsers[0]?.id || ""); }} disabled={!canShareToDm}><Icon d={ic.message} size={13} /> Send to DM</button>}
                     {reports.length > 0 && <button className="btn btn-secondary btn-sm" onClick={() => { setReportFileId(file.id); setReportTargetId(reports[0]?.id || ""); }}><Icon d={ic.reports} size={13} /> Add to Report</button>}
                     {canDownloadFiles
                       ? <a className="btn btn-ghost btn-sm" href={file.dataUrl} download={file.name}><Icon d={ic.download} size={13} /> Download</a>
                       : <button className="btn btn-ghost btn-sm" disabled><Icon d={ic.download} size={13} /> Download</button>}
-                    <button className="btn btn-ghost btn-sm btn-icon" title="Delete" onClick={() => canDeleteFiles && deleteFile(file.id)} disabled={!canDeleteFiles}><Icon d={ic.trash} size={14} /></button>
+                    <button className="btn btn-ghost btn-sm btn-icon" title="Delete" style={{ color:"#e85a3a" }} onClick={() => canDeleteFiles && setConfirmDel(file.id)} disabled={!canDeleteFiles}><Icon d={ic.trash} size={14} /></button>
                   </div>
+                  )}
                   <div style={{ width:"100%",display:"grid",gridTemplateColumns:"minmax(180px,220px) minmax(220px,1fr)",gap:10,paddingTop:8,borderTop:"1px solid var(--border)" }}>
                     <input className="form-input" value={file.category || ""} onChange={e => updateFileMeta(file.id, { category: e.target.value || "General" })} placeholder="Category" disabled={!canUploadFiles} />
                     <input
@@ -5877,6 +5954,32 @@ function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpdateProje
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {confirmDel && (
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setConfirmDel(null)}>
+          <div className="modal fade-in" style={{ maxWidth:380 }}>
+            <div className="modal-header">
+              <div className="modal-title" style={{ color:"#e85a3a" }}><Icon d={ic.trash} size={15}/> Delete File{confirmDel==="batch"?"s":""}</div>
+              <button className="btn btn-ghost btn-icon" onClick={()=>setConfirmDel(null)}><Icon d={ic.close} size={16}/></button>
+            </div>
+            <div className="modal-body">
+              <p style={{ fontSize:13.5,color:"var(--text2)",margin:0 }}>
+                {confirmDel === "batch"
+                  ? `Delete ${selectedIds.size} file${selectedIds.size!==1?"s":""}? This cannot be undone.`
+                  : "Delete this file? This cannot be undone."}
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary btn-sm" onClick={()=>setConfirmDel(null)}>Cancel</button>
+              <button className="btn btn-sm" style={{ background:"#e85a3a",color:"white",border:"none" }}
+                onClick={()=>confirmDel==="batch" ? deleteBatch() : deleteFile(confirmDel)}>
+                <Icon d={ic.trash} size={13}/> Delete
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
