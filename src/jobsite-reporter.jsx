@@ -21885,15 +21885,7 @@ useEffect(() => {
             // Detect added tasks
             newTasks.filter(t => !prev.find(p => p.id === t.id)).forEach(async (t) => {
               try {
-                await dbCreateTaskDB({
-                  id: t.id,
-                  title: t.title,
-                  description: t.description || null,
-                  completed: t.completed ?? false,
-                  assigned_to: t.assigneeIds?.[0] || null,
-                  project_id: t.projectId || null,
-                  due_date: t.dueDate || null,
-                });
+                await dbCreateTaskDB({ ...t, organization_id: authProfile.organization_id });
               } catch(e) { console.warn("[KrakenCam] tasks sync create failed:", e.message); }
             });
             // Detect updated tasks
@@ -21902,14 +21894,7 @@ useEffect(() => {
               return p && JSON.stringify(p) !== JSON.stringify(t);
             }).forEach(async (t) => {
               try {
-                await dbUpdateTaskDB(t.id, {
-                  title: t.title,
-                  description: t.description || null,
-                  completed: t.completed ?? false,
-                  assigned_to: t.assigneeIds?.[0] || null,
-                  project_id: t.projectId || null,
-                  due_date: t.dueDate || null,
-                });
+                await dbUpdateTaskDB(t.id, t);
               } catch(e) { console.warn("[KrakenCam] tasks sync update failed:", e.message); }
             });
             // Detect deleted tasks
