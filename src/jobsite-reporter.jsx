@@ -1763,7 +1763,9 @@ function ImageEditor({ photo, onClose, onSave }) {
   const [future,      setFuture]      = useState([]);
   const [cropRect,    setCropRect]    = useState(null);
   const [textLayers,  setTextLayers]  = useState([]);
-  const [activeTextId,setActiveTextId]= useState(null);
+  const [activeTextId,       setActiveTextId]       = useState(null);
+  const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
+  const [zoom,               setZoom]               = useState(1);
   const cropStartRef  = useRef(null);
 
   const COLORS = ["#e86c3a","#4a90d9","#3dba7e","#8b7cf8","#e8c53a","#ff6b6b","#fff","#000","#a0b0cc","#f0954e","#3ab8e8","#e85a3a"];
@@ -2160,69 +2162,72 @@ function ImageEditor({ photo, onClose, onSave }) {
             )}
           </div>
         )}
-        {/* Collapsible brush/color controls for mobile */}
-        {(() => {
-          const [mobileControlsOpen, setMobileControlsOpen] = React.useState(false);
-          return (
-            <>
-              <div style={{ borderBottom:"1px solid var(--border)" }}>
-                <button
-                  onClick={() => setMobileControlsOpen(v => !v)}
-                  style={{ width:"100%",background:"none",border:"none",padding:"9px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",color:"var(--text)",fontSize:13,fontWeight:600,cursor:"pointer" }}>
-                  <span>🎨 Brush &amp; Color</span>
-                  <Icon d={mobileControlsOpen ? "M18 15l-6-6-6 6" : "M6 9l6 6 6-6"} size={16} stroke="var(--text3)" />
-                </button>
-                {mobileControlsOpen && (
-                  <div style={{ padding:"0 16px 14px",display:"flex",flexDirection:"column",gap:12 }}>
-                    {/* Stroke color */}
-                    <div>
-                      <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".07em",color:"var(--text3)",marginBottom:6 }}>Stroke Color</div>
-                      <div style={{ display:"flex",flexWrap:"wrap",gap:7,marginBottom:6 }}>
-                        {COLORS.map(c => (
-                          <div key={c} onClick={() => setEditorColor(c)}
-                            style={{ width:26,height:26,borderRadius:6,background:c,cursor:"pointer",border:`2.5px solid ${color===c?"white":"transparent"}`,boxShadow:color===c?"0 0 0 1.5px var(--accent)":"none",transition:"all .12s" }} />
-                        ))}
-                        <input type="color" value={color} onChange={e => setEditorColor(e.target.value)}
-                          style={{ width:26,height:26,borderRadius:6,border:"1px solid var(--border)",cursor:"pointer",padding:2,background:"none" }} />
-                      </div>
-                    </div>
-                    {/* Background/fill color — hidden for text tool */}
-                    {tool !== "text" && (
-                      <div>
-                        <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".07em",color:"var(--text3)",marginBottom:6 }}>Background / Fill</div>
-                        <div style={{ display:"flex",flexWrap:"wrap",gap:7,marginBottom:6 }}>
-                          <div onClick={() => setBgColor("transparent")}
-                            style={{ width:26,height:26,borderRadius:6,cursor:"pointer",border:`2.5px solid ${bgColor==="transparent"?"white":"transparent"}`,boxShadow:bgColor==="transparent"?"0 0 0 1.5px var(--accent)":"none",
-                              backgroundImage:"linear-gradient(45deg,#666 25%,transparent 25%,transparent 75%,#666 75%),linear-gradient(45deg,#666 25%,transparent 25%,transparent 75%,#666 75%)",
-                              backgroundSize:"8px 8px",backgroundPosition:"0 0,4px 4px" }} />
-                          {["rgba(0,0,0,0.5)","rgba(255,255,255,0.5)","#e86c3a","#4a90d9","#3dba7e","#e8c53a","#ff6b6b","#000","#fff","#8b7cf8"].map(c => (
-                            <div key={c} onClick={() => setBgColor(c)}
-                              style={{ width:26,height:26,borderRadius:6,background:c,cursor:"pointer",border:`2.5px solid ${bgColor===c?"white":"transparent"}`,boxShadow:bgColor===c?"0 0 0 1.5px var(--accent)":"none",transition:"all .12s" }} />
-                          ))}
-                          <input type="color" value={bgColor==="transparent"?"#000000":bgColor} onChange={e => setBgColor(e.target.value)}
-                            style={{ width:26,height:26,borderRadius:6,border:"1px solid var(--border)",cursor:"pointer",padding:2,background:"none" }} />
-                        </div>
-                      </div>
-                    )}
-                    {/* Brush size / blur strength */}
-                    {tool !== "text" && (
-                      <div>
-                        <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".07em",color:"var(--text3)",marginBottom:6 }}>
-                          {tool === "blur" ? "Blur Strength" : "Brush Size"} — {size}px
-                        </div>
-                        <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-                          <button className="btn btn-sm btn-secondary" style={{ minWidth:34 }} onClick={() => setSize(s => Math.max(10, s - 5))}>−</button>
-                          <input type="range" min="10" max="80" value={size} onChange={e => setSize(+e.target.value)} className="size-slider" style={{ flex:1,margin:0 }} />
-                          <button className="btn btn-sm btn-secondary" style={{ minWidth:34 }} onClick={() => setSize(s => Math.min(80, s + 5))}>+</button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+        {/* ── Collapsible brush/color/zoom controls ── */}
+        <div style={{ borderBottom:"1px solid var(--border)" }}>
+          <button
+            onClick={() => setMobileControlsOpen(v => !v)}
+            style={{ width:"100%",background:"none",border:"none",padding:"9px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",color:"var(--text)",fontSize:13,fontWeight:600,cursor:"pointer" }}>
+            <span>🎨 Brush &amp; Color &nbsp;<span style={{ fontSize:11,color:"var(--text3)",fontWeight:400 }}>{Math.round(zoom*100)}% zoom</span></span>
+            <Icon d={mobileControlsOpen ? "M18 15l-6-6-6 6" : "M6 9l6 6 6-6"} size={16} stroke="var(--text3)" />
+          </button>
+          {mobileControlsOpen && (
+            <div style={{ padding:"0 16px 14px",display:"flex",flexDirection:"column",gap:12 }}>
+              {/* Zoom */}
+              <div>
+                <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".07em",color:"var(--text3)",marginBottom:6 }}>Zoom — {Math.round(zoom*100)}%</div>
+                <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+                  <button className="btn btn-sm btn-secondary" style={{ minWidth:36 }} onClick={() => setZoom(z => Math.max(0.25, +(z-0.25).toFixed(2)))}>−</button>
+                  <input type="range" min="25" max="300" value={Math.round(zoom*100)} onChange={e => setZoom(+e.target.value/100)} className="size-slider" style={{ flex:1,margin:0 }} />
+                  <button className="btn btn-sm btn-secondary" style={{ minWidth:36 }} onClick={() => setZoom(z => Math.min(3, +(z+0.25).toFixed(2)))}>+</button>
+                  {zoom !== 1 && <button className="btn btn-sm btn-ghost" style={{ fontSize:11 }} onClick={() => setZoom(1)}>Reset</button>}
+                </div>
               </div>
-            </>
-          );
-        })()}
+              {/* Stroke color */}
+              <div>
+                <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".07em",color:"var(--text3)",marginBottom:6 }}>Stroke Color</div>
+                <div style={{ display:"flex",flexWrap:"wrap",gap:7,marginBottom:6 }}>
+                  {COLORS.map(c => (
+                    <div key={c} onClick={() => setEditorColor(c)}
+                      style={{ width:26,height:26,borderRadius:6,background:c,cursor:"pointer",border:`2.5px solid ${color===c?"white":"transparent"}`,boxShadow:color===c?"0 0 0 1.5px var(--accent)":"none",transition:"all .12s" }} />
+                  ))}
+                  <input type="color" value={color} onChange={e => setEditorColor(e.target.value)}
+                    style={{ width:26,height:26,borderRadius:6,border:"1px solid var(--border)",cursor:"pointer",padding:2,background:"none" }} />
+                </div>
+              </div>
+              {/* Background/fill color — hidden for text tool */}
+              {tool !== "text" && (
+                <div>
+                  <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".07em",color:"var(--text3)",marginBottom:6 }}>Background / Fill</div>
+                  <div style={{ display:"flex",flexWrap:"wrap",gap:7,marginBottom:6 }}>
+                    <div onClick={() => setBgColor("transparent")}
+                      style={{ width:26,height:26,borderRadius:6,cursor:"pointer",border:`2.5px solid ${bgColor==="transparent"?"white":"transparent"}`,boxShadow:bgColor==="transparent"?"0 0 0 1.5px var(--accent)":"none",
+                        backgroundImage:"linear-gradient(45deg,#666 25%,transparent 25%,transparent 75%,#666 75%),linear-gradient(45deg,#666 25%,transparent 25%,transparent 75%,#666 75%)",
+                        backgroundSize:"8px 8px",backgroundPosition:"0 0,4px 4px" }} />
+                    {["rgba(0,0,0,0.5)","rgba(255,255,255,0.5)","#e86c3a","#4a90d9","#3dba7e","#e8c53a","#ff6b6b","#000","#fff","#8b7cf8"].map(c => (
+                      <div key={c} onClick={() => setBgColor(c)}
+                        style={{ width:26,height:26,borderRadius:6,background:c,cursor:"pointer",border:`2.5px solid ${bgColor===c?"white":"transparent"}`,boxShadow:bgColor===c?"0 0 0 1.5px var(--accent)":"none",transition:"all .12s" }} />
+                    ))}
+                    <input type="color" value={bgColor==="transparent"?"#000000":bgColor} onChange={e => setBgColor(e.target.value)}
+                      style={{ width:26,height:26,borderRadius:6,border:"1px solid var(--border)",cursor:"pointer",padding:2,background:"none" }} />
+                  </div>
+                </div>
+              )}
+              {/* Brush size / blur strength */}
+              {tool !== "text" && (
+                <div>
+                  <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".07em",color:"var(--text3)",marginBottom:6 }}>
+                    {tool === "blur" ? "Blur Strength" : "Brush Size"} — {size}px
+                  </div>
+                  <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+                    <button className="btn btn-sm btn-secondary" style={{ minWidth:34 }} onClick={() => setSize(s => Math.max(10, s-5))}>−</button>
+                    <input type="range" min="10" max="80" value={size} onChange={e => setSize(+e.target.value)} className="size-slider" style={{ flex:1,margin:0 }} />
+                    <button className="btn btn-sm btn-secondary" style={{ minWidth:34 }} onClick={() => setSize(s => Math.min(80, s+5))}>+</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         {/* Row 1: Undo / Redo */}
         <div style={{ display:"flex",justifyContent:"center",gap:16,padding:"8px 16px 4px" }}>
           <button className="btn btn-secondary btn-sm" onClick={undo} style={{ flex:1,gap:6 }}><Icon d={ic.undo} size={16}/> Undo</button>
@@ -2239,7 +2244,7 @@ function ImageEditor({ photo, onClose, onSave }) {
       {/* ── Body ── */}
       <div className="editor-body">
         <div className="canvas-area">
-          <div style={{ position:"relative", display:"inline-block", lineHeight:0 }} onMouseMove={moveTextDrag} onMouseUp={endTextDrag} onMouseLeave={endTextDrag} onTouchMove={moveTextDrag} onTouchEnd={endTextDrag}>
+          <div style={{ position:"relative", display:"inline-block", lineHeight:0, transform:`scale(${zoom})`, transformOrigin:"top center", transition:"transform .15s" }} onMouseMove={moveTextDrag} onMouseUp={endTextDrag} onMouseLeave={endTextDrag} onTouchMove={moveTextDrag} onTouchEnd={endTextDrag}>
           <canvas ref={canvasRef} width={1280} height={960}
             style={{ borderRadius:8, cursor, border:"1px solid var(--border)", maxWidth:"100%", maxHeight:"100%", display:"block" }}
             onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp}
@@ -2335,6 +2340,13 @@ function ImageEditor({ photo, onClose, onSave }) {
 
         {/* ── Sidebar ── */}
         <div className="editor-side">
+          <h4>Zoom — {Math.round(zoom*100)}%</h4>
+          <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:14 }}>
+            <button className="btn btn-sm btn-secondary" style={{ minWidth:30 }} onClick={() => setZoom(z => Math.max(0.25, +(z-0.25).toFixed(2)))}>−</button>
+            <input type="range" min="25" max="300" value={Math.round(zoom*100)} onChange={e => setZoom(+e.target.value/100)} className="size-slider" style={{ flex:1 }} />
+            <button className="btn btn-sm btn-secondary" style={{ minWidth:30 }} onClick={() => setZoom(z => Math.min(3, +(z+0.25).toFixed(2)))}>+</button>
+            {zoom !== 1 && <button className="btn btn-sm btn-ghost" style={{ fontSize:11,padding:"2px 6px" }} onClick={() => setZoom(1)}>1:1</button>}
+          </div>
           <h4>Stroke Color</h4>
           <div className="color-grid">
             {COLORS.map(c => <div key={c} className={`color-dot ${color===c?"sel":""}`} style={{ background:c }}
