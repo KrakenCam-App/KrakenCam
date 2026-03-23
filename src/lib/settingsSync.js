@@ -88,8 +88,8 @@ export async function saveSettingsToDB(orgId, userId, settings) {
   const now = new Date().toISOString();
   try {
     await Promise.all([
-      orgId  && Object.keys(org).length  ? dbPost('org_settings',  { organization_id: orgId, settings: org,  updated_at: now }) : Promise.resolve(),
-      userId && Object.keys(user).length ? dbPost('user_settings', { user_id: userId,         settings: user, updated_at: now }) : Promise.resolve(),
+      orgId  && Object.keys(org).length  ? dbPost('org_settings?on_conflict=organization_id',  { organization_id: orgId, settings: org,  updated_at: now }) : Promise.resolve(),
+      userId && Object.keys(user).length ? dbPost('user_settings?on_conflict=user_id',          { user_id: userId,        settings: user, updated_at: now }) : Promise.resolve(),
     ]);
   } catch { /* non-fatal */ }
 }

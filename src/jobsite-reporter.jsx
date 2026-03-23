@@ -4186,7 +4186,7 @@ function TemplateManagerModal({ templates, setTemplates, onClose }) {
     if (!oid) return;
     const url = import.meta.env.VITE_SUPABASE_URL;
     const headers = await getAuthHeaders({ 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' });
-    fetch(`${url}/rest/v1/checklist_categories`, {
+    fetch(`${url}/rest/v1/checklist_categories?on_conflict=organization_id`, {
       method: 'POST',
       headers,
       body: JSON.stringify({ organization_id: oid, custom_cats: custom, hidden_cats: hidden, updated_at: new Date().toISOString() }),
@@ -21773,7 +21773,7 @@ useEffect(() => {
                 const url = import.meta.env.VITE_SUPABASE_URL;
                 // Upsert all templates with full data
                 getAuthHeaders({ 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' }).then(headers => {
-                  fetch(`${url}/rest/v1/report_templates`, {
+                  fetch(`${url}/rest/v1/report_templates?on_conflict=id`, {
                     method: 'POST', headers,
                     body: JSON.stringify(newTemplates.map(t => ({
                       id: t.id,
