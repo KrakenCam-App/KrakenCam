@@ -20682,39 +20682,29 @@ useEffect(() => {
               });
             }
 
-            return {
-              id:            row.id,
-              title:         row.title || "Untitled Project",
-              address:       row.address || "",
-              city:          row.city || "",
-              state:         row.state || "",
-              zip:           row.zip || "",
-              lat:           row.lat ? String(row.lat) : "",
-              lng:           row.lng ? String(row.lng) : "",
-              clientName:    row.client_name || "",
-              clientEmail:   row.client_email || "",
-              clientPhone:   row.client_phone || "",
-              contractorName:  row.contractor_name || "",
-              contractorPhone: row.contractor_phone || "",
-              type:          row.type || "",
-              status:        row.status || "active",
-              notes:         row.notes || "",
-              color:         row.color || "#4a90d9",
-              createdAt:     row.created_at || "",
-              updatedAt:     row.updated_at || "",
-              photos:        mergedPhotos,
-              rooms:         row.rooms    || [],
-              reports:       row.reports  || [],
-              videos:        row.videos   || [],
-              voiceNotes:    row.voice_notes || [],
-              sketches:      row.sketches || [],
-              files:         row.files    || [],
-              checklists:    row.checklists || [],
-              tasks:         row.tasks    || [],
-              organization_id: row.organization_id,
-            };
+            // dbGetProjects() already calls fromDbRow() — rows are fully mapped
+          // Restore base64 dataUrls from localStorage for photos not yet in Storage
+          const merged = rows.map(row => {
+            const localProj = localProjects.find(p => p.id === row.id);
+            const dbPhotos = row.photos || [];
+            const localPhotos = localProj?.photos || [];
+            let mergedPhotos;
+            if (dbPhotos.length === 0 && localPhotos.length > 0) {
+              mergedPhotos = localPhotos;
+            } else {
+              mergedPhotos = dbPhotos.map(dbPhoto => {
+                if (dbPhoto.dataUrl && !dbPhoto.hasImage) return dbPhoto;
+                const localPhoto = localPhotos.find(p => p.id === dbPhoto.id);
+                if (localPhoto?.dataUrl) return { ...dbPhoto, dataUrl: localPhoto.dataUrl };
+                return dbPhoto;
+              });
+              localPhotos.forEach(lp => {
+                if (!mergedPhotos.find(p => p.id === lp.id)) mergedPhotos.push(lp);
+              });
+            }
+            return { ...row, photos: mergedPhotos };
           });
-          setProjects(mapped);
+          setProjects(merged);
         }
       } catch (err) {
         console.warn("[KrakenCam] Could not load projects from Supabase:", err.message || err);

@@ -1,14 +1,28 @@
 /**
  * src/lib/projects.js
- * Supabase CRUD for projects — mapped exactly to DB schema.
+ * Supabase CRUD for projects — complete field mapping including all
+ * site conditions, insurance, timeline, rooms, and team assignment.
  */
 
 import { supabase } from './supabase';
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function isUuid(str) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+}
+function newUuid() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
+// Strip base64 dataUrls from photos before saving (too large for DB)
 function stripPhotos(photos = []) {
   return photos.map(p => {
-    const isBase64 = p.dataUrl && p.dataUrl.startsWith('data:');
-    if (isBase64) {
+    if (p.dataUrl && p.dataUrl.startsWith('data:')) {
       const { dataUrl, ...rest } = p;
       return { ...rest, hasImage: true };
     }
@@ -16,101 +30,198 @@ function stripPhotos(photos = []) {
   });
 }
 
-/** Convert app project → DB row (only columns that exist in DB) */
+function stripFiles(files = []) {
+  return files.map(f => {
+    if (f.dataUrl && f.dataUrl.startsWith('data:')) {
+      const { dataUrl, ...rest } = f;
+      return { ...rest, hasFile: true };
+    }
+    return f;
+  });
+}
+
+/** App camelCase → DB snake_case */
 function toDbRow(p) {
   return {
-    id:                p.id,
-    organization_id:   p.organization_id   || null,
-    name:              p.name || p.title   || '',       // DB uses "name" not "title"
-    description:       p.description || p.notes || '',  // DB uses "description" not "notes"
-    location:          p.location || p.address || '',   // DB uses "location" not "address"
-    status:            p.status            || 'active',
-    color:             p.color             || '#4a90d9',
-    type:              p.type              || '',
-    date:              p.date              || '',
-    scope:             p.scope             || '',
-    manual_gps:        p.manualGps         || false,
-    coords:            p.coords            || null,
-    lat:               p.lat               || '',
-    lng:               p.lng               || '',
-    timeline_stage:    p.timelineStage     || '',
-    timeline_notes:    p.timelineNotes     || {},
-    scratch_pad:       p.scratchPad        || '',
-    photo_tags:        p.photoTags         || [],
-    ba_pairs:          p.baPairs           || [],
-    client_portal:     p.clientPortal      || {},
-    portal_config:     p.portalConfig      || {},
-    activity_log:      p.activityLog       || [],
-    client_name:       p.clientName        || '',
-    client_email:      p.clientEmail       || '',
-    client_phone:      p.clientPhone       || '',
-    contractor_name:   p.contractorName    || '',
-    contractor_phone:  p.contractorPhone   || '',
-    insurance_company: p.insuranceCompany  || '',
-    claim_number:      p.claimNumber       || '',
-    adjuster_name:     p.adjusterName      || '',
-    adjuster_phone:    p.adjusterPhone     || '',
-    deductible:        p.deductible        || '',
-    policy_number:     p.policyNumber      || '',
-    rooms:             p.rooms             || [],
-    reports:           p.reports           || [],
-    checklists:        p.checklists        || [],
-    photos:            stripPhotos(p.photos || []),
+    organization_id:       p.organization_id,
+    title:                 p.title                 || 'Untitled Project',
+    color:                 p.color                 || '#4a90d9',
+    status:                p.status                || 'active',
+    type:                  p.type                  || '',
+    project_number:        p.projectNumber         || '',
+
+    // Address
+    address:               p.address               || '',
+    city:                  p.city                  || '',
+    state:                 p.state                 || '',
+    zip:                   p.zip                   || '',
+    lat:                   p.lat                   || '',
+    lng:                   p.lng                   || '',
+    manual_gps:            p.manualGps             ?? false,
+    coords:                p.coords                || null,
+
+    // Property
+    property_type:         p.propertyType          || '',
+    cause_of_loss:         p.causeOfLoss           || '',
+    date_inspection:       p.dateInspection        || '',
+    time_inspection:       p.timeInspection        || '',
+    date_work_performed:   p.dateWorkPerformed      || '',
+    time_work_performed:   p.timeWorkPerformed      || '',
+
+    // Site conditions
+    access_limitations:    p.accessLimitations     || '',
+    power_status:          p.powerStatus           || 'on',
+    water_status:          p.waterStatus           || 'on',
+    ppe_items:             p.ppeItems              || [],
+    ppe_other_text:        p.ppeOtherText          || '',
+
+    // Client
+    client_name:           p.clientName            || '',
+    client_email:          p.clientEmail           || '',
+    client_phone:          p.clientPhone           || '',
+    client_relationship:   p.clientRelationship    || '',
+    occupancy_status:      p.occupancyStatus       || '',
+
+    // Contractor
+    contractor_name:       p.contractorName        || '',
+    contractor_phone:      p.contractorPhone       || '',
+
+    // Insurance
+    insurance_enabled:     p.insuranceEnabled      ?? false,
+    insurance_carrier:     p.insuranceCarrier      || '',
+    insurance_policy_num:  p.insurancePolicyNum    || '',
+    claim_number:          p.claimNumber           || '',
+    adjuster_name:         p.adjusterName          || '',
+    adjuster_phone:        p.adjusterPhone         || '',
+    adjuster_email:        p.adjusterEmail         || '',
+    adjuster_company:      p.adjusterCompany       || '',
+    date_of_loss:          p.dateOfLoss            || '',
+    coverage_type:         p.coverageType          || '',
+    deductible:            p.deductible            || '',
+    policy_number:         p.policyNumber          || '',
+
+    // Notes
+    notes:                 p.notes                 || '',
+    scope:                 p.scope                 || '',
+    scratch_pad:           p.scratchPad            || '',
+
+    // Team
+    assigned_user_ids:     p.assignedUserIds       || [],
+
+    // Timeline
+    timeline_stage:        p.timelineStage         || '',
+    timeline_notes:        p.timelineNotes         || {},
+    timeline_client_notes: p.timelineClientNotes   || {},
+
+    // Structured data
+    rooms:                 p.rooms                 || [],
+    reports:               p.reports               || [],
+    checklists:            p.checklists            || [],
+    photos:                stripPhotos(p.photos    || []),
+    files:                 stripFiles(p.files      || []),
+    photo_tags:            p.photoTags             || [],
+    ba_pairs:              p.baPairs               || [],
+    client_portal:         p.clientPortal          || {},
+    portal_config:         p.portalConfig          || {},
+    activity_log:          p.activityLog           || [],
   };
 }
 
-/** Convert DB row → app project */
+/** DB snake_case → app camelCase */
 function fromDbRow(row) {
   return {
-    id:               row.id,
-    organization_id:  row.organization_id,
-    name:             row.name             || 'Untitled Project',
-    title:            row.name             || 'Untitled Project',
-    description:      row.description      || '',
-    notes:            row.description      || '',
-    location:         row.location         || '',
-    address:          row.location         || '',
-    status:           row.status           || 'active',
-    color:            row.color            || '#4a90d9',
-    type:             row.type             || '',
-    date:             row.date             || '',
-    scope:            row.scope            || '',
-    manualGps:        row.manual_gps       || false,
-    coords:           row.coords           || null,
-    lat:              row.lat              || '',
-    lng:              row.lng              || '',
-    timelineStage:    row.timeline_stage   || '',
-    timelineNotes:    row.timeline_notes   || {},
-    scratchPad:       row.scratch_pad      || '',
-    photoTags:        row.photo_tags       || [],
-    baPairs:          row.ba_pairs         || [],
-    clientPortal:     row.client_portal    || {},
-    portalConfig:     row.portal_config    || {},
-    activityLog:      row.activity_log     || [],
-    clientName:       row.client_name      || '',
-    clientEmail:      row.client_email     || '',
-    clientPhone:      row.client_phone     || '',
-    contractorName:   row.contractor_name  || '',
-    contractorPhone:  row.contractor_phone || '',
-    insuranceCompany: row.insurance_company || '',
-    claimNumber:      row.claim_number     || '',
-    adjusterName:     row.adjuster_name    || '',
-    adjusterPhone:    row.adjuster_phone   || '',
-    deductible:       row.deductible       || '',
-    policyNumber:     row.policy_number    || '',
-    rooms:            row.rooms            || [],
-    reports:          row.reports          || [],
-    checklists:       row.checklists       || [],
-    photos:           row.photos           || [],
-    videos:           [],
-    voiceNotes:       [],
-    sketches:         [],
-    files:            [],
-    tasks:            [],
-    createdAt:        row.created_at       || '',
-    createdBy:        row.created_by       || '',
+    id:                   row.id,
+    organization_id:      row.organization_id,
+    title:                row.title                 || 'Untitled Project',
+    color:                row.color                 || '#4a90d9',
+    status:               row.status                || 'active',
+    type:                 row.type                  || '',
+    projectNumber:        row.project_number        || '',
+
+    // Address
+    address:              row.address               || '',
+    city:                 row.city                  || '',
+    state:                row.state                 || '',
+    zip:                  row.zip                   || '',
+    lat:                  row.lat                   || '',
+    lng:                  row.lng                   || '',
+    manualGps:            row.manual_gps            ?? false,
+    coords:               row.coords                || null,
+
+    // Property
+    propertyType:         row.property_type         || '',
+    causeOfLoss:          row.cause_of_loss         || '',
+    dateInspection:       row.date_inspection       || '',
+    timeInspection:       row.time_inspection       || '',
+    dateWorkPerformed:    row.date_work_performed    || '',
+    timeWorkPerformed:    row.time_work_performed    || '',
+
+    // Site conditions
+    accessLimitations:    row.access_limitations    || '',
+    powerStatus:          row.power_status          || 'on',
+    waterStatus:          row.water_status          || 'on',
+    ppeItems:             row.ppe_items             || [],
+    ppeOtherText:         row.ppe_other_text        || '',
+
+    // Client
+    clientName:           row.client_name           || '',
+    clientEmail:          row.client_email          || '',
+    clientPhone:          row.client_phone          || '',
+    clientRelationship:   row.client_relationship   || '',
+    occupancyStatus:      row.occupancy_status      || '',
+
+    // Contractor
+    contractorName:       row.contractor_name       || '',
+    contractorPhone:      row.contractor_phone      || '',
+
+    // Insurance
+    insuranceEnabled:     row.insurance_enabled     ?? false,
+    insuranceCarrier:     row.insurance_carrier      || '',
+    insurancePolicyNum:   row.insurance_policy_num  || '',
+    claimNumber:          row.claim_number          || '',
+    adjusterName:         row.adjuster_name         || '',
+    adjusterPhone:        row.adjuster_phone        || '',
+    adjusterEmail:        row.adjuster_email        || '',
+    adjusterCompany:      row.adjuster_company      || '',
+    dateOfLoss:           row.date_of_loss          || '',
+    coverageType:         row.coverage_type         || '',
+    deductible:           row.deductible            || '',
+    policyNumber:         row.policy_number         || '',
+
+    // Notes
+    notes:                row.notes                 || '',
+    scope:                row.scope                 || '',
+    scratchPad:           row.scratch_pad           || '',
+
+    // Team
+    assignedUserIds:      row.assigned_user_ids     || [],
+
+    // Timeline
+    timelineStage:        row.timeline_stage        || '',
+    timelineNotes:        row.timeline_notes        || {},
+    timelineClientNotes:  row.timeline_client_notes || {},
+
+    // Structured data
+    rooms:                row.rooms                 || [],
+    reports:              row.reports               || [],
+    checklists:           row.checklists            || [],
+    photos:               row.photos                || [],
+    videos:               row.videos               || [],   // loaded separately from video_recordings table
+    voiceNotes:           row.voice_notes           || [],   // loaded separately from voice_notes table
+    sketches:             row.sketches              || [],   // loaded separately from sketches table
+    files:                row.files                 || [],
+    photoTags:            row.photo_tags            || [],
+    baPairs:              row.ba_pairs              || [],
+    clientPortal:         row.client_portal         || {},
+    portalConfig:         row.portal_config         || {},
+    activityLog:          row.activity_log          || [],
+
+    createdAt:            row.created_at            || '',
+    updatedAt:            row.updated_at            || '',
   };
 }
+
+// ── CRUD ──────────────────────────────────────────────────────────────────────
 
 export async function getProjects() {
   const { data, error } = await supabase
@@ -123,7 +234,10 @@ export async function getProjects() {
 
 export async function createProject(project) {
   const row = toDbRow(project);
-  delete row.id;
+  // Use client UUID if valid (needed for optimistic UI), otherwise let DB generate
+  if (project.id && isUuid(project.id)) row.id = project.id;
+  else row.id = newUuid();
+
   const { data, error } = await supabase
     .from('projects')
     .insert([row])
@@ -135,7 +249,9 @@ export async function createProject(project) {
 
 export async function updateProject(id, project) {
   const row = toDbRow(project);
+  delete row.organization_id; // never overwrite org on update
   delete row.id;
+
   const { data, error } = await supabase
     .from('projects')
     .update(row)
@@ -200,14 +316,7 @@ export async function uploadPicture(folderId, projectId, orgId, file) {
   if (uploadError) throw uploadError;
   const { data: row, error: insertError } = await supabase
     .from('pictures')
-    .insert([{
-      folder_id: folderId,
-      project_id: projectId,
-      storage_path: storagePath,
-      filename: file.name,
-      size_bytes: file.size,
-      mime_type: file.type,
-    }])
+    .insert([{ folder_id: folderId, project_id: projectId, storage_path: storagePath, filename: file.name, size_bytes: file.size, mime_type: file.type }])
     .select()
     .single();
   if (insertError) throw insertError;
@@ -221,9 +330,7 @@ export async function deletePicture(id, storagePath) {
 }
 
 export async function getPictureUrl(storagePath, expiresIn = 3600) {
-  const { data, error } = await supabase.storage
-    .from('project-photos')
-    .createSignedUrl(storagePath, expiresIn);
+  const { data, error } = await supabase.storage.from('project-photos').createSignedUrl(storagePath, expiresIn);
   if (error) throw error;
   return data.signedUrl;
 }
