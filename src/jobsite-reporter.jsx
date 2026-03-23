@@ -5719,11 +5719,12 @@ function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpdateProje
                 body: JSON.stringify({ organization_id: orgId, project_id: project.id, name: file.name, storage_path: storagePath, file_size: file.size || null, mime_type: file.type || null }),
               });
               const dbRow = dbRes.ok ? (await dbRes.json())[0] : null;
-              // Replace base64 with Storage URL — read latest files from project
-              const latestFiles = (project.files || []).map(normaliseProjectFile);
-              patchFiles(latestFiles.map(f =>
-                f.id === fileId ? { ...f, dataUrl: publicUrl, storagePath, supabaseId: dbRow?.id } : f
-              ));
+              // Tag the local file object with its Storage URL and DB id in-place
+              // Do NOT call patchFiles here — it would use a stale snapshot and wipe the file
+              // Instead, update only the specific file via onUpdateProject with the latest project state
+              newFile.dataUrl = publicUrl;
+              newFile.storagePath = storagePath;
+              if (dbRow?.id) newFile.supabaseId = dbRow.id;
             }
           } catch (err) {
             console.error('[KrakenCam] Project file upload failed:', err.message || err);
