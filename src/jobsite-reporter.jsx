@@ -13593,6 +13593,14 @@ function ChatPanel({ chats, onChatsChange, teamUsers, settings, currentUserId, i
                    : attachFile?.type?.startsWith('image') ? 'image'
                    : attachFile ? 'file' : 'text',
         attachment:  attachFile || null,
+      }).then(saved => {
+        // Tag the local message with its DB id so realtime dedup can skip it
+        if (saved?.id) {
+          onChatsChange(prev => prev.map(c => c.id !== activeChatId ? c : {
+            ...c,
+            messages: c.messages.map(m => m.id === msg.id ? { ...m, _dbId: saved.id } : m),
+          }));
+        }
       }).catch(e => console.error('[KrakenCam] Chat save failed:', e));
     }
     setNewMsg("");
@@ -21002,7 +21010,7 @@ useEffect(() => {
       })
       .subscribe();
 
-    // Chat channel — new messages appear live
+    // Chat channel — new messages appear live (from OTHER devices/users only)
     const chatChannel = supabase
       .channel(`chat:${orgId}`)
       .on('postgres_changes', {
@@ -21013,14 +21021,27 @@ useEffect(() => {
         setChats(prev => {
           const updated = prev.map(ch => {
             if (ch.id !== r.chat_room_id) return ch;
-            if ((ch.messages || []).find(m => m.id === r.id)) return ch;
+            // Skip if this message is already in local state (we sent it)
+            if ((ch.messages || []).find(m => m.id === r.id || m._dbId === r.id)) return ch;
             return {
               ...ch,
               messages: [...(ch.messages || []), {
-                id: r.id, text: r.content || "", senderId: r.sender_id,
-                timestamp: r.created_at, type: r.message_type || "text",
+                id:          r.id,
+                authorId:    r.sender_id,
+                authorName:  r.sender_name || "Unknown",
+                text:        r.content || "",
+                timestamp:   r.created_at,
+                readBy:      [],
+                messageType: r.message_type || "text",
+                attachment:  r.attachment_url ? {
+                  dataUrl: r.attachment_url,
+                  name:    r.attachment_name,
+                  size:    r.attachment_size,
+                  type:    r.message_type === 'voice' ? 'audio/webm'
+                         : r.message_type === 'image' ? 'image/jpeg' : 'application/octet-stream',
+                } : null,
               }],
-              lastMessage: r.content || "",
+              lastMessage:   r.content || "",
               lastMessageAt: r.created_at,
             };
           });
