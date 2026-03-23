@@ -20653,36 +20653,7 @@ useEffect(() => {
             if (saved) localProjects = JSON.parse(saved)?.projects || [];
           } catch { /* ignore */ }
 
-          const mapped = rows.map(row => {
-            // Find matching local project to recover photo dataUrls
-            const localProj = localProjects.find(p => p.id === row.id);
-
-            // Photo merge strategy:
-            // 1. If DB has photos with Storage URLs → use DB (authoritative)
-            // 2. If DB photos array is empty but localStorage has photos → use localStorage
-            // 3. If DB photos have hasImage:true (stripped base64) → restore from localStorage
-            const dbPhotos = row.photos || [];
-            const localPhotos = localProj?.photos || [];
-
-            let mergedPhotos;
-            if (dbPhotos.length === 0 && localPhotos.length > 0) {
-              // DB never had photos saved — use localStorage photos entirely
-              mergedPhotos = localPhotos;
-            } else {
-              // DB has photo records — merge, restoring dataUrls from localStorage where needed
-              mergedPhotos = dbPhotos.map(dbPhoto => {
-                if (dbPhoto.dataUrl && !dbPhoto.hasImage) return dbPhoto; // Storage URL — keep
-                const localPhoto = localPhotos.find(p => p.id === dbPhoto.id);
-                if (localPhoto?.dataUrl) return { ...dbPhoto, dataUrl: localPhoto.dataUrl };
-                return dbPhoto;
-              });
-              // Also add any localStorage photos not in DB yet
-              localPhotos.forEach(lp => {
-                if (!mergedPhotos.find(p => p.id === lp.id)) mergedPhotos.push(lp);
-              });
-            }
-
-            // dbGetProjects() already calls fromDbRow() — rows are fully mapped
+          // dbGetProjects() already calls fromDbRow() — rows are fully mapped — rows are fully mapped
           // Restore base64 dataUrls from localStorage for photos not yet in Storage
           const merged = rows.map(row => {
             const localProj = localProjects.find(p => p.id === row.id);
