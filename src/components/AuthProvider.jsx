@@ -1,135 +1,50 @@
 /**
  * AuthProvider.jsx
- * 
- * Supabase auth context. Wrap your app in this to provide:
- * - session (Supabase session object)
- * - user (Supabase user object)
- * - profile (KrakenCam profile with role + org info)
- * - subscription (current org subscription)
- * - loading (true while auth is initializing)
- * - signOut()
+ *
+ * Clean separation of concerns:
+ * 1. Auth state (session/user) — driven by onAuthStateChange only
+ * 2. Profile + subscription — loaded in a separate useEffect watching userId
+ *
+ * This avoids the "Lock broken by another request" AbortError caused by
+ * making DB queries inside the auth state change callback.
  */
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [session, setSession]           = useState(null);
-  const [user, setUser]                 = useState(null);
-  const [profile, setProfile]           = useState(null);
+  const [session,      setSession]      = useState(undefined); // undefined = not yet checked
+  const [user,         setUser]         = useState(null);
+  const [profile,      setProfile]      = useState(null);
   const [subscription, setSubscription] = useState(null);
-  const [loading, setLoading]           = useState(true);
-  const [authKey, setAuthKey]           = useState(0);
+  const [loading,      setLoading]      = useState(true);
+  const mountedRef = useRef(true);
 
-  // Prevent concurrent hydrateUser calls — only the latest wins
-  const hydratingRef = React.useRef(false);
-  const mountedRef   = React.useRef(true);
-
-  async function loadProfile(userId) {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select(`
-        id,
-        user_id,
-        organization_id,
-        role,
-        full_name,
-        email,
-        is_active,
-        organizations(name, trial_ends_at, subscription_status, subscription_tier)
-      `)
-      .eq('user_id', userId)
-      .single();
-
-    if (error) {
-      // Only log real errors, not lock-contention aborts
-      if (!error.message?.includes('AbortError') && !error.message?.includes('Lock')) {
-        console.error('[AuthProvider] Failed to load profile:', error);
-      }
-      return null;
-    }
-    if (data?.organizations) data.organization = data.organizations;
-    return data;
-  }
-
-  async function loadSubscription(orgId) {
-    const { data, error } = await supabase
-      .from('subscriptions')
-      .select('*')
-      .eq('organization_id', orgId)
-      .single();
-    if (error) return null;
-    return data;
-  }
-
-  async function hydrateUser(newSession) {
-    // If already hydrating, skip — the in-flight call will finish
-    if (hydratingRef.current) return;
-    hydratingRef.current = true;
-    try {
-      setAuthKey(k => k + 1);
-
-      if (!newSession?.user) {
-        if (mountedRef.current) {
-          setUser(null);
-          setProfile(null);
-          setSubscription(null);
-        }
-        return;
-      }
-
-      if (mountedRef.current) setUser(newSession.user);
-
-      // Small delay to let the auth lock settle after sign-in/token refresh
-      await new Promise(r => setTimeout(r, 100));
-      if (!mountedRef.current) return;
-
-      const profileData = await loadProfile(newSession.user.id);
-      if (!mountedRef.current) return;
-
-      // Retry once if we got null (lock contention on first try)
-      let finalProfile = profileData;
-      if (!finalProfile) {
-        await new Promise(r => setTimeout(r, 500));
-        if (!mountedRef.current) return;
-        finalProfile = await loadProfile(newSession.user.id);
-      }
-
-      if (mountedRef.current) setProfile(finalProfile);
-
-      if (finalProfile?.organization_id) {
-        const subData = await loadSubscription(finalProfile.organization_id);
-        if (mountedRef.current) setSubscription(subData);
-      }
-    } finally {
-      hydratingRef.current = false;
-    }
-  }
-
+  // ── Step 1: Track auth session ─────────────────────────────────────────────
+  // ONLY sets session/user state. Does NOT make any DB calls.
   useEffect(() => {
     mountedRef.current = true;
-    const timeout = setTimeout(() => { if (mountedRef.current) setLoading(false); }, 8000);
 
+    // Get initial session
     supabase.auth.getSession().then(({ data: { session: s } }) => {
       if (!mountedRef.current) return;
       setSession(s);
-      hydrateUser(s).finally(() => {
-        clearTimeout(timeout);
-        if (mountedRef.current) setLoading(false);
-      });
+      setUser(s?.user ?? null);
     }).catch(() => {
-      clearTimeout(timeout);
-      if (mountedRef.current) setLoading(false);
+      if (mountedRef.current) {
+        setSession(null);
+        setUser(null);
+      }
     });
 
+    // Listen for changes — token refresh, sign in, sign out
     const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(
-      async (_event, newSession) => {
+      (_event, newSession) => {
         if (!mountedRef.current) return;
         setSession(newSession);
-        await hydrateUser(newSession);
-        if (mountedRef.current) setLoading(false);
+        setUser(newSession?.user ?? null);
       }
     );
 
@@ -139,12 +54,89 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
+  // ── Step 2: Load profile + subscription when userId changes ───────────────
+  // Runs AFTER auth settles — no lock contention because we're not inside the
+  // auth callback. Uses a separate async flow with its own abort handling.
+  useEffect(() => {
+    // session === undefined means we haven't heard from auth yet — wait
+    if (session === undefined) return;
+
+    // Signed out
+    if (!user?.id) {
+      setProfile(null);
+      setSubscription(null);
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadData = async () => {
+      // Small delay to ensure the auth token is fully committed to storage
+      await new Promise(r => setTimeout(r, 150));
+      if (cancelled) return;
+
+      try {
+        // Load profile
+        const { data: profileData, error: profileErr } = await supabase
+          .from('profiles')
+          .select(`
+            id,
+            user_id,
+            organization_id,
+            role,
+            full_name,
+            email,
+            is_active,
+            organizations(name, trial_ends_at, subscription_status, subscription_tier)
+          `)
+          .eq('user_id', user.id)
+          .single();
+
+        if (cancelled) return;
+
+        if (profileErr) {
+          console.error('[AuthProvider] profile load error:', profileErr.message);
+          // Retry once after a short delay
+          await new Promise(r => setTimeout(r, 800));
+          if (cancelled) return;
+          const { data: retry } = await supabase
+            .from('profiles')
+            .select(`id, user_id, organization_id, role, full_name, email, is_active, organizations(name, trial_ends_at, subscription_status, subscription_tier)`)
+            .eq('user_id', user.id)
+            .single();
+          if (cancelled) return;
+          if (retry?.organizations) retry.organization = retry.organizations;
+          setProfile(retry ?? null);
+          if (retry?.organization_id) {
+            const { data: sub } = await supabase
+              .from('subscriptions').select('*').eq('organization_id', retry.organization_id).single();
+            if (!cancelled) setSubscription(sub ?? null);
+          }
+        } else {
+          if (profileData?.organizations) profileData.organization = profileData.organizations;
+          setProfile(profileData ?? null);
+          if (profileData?.organization_id) {
+            const { data: sub } = await supabase
+              .from('subscriptions').select('*').eq('organization_id', profileData.organization_id).single();
+            if (!cancelled) setSubscription(sub ?? null);
+          }
+        }
+      } catch (e) {
+        if (!cancelled) console.error('[AuthProvider] loadData error:', e.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    setLoading(true);
+    loadData();
+
+    return () => { cancelled = true; };
+  }, [user?.id, session]);  // re-run when user changes
+
   async function signOut() {
     await supabase.auth.signOut();
-    setSession(null);
-    setUser(null);
-    setProfile(null);
-    setSubscription(null);
   }
 
   const value = {
@@ -156,7 +148,6 @@ export function AuthProvider({ children }) {
     signOut,
     isAdmin: profile?.role === 'admin',
     orgId:   profile?.organization_id,
-    authKey,
   };
 
   return (
@@ -168,8 +159,6 @@ export function AuthProvider({ children }) {
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) {
-    throw new Error('useAuth must be used inside <AuthProvider>');
-  }
+  if (!ctx) throw new Error('useAuth must be used inside <AuthProvider>');
   return ctx;
 }

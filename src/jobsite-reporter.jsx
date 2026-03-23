@@ -20481,7 +20481,7 @@ function LoginPage({ supabaseUrl, supabaseAnonKey, logo, onSuccess }) {
 
 export default function App() {
   // Pull org profile from AuthProvider (already wraps the whole app)
-const { profile: authProfile, user: authUser, loading: authLoading, signOut: signOutFn } = useAuth();
+const { profile: authProfile, user: authUser, loading: authLoading } = useAuth();
   const [authKey, setAuthKey] = useState(0);
   const [projects, setProjects] = useState([]);
   const [activeProject, setActiveProject] = useState(null);
