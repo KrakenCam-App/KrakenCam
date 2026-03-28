@@ -4516,7 +4516,7 @@ function TemplateManagerModal({ templates, setTemplates, onClose }) {
   };
 
   const startNew = () => {
-    const blank = { id:`tmpl_${uid()}`, name:"", desc:"", category:"General", tags:[], completionSettings:{ requireSignature:true, lockAfterComplete:true, requireCompletedBy:true, signatureLabel:"Site Supervisor Signature" }, fields:[] };
+    const blank = { id: (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random()*16|0; return (c==='x'?r:(r&0x3|0x8)).toString(16); })), name:"", desc:"", category:"General", tags:[], completionSettings:{ requireSignature:true, lockAfterComplete:true, requireCompletedBy:true, signatureLabel:"Site Supervisor Signature" }, fields:[] };
     setEditing(blank);
     setTagsInput("");
     setCustomCatInput("");
@@ -22977,7 +22977,7 @@ useEffect(() => {
               settings={settings}
               templates={reportTemplates}
               users={teamUsers}
-              onSave={saved => saveReport(reportCreatorData.project, saved)}
+              onSave={saved => saveReport(projects.find(p => p.id===reportCreatorData.project.id) || reportCreatorData.project, saved)}
               onClose={() => setReportCreatorData(null)}
               onSettingsChange={setSettings}
               onUpgradeAi={() => setSettings(s => ({...s, plan: "pro"}))}

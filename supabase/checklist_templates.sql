@@ -8,7 +8,8 @@ create table if not exists public.checklist_templates (
   description   text not null default '',
   category      text not null default 'General',  -- e.g. "Water Damage", "Safety", "Fire"
   tags          text[] not null default '{}',     -- e.g. ["restoration","insurance","mold"]
-  fields        jsonb not null default '[]'::jsonb,
+  fields              jsonb not null default '[]'::jsonb,
+  completion_settings jsonb not null default '{}'::jsonb,  -- signature/lock settings
   is_default    boolean not null default false,   -- built-in templates (not deletable)
   created_by    uuid references auth.users(id),
   created_at    timestamptz not null default now(),
