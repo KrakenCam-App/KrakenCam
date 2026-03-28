@@ -67,6 +67,8 @@ function toDbRow(p) {
     time_inspection:       p.timeInspection        || '',
     date_work_performed:   p.dateWorkPerformed      || '',
     time_work_performed:   p.timeWorkPerformed      || '',
+    completion_date:       p.completionDate        || '',
+    completion_time:       p.completionTime        || '',
 
     // Site conditions
     access_limitations:    p.accessLimitations     || '',
@@ -76,7 +78,9 @@ function toDbRow(p) {
     ppe_other_text:        p.ppeOtherText          || '',
 
     // Client
-    client_name:           p.clientName            || '',
+    client_first_name:     p.clientFirstName       || '',
+    client_last_name:      p.clientLastName        || '',
+    client_name:           [p.clientFirstName, p.clientLastName].filter(Boolean).join(' ') || p.clientName || '',
     client_email:          p.clientEmail           || '',
     client_phone:          p.clientPhone           || '',
     client_relationship:   p.clientRelationship    || '',
@@ -155,6 +159,8 @@ function fromDbRow(row) {
     timeInspection:       row.time_inspection       || '',
     dateWorkPerformed:    row.date_work_performed    || '',
     timeWorkPerformed:    row.time_work_performed    || '',
+    completionDate:       row.completion_date       || '',
+    completionTime:       row.completion_time       || '',
 
     // Site conditions
     accessLimitations:    row.access_limitations    || '',
@@ -164,7 +170,12 @@ function fromDbRow(row) {
     ppeOtherText:         row.ppe_other_text        || '',
 
     // Client
-    clientName:           row.client_name           || '',
+    clientFirstName:      row.client_first_name     || '',
+    clientLastName:       row.client_last_name      || '',
+    // Derive full clientName: prefer new split fields, fall back to old client_name for legacy records
+    clientName:           (row.client_first_name || row.client_last_name)
+                            ? [row.client_first_name, row.client_last_name].filter(Boolean).join(' ')
+                            : (row.client_name || ''),
     clientEmail:          row.client_email          || '',
     clientPhone:          row.client_phone          || '',
     clientRelationship:   row.client_relationship   || '',

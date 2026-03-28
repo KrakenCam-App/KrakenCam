@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from "
 import { supabase, getAuthHeaders } from "./lib/supabase";
 import { loadSettingsFromDB, saveSettingsToDB, stripBinary } from "./lib/settingsSync";
 import { uploadOrgLogo, uploadUserAvatar } from "./lib/uploadImage";
-import { updateTeamMember, removeUser as dbRemoveUser } from "./lib/team";
+import { createTeamMember, updateTeamMember, removeUser as dbRemoveUser } from "./lib/team";
 import { useAuth } from "./components/AuthProvider.jsx";
 import {
   getProjects     as dbGetProjects,
@@ -2617,7 +2617,19 @@ function ProjectModal({ project, teamUsers = [], settings = {}, onSave, onClose 
     city:                project?.city               || "",
     state:               project?.state               || "",
     zip:                 project?.zip                 || "",
-    clientName:          project?.clientName          || "",
+    // Prefer stored split fields; fall back to parsing the legacy single clientName for old records
+    clientFirstName: (() => {
+      if (project?.clientFirstName) return project.clientFirstName;
+      if (!project?.clientName)     return "";
+      const parts = project.clientName.trim().split(/\s+/);
+      return parts.length > 1 ? parts.slice(0, -1).join(' ') : parts[0] || "";
+    })(),
+    clientLastName: (() => {
+      if (project?.clientLastName)  return project.clientLastName;
+      if (!project?.clientName)     return "";
+      const parts = project.clientName.trim().split(/\s+/);
+      return parts.length > 1 ? parts[parts.length - 1] : "";
+    })(),
     clientEmail:         project?.clientEmail         || "",
     clientPhone:         project?.clientPhone         || "",
     clientRelationship:  project?.clientRelationship  || "",
@@ -2736,6 +2748,8 @@ function ProjectModal({ project, teamUsers = [], settings = {}, onSave, onClose 
     onSave({
       id: project?.id || `proj_${uid()}`,
       ...form,
+      // Derive combined clientName so project cards display correctly immediately
+      clientName: [form.clientFirstName, form.clientLastName].filter(Boolean).join(' '),
       rooms,
       teamMembers,
       assignedUserIds,
@@ -2946,7 +2960,10 @@ function ProjectModal({ project, teamUsers = [], settings = {}, onSave, onClose 
           {/* Client */}
           <div className="form-section">
             <div className="form-section-title"><Icon d={ic.user} size={15} stroke="var(--accent)" /> Client Information</div>
-            <div className="form-group"><label className="form-label">Client Name</label><input className="form-input" placeholder="Jane Smith" value={form.clientName} onChange={e => set("clientName", e.target.value)} /></div>
+            <div className="form-row">
+              <div className="form-group"><label className="form-label">First Name</label><input className="form-input" placeholder="Jane" value={form.clientFirstName} onChange={e => set("clientFirstName", e.target.value)} /></div>
+              <div className="form-group"><label className="form-label">Last Name</label><input className="form-input" placeholder="Smith" value={form.clientLastName} onChange={e => set("clientLastName", e.target.value)} /></div>
+            </div>
             <div className="form-row">
               <div className="form-group"><label className="form-label">Email</label><input className="form-input" placeholder="client@email.com" value={form.clientEmail} onChange={e => set("clientEmail", e.target.value)} /></div>
               <div className="form-group"><label className="form-label">Phone</label><input className="form-input" placeholder="(555) 000-0000" value={form.clientPhone} onChange={e => set("clientPhone", e.target.value)} /></div>
@@ -3243,7 +3260,7 @@ function ProjectsList({ projects, teamUsers = [], settings = {}, onSelect, onNew
   const filtered = projects
     .filter(p => !myOnly || (p.assignedUserIds||[]).includes(currentUserId))
     .filter(p => filterStatus === "all" || p.status === filterStatus)
-    .filter(p => !search || p.title.toLowerCase().includes(search.toLowerCase()) || p.address.toLowerCase().includes(search.toLowerCase()) || p.clientName.toLowerCase().includes(search.toLowerCase()))
+    .filter(p => !search || p.title.toLowerCase().includes(search.toLowerCase()) || p.address.toLowerCase().includes(search.toLowerCase()) || (p.clientName||"").toLowerCase().includes(search.toLowerCase()))
     .slice()
     .sort((a, b) => {
       const sort = settings.projectSort || "recent";
@@ -9669,7 +9686,165 @@ function ProjectActivityFeed({ project, onUpdateProject, settings }) {
 }
 
 // ── Project Detail (tabs: Overview, Photos, Rooms, Reports, Checklists) ────────
-function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onEdit, onOpenCamera, onEditPhoto, onUpdateProject, onOpenReportCreator, onSendVoiceNoteToChat, onSendFileToChat, onSendPhotoToChat, settings, orgId }) {
+// ── AI Project Overview ─────────────────────────────────────────────────────
+function AIProjectOverview({ project, settings, onSettingsChange, orgId, userId }) {
+  const [overviewData,    setOverviewData]    = useState(null);
+  const [loadingOverview, setLoadingOverview] = useState(true);
+  const [generating,      setGenerating]      = useState(false);
+  const [expanded,        setExpanded]        = useState(false);
+  const [genError,        setGenError]        = useState(null);
+  const supaUrl = import.meta.env.VITE_SUPABASE_URL;
+
+  useEffect(() => {
+    if (!orgId || !project?.id) return;
+    setLoadingOverview(true);
+    setOverviewData(null);
+    getAuthHeaders()
+      .then(h => fetch(
+        `${supaUrl}/rest/v1/project_ai_overviews?organization_id=eq.${orgId}&project_id=eq.${encodeURIComponent(String(project.id))}&select=overview_text,updated_at&order=updated_at.desc&limit=1`,
+        { headers: h }
+      ))
+      .then(r => r.ok ? r.json() : [])
+      .then(rows => { if (rows.length > 0) setOverviewData({ text: rows[0].overview_text, updatedAt: rows[0].updated_at }); })
+      .catch(() => {})
+      .finally(() => setLoadingOverview(false));
+  }, [project?.id, orgId]);
+
+  const handleGenerate = async () => {
+    const plan  = settings?.plan || "base";
+    const limit = PLAN_AI_LIMITS[plan] || 0;
+    if (limit === 0) { setGenError("AI features are not available on your current plan."); return; }
+    const curWin  = getWeekWindowStart();
+    const wStart  = settings?.aiGenerationsWindowStart ? new Date(settings.aiGenerationsWindowStart) : null;
+    const valid   = wStart && wStart >= curWin;
+    const usedNow = valid ? (settings?.aiGenerationsUsed || 0) : 0;
+    if (usedNow >= limit) {
+      const reset = getNextResetDate();
+      setGenError(`Weekly limit reached (${limit} AI Generation Krakens). Resets ${reset.toLocaleDateString("en-US", { weekday:"short", month:"short", day:"numeric" })} at 11:59 PM.`);
+      return;
+    }
+    setGenerating(true); setGenError(null);
+    try {
+      const rooms      = (project.rooms || []).map(r => r.name).join(", ") || "None";
+      const photoRooms = [...new Set((project.photos || []).map(p => p.room).filter(Boolean))].join(", ") || "None";
+      const checklists = (project.checklists || []).map(cl => {
+        const fields = cl.fields || [];
+        const done   = fields.filter(f => f.value || f.checked || f.response).length;
+        return `${cl.name} (${done}/${fields.length} items${cl.completedAt ? " \u2014 COMPLETED" : ""})`;
+      }).join("; ") || "None";
+      const reports    = (project.reports  || []).map(r => r.title || r.type || "Report").join(", ") || "None";
+      const voiceNotes = (project.voiceNotes || []).map(v => v.name || v.label || "Voice note").join(", ") || "None";
+      const actNotes   = (project.activity || []).filter(a => a.text || a.content).map(a => a.text || a.content || "").filter(Boolean).slice(0, 6).join(" | ") || "None";
+      const dateInsp   = project.dateInspection ? formatDate(project.dateInspection, settings) : "N/A";
+      const ctx = [
+        `Project Title: ${project.title}`,
+        `Project Type: ${project.type || "N/A"}`,
+        `Status: ${project.status || "Active"}`,
+        `Client: ${project.clientName || "N/A"}`,
+        `Date of Inspection/Assessment: ${dateInsp}`,
+        `Project Notes: ${project.notes || "None"}`,
+        `Rooms Documented: ${rooms}`,
+        `Photo Areas: ${photoRooms}`,
+        `Checklists: ${checklists}`,
+        `Reports Generated: ${reports}`,
+        `Voice Notes: ${voiceNotes}`,
+        `Activity/Field Notes: ${actNotes}`,
+      ].join("\n");
+
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const res = await fetch("/api/generate-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({
+          projectName:        project.title,
+          projectDescription: ctx,
+          photos:             [],
+          customPrompt: "Write a concise professional AI overview of this jobsite project in 1\u20132 paragraphs. Focus on: what the job entails, job type, key findings or observations, work completed or in progress, and any other notable details specific to this project. Do not mention photo counts or generic statistics. Use bullet points within the paragraphs for key findings if helpful. Keep it informative but concise \u2014 about 1\u20132 paragraphs total.",
+        }),
+      });
+      if (!res.ok) throw new Error(`API error ${res.status}`);
+      const data = await res.json();
+      const text = (data.report || data.text || "").trim();
+      if (!text) throw new Error("No content returned from AI");
+
+      const now = new Date().toISOString();
+      const h2  = await getAuthHeaders({ "Content-Type": "application/json", Prefer: "return=minimal" });
+      await fetch(`${supaUrl}/rest/v1/project_ai_overviews`, {
+        method: "POST", headers: h2,
+        body: JSON.stringify({ organization_id: orgId, project_id: String(project.id), overview_text: text, updated_at: now, updated_by: userId || null }),
+      });
+      setOverviewData({ text, updatedAt: now });
+
+      if (onSettingsChange) {
+        const curWin2 = getWeekWindowStart();
+        const wStart2 = settings?.aiGenerationsWindowStart ? new Date(settings.aiGenerationsWindowStart) : null;
+        const valid2  = wStart2 && wStart2 >= curWin2;
+        const used2   = valid2 ? (settings?.aiGenerationsUsed || 0) : 0;
+        onSettingsChange(prev => ({ ...prev, aiGenerationsUsed: used2 + 1, aiGenerationsWindowStart: valid2 ? prev.aiGenerationsWindowStart : curWin2.toISOString() }));
+      }
+    } catch (err) { setGenError(`Generation failed: ${err.message}`); }
+    finally { setGenerating(false); }
+  };
+
+  const lastUpdatedLabel = overviewData?.updatedAt
+    ? new Date(overviewData.updatedAt).toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" })
+      + " at " + new Date(overviewData.updatedAt).toLocaleTimeString("en-US", { hour:"2-digit", minute:"2-digit" })
+    : null;
+
+  return (
+    <div className="card" style={{ marginBottom:16 }}>
+      <div className="card-header" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
+        <span style={{ fontWeight:700, display:"flex", alignItems:"center", gap:7 }}>
+          <Icon d={ic.zap} size={14} stroke="var(--accent)" />
+          AI Project Overview
+        </span>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          {lastUpdatedLabel && (
+            <span style={{ fontSize:11.5, color:"var(--text3)" }}>Last updated: {lastUpdatedLabel}</span>
+          )}
+          <button className="btn btn-primary btn-sm" onClick={handleGenerate} disabled={generating}
+            style={{ display:"flex", alignItems:"center", gap:6 }}>
+            {generating
+              ? <><div style={{ width:11,height:11,border:"2px solid rgba(255,255,255,.4)",borderTop:"2px solid white",borderRadius:"50%",animation:"spin 0.7s linear infinite" }} />Updating\u2026</>
+              : <>&#10022; Update&nbsp;<span style={{ fontSize:10,fontWeight:700,background:"rgba(255,255,255,.2)",borderRadius:8,padding:"1px 6px" }}>1 Kraken</span></>}
+          </button>
+        </div>
+      </div>
+      <div className="card-body" style={{ padding:"14px 20px" }}>
+        {genError && (
+          <div style={{ fontSize:12.5,color:"#ff6b6b",background:"rgba(220,60,60,.08)",border:"1px solid rgba(220,60,60,.22)",borderRadius:8,padding:"8px 12px",marginBottom:10 }}>
+            {genError}
+          </div>
+        )}
+        {loadingOverview ? (
+          <div style={{ color:"var(--text3)",fontSize:13,textAlign:"center",padding:"18px 0" }}>Loading\u2026</div>
+        ) : overviewData ? (
+          <>
+            <div style={{ position:"relative" }}>
+              <div style={{ fontSize:13.5,lineHeight:1.75,color:"var(--text2)",whiteSpace:"pre-wrap",overflow:"hidden",maxHeight:expanded?"none":"6em" }}>
+                {overviewData.text}
+              </div>
+              {!expanded && (
+                <div style={{ position:"absolute",bottom:0,left:0,right:0,height:32,background:"linear-gradient(transparent, var(--surface))",pointerEvents:"none" }} />
+              )}
+            </div>
+            <button className="btn btn-ghost btn-sm" onClick={() => setExpanded(v => !v)}
+              style={{ marginTop:6,fontSize:12,color:"var(--accent)",padding:"3px 0" }}>
+              {expanded ? "\u2191 Show less" : "\u2193 Show more"}
+            </button>
+          </>
+        ) : (
+          <div style={{ fontSize:13,color:"var(--text3)",textAlign:"center",padding:"18px 0",lineHeight:1.6 }}>
+            No overview yet. Click <strong style={{ color:"var(--text2)" }}>Update</strong> to generate an AI summary of this jobsite \u2014 costs <strong style={{ color:"var(--accent)" }}>1 AI Generation Kraken</strong>.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onEdit, onOpenCamera, onEditPhoto, onUpdateProject, onOpenReportCreator, onSendVoiceNoteToChat, onSendFileToChat, onSendPhotoToChat, settings, onSettingsChange, orgId, userId }) {
   const _tabKey = `kc_tab_${project?.id}`;
   const _sketchKey = `kc_sketch_${project?.id}`;
   const [tab, setTab] = useState(() => {
@@ -9811,8 +9986,8 @@ function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onEdit, on
             </div>
             <div className="project-info-box">
               <div className="project-info-label"><Icon d={ic.clockIcon} size={11} /> Details</div>
-              <div className="project-info-value">{project.type}</div>
-              <div className="project-info-sub">Created {project.createdAt}</div>
+              <div className="project-info-value">{project.createdAt ? new Date(project.createdAt).toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" }) : "—"}</div>
+              <div className="project-info-sub">{project.type || ""}</div>
             </div>
           </div>
 
@@ -10046,6 +10221,15 @@ function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onEdit, on
               </div>
             );
           })()}
+
+          {/* AI Project Overview */}
+          <AIProjectOverview
+            project={project}
+            settings={settings}
+            onSettingsChange={onSettingsChange}
+            orgId={orgId}
+            userId={userId}
+          />
 
           <div className="grid-2">
             <div className="card">
@@ -11157,14 +11341,14 @@ Write ONLY the report text content. No preamble, no "here is the text", no markd
     if (!prompt.trim() && !result) return;
     const plan  = settings?.plan || "base";
     const limit = PLAN_AI_LIMITS[plan] || 0;
-    if (limit === 0) { setError("AI Write requires Intelligence II or Command III."); return; }
+    if (limit === 0) { setError("AI Write is not available on your current plan."); return; }
     const wStart   = settings?.aiGenerationsWindowStart ? new Date(settings.aiGenerationsWindowStart) : null;
     const curWin   = getWeekWindowStart();
     const valid    = wStart && wStart >= curWin;
     const usedNow  = valid ? (settings?.aiGenerationsUsed || 0) : 0;
     if (usedNow >= limit) {
       const reset = getNextResetDate();
-      setError("Weekly AI limit reached (" + limit + " generations). Resets " + reset.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}) + " at 11:59 PM.");
+      setError("Weekly limit reached (" + limit + " AI Generation Krakens). Resets " + reset.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}) + " at 11:59 PM.");
       return;
     }
     setLoading(true); setError("");
@@ -16696,7 +16880,7 @@ const PRICING = {
   },
 };
 const PLAN_NAMES = { base: "Capture I", pro: "Intelligence II", command: "Command III" };
-const PLAN_AI_LIMITS   = { base: 0, pro: 75, command: 1000 }; // weekly generations per account (0 = no AI)
+const PLAN_AI_LIMITS   = { base: 5, pro: 75, command: 1000 }; // weekly Krakens per account
 const PLAN_CHAT_LIMITS     = { base: 4, pro: 15, command: 50  }; // max chat groups per account
 const PLAN_CALENDAR_USERS  = { base: 10, pro: 25, command: Infinity }; // max users visible on calendar
 const PLAN_VIDEO_LIMIT_SECS = { base: 90, pro: 360, command: 720 }; // max video recording seconds (90s=1.5min, 360s=6min, 720s=12min)
@@ -17711,6 +17895,7 @@ function InviteUserButton({ canEdit }) {
 }
 
 function AccountPage({ settings, onSettingsChange, projects, users, onUsersChange, onProjectsChange, onNotify }) {
+  const { profile: acctAuthProfile } = useAuth();
   const [tab, setTab]         = useState("team");
   const [editingUser, setEditingUser] = useState(null);
   const [addingUser, setAddingUser]   = useState(false);
@@ -17731,7 +17916,6 @@ function AccountPage({ settings, onSettingsChange, projects, users, onUsersChang
   const currentPlan   = settings?.plan || "base";
   const isCommand     = currentPlan === "command";
   const isPro         = currentPlan === "pro" || isCommand;
-  const hasAI         = currentPlan === "pro" || currentPlan === "command";
   const cycle         = settings?.billingCycle || "monthly";
   const prices        = PRICING[cycle][currentPlan] || PRICING[cycle].base;
   const adminSeat     = prices.admin;
@@ -17748,6 +17932,7 @@ function AccountPage({ settings, onSettingsChange, projects, users, onUsersChang
 
   // AI generation tracking — reset if window has expired
   const aiLimit       = PLAN_AI_LIMITS[currentPlan] || 0;
+  const hasAI         = aiLimit > 0;
   const windowStart   = settings?.aiGenerationsWindowStart ? new Date(settings.aiGenerationsWindowStart) : null;
   const currentWindowStart = getWeekWindowStart();
   const windowExpired = !windowStart || windowStart < currentWindowStart;
@@ -17797,12 +17982,23 @@ function AccountPage({ settings, onSettingsChange, projects, users, onUsersChang
     };
     const exists = users.find(x => x.id === normalizedUser.id);
     onUsersChange(exists ? users.map(x => x.id===normalizedUser.id ? normalizedUser : x) : [...users, normalizedUser]);
-    // Persist to Supabase profiles table (pass previous email so auth email can be updated if changed)
+    // Persist to Supabase profiles table
     if (normalizedUser.email) {
-      const previousEmail = exists?.email || null;
-      updateTeamMember(normalizedUser, previousEmail).catch(err =>
-        console.warn("[KrakenCam] Failed to save team member:", err.message || err)
-      );
+      if (!exists) {
+        // Brand-new user — insert a pending profile (no auth account yet)
+        const orgId = acctAuthProfile?.organization_id;
+        if (orgId) {
+          createTeamMember(normalizedUser, orgId).catch(err =>
+            console.warn("[KrakenCam] Failed to create team member:", err.message || err)
+          );
+        }
+      } else {
+        // Existing user — update their profile (pass previous email so auth email can be updated if changed)
+        const previousEmail = exists.email || null;
+        updateTeamMember(normalizedUser, previousEmail).catch(err =>
+          console.warn("[KrakenCam] Failed to save team member:", err.message || err)
+        );
+      }
     }
 
     // Sync user.assignedProjects → each project's assignedUserIds
@@ -17977,7 +18173,7 @@ function AccountPage({ settings, onSettingsChange, projects, users, onUsersChang
           ))}
         </div>
 
-        {/* AI Generations usage box — shown for admins/managers on AI-enabled plans */}
+        {/* AI Generation Krakens usage box — shown for admins/managers on AI-enabled plans */}
         {hasAI && (
           <div style={{ marginTop:12,background:"var(--surface)",border:`1px solid ${aiRemaining===0?"#e85a3a44":isCommand?"#2b7fe844":isPro?"#a855f744":"#3dba7e44"}`,borderRadius:"var(--radius)",padding:"14px 18px",display:"flex",alignItems:"center",gap:16 }}>
             {/* Icon */}
@@ -17988,7 +18184,7 @@ function AccountPage({ settings, onSettingsChange, projects, users, onUsersChang
             <div style={{ flex:1,minWidth:0 }}>
               <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5 }}>
                 <div style={{ fontWeight:700,fontSize:13,color:"var(--text)" }}>
-                  AI Generations — {PLAN_NAMES[currentPlan]}
+                  AI Generation Krakens — {PLAN_NAMES[currentPlan]}
                 </div>
                 <div style={{ fontSize:12,fontWeight:800,color:aiRemaining===0?"#e85a3a":isCommand?"#2b7fe8":isPro?"#a855f7":"#3dba7e" }}>
                   {aiRemaining === 0 ? "⚠ Limit reached" : `${aiRemaining} remaining`}
@@ -18783,7 +18979,7 @@ function AccountPage({ settings, onSettingsChange, projects, users, onUsersChang
                   {cycle==="annual" && <div style={{ fontSize:10,color:"#3dba7e",fontWeight:700,marginBottom:2 }}>Save ${(PRICING.monthly.base.admin-PRICING.annual.base.admin)*12}/yr</div>}
                   <div style={{ fontSize:11.5,color:"var(--text2)",fontWeight:500,marginBottom:10 }}>admin · +${PRICING[cycle].base.user}/user/mo</div>
                   <div style={{ display:"flex",flexDirection:"column",gap:4,marginBottom:10 }}>
-                    {["All core features","Unlimited projects","Video capture (1.5 mins)","Team Chat (4 groups)","Calendar (up to 10 users)","AI Report Writer","5 AI generations/week"].map(f=>(
+                    {["All core features","Unlimited projects","Video capture (1.5 mins)","Team Chat (4 groups)","Calendar (up to 10 users)","AI Report Writer","5 AI Generation Krakens/week"].map(f=>(
                       <div key={f} style={{ display:"flex",alignItems:"center",gap:5,fontSize:11,color:"var(--text2)" }}><Icon d={ic.check} size={10} stroke="#3dba7e" /> {f}</div>
                     ))}
                   </div>
@@ -18804,7 +19000,7 @@ function AccountPage({ settings, onSettingsChange, projects, users, onUsersChang
                   {cycle==="annual" && <div style={{ fontSize:10,color:"#3dba7e",fontWeight:700,marginBottom:2 }}>Save ${(PRICING.monthly.pro.admin-PRICING.annual.pro.admin)*12}/yr</div>}
                   <div style={{ fontSize:11.5,color:"#a855f7",fontWeight:500,marginBottom:10 }}>admin · +${PRICING[cycle].pro.user}/user/mo</div>
                   <div style={{ display:"flex",flexDirection:"column",gap:4,marginBottom:10 }}>
-                    {["Everything in Capture I","Before & After comparison","Video capture (6 mins)","Team Chat (15 groups)","Calendar (up to 25 users)","AI Report Writer","75 AI generations/week"].map(f=>(
+                    {["Everything in Capture I","Before & After comparison","Video capture (6 mins)","Team Chat (15 groups)","Calendar (up to 25 users)","AI Report Writer","75 AI Generation Krakens/week"].map(f=>(
                       <div key={f} style={{ display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#a855f7" }}><Icon d={ic.check} size={10} stroke="#a855f7" /> {f}</div>
                     ))}
                   </div>
@@ -18830,7 +19026,7 @@ function AccountPage({ settings, onSettingsChange, projects, users, onUsersChang
                   {cycle==="annual" && <div style={{ fontSize:10,color:"#3dba7e",fontWeight:700,marginBottom:2 }}>Save ${(PRICING.monthly.command.admin-PRICING.annual.command.admin)*12}/yr</div>}
                   <div style={{ fontSize:11.5,color:"#2b7fe8",fontWeight:500,marginBottom:10 }}>admin · +${PRICING[cycle].command.user}/user/mo</div>
                   <div style={{ display:"flex",flexDirection:"column",gap:4,marginBottom:10 }}>
-                    {["Everything in Intelligence II","Video capture (12 mins)","Team Chat (50 groups)","Calendar (unlimited users)","1,000 AI generations/week","Client Portal (desktop only)"].map(f=>(
+                    {["Everything in Intelligence II","Video capture (12 mins)","Team Chat (50 groups)","Calendar (unlimited users)","1,000 AI Generation Krakens/week","Client Portal (desktop only)"].map(f=>(
                       <div key={f} style={{ display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#2b7fe8" }}><Icon d={ic.check} size={10} stroke="#2b7fe8" /> {f}</div>
                     ))}
                   </div>
@@ -18975,7 +19171,7 @@ function AccountPage({ settings, onSettingsChange, projects, users, onUsersChang
                       <div style={{ fontWeight:800,fontSize:16 }}>Upgrade to {toPlanName}</div>
                     </div>
                     <div style={{ fontSize:13,color:"var(--text2)",lineHeight:1.6 }}>
-                      {isToCommand ? "1,000 AI generations/week and all Command features" : "75 AI generations/week and Intelligence features"} unlock immediately. You are only charged for the remaining days in your current billing cycle.
+                      {isToCommand ? "1,000 AI Generation Krakens/week and all Command features" : "75 AI Generation Krakens/week and Intelligence features"} unlock immediately. You are only charged for the remaining days in your current billing cycle.
                     </div>
                   </div>
                   <div style={{ padding:"16px 24px" }}>
@@ -20783,9 +20979,13 @@ function TemplatesPage({ projects, onUseTemplate, templates: templatesProp, onTe
 
     const handleSave = () => {
       if (!name.trim()) return;
+      // Always generate a real UUID: uid() produces a short non-UUID string that
+      // fails Supabase's uuid column. Also re-generate for default templates
+      // whose IDs are integers (1-6) so they get proper UUIDs on first save.
+      const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       const saved = {
         ...base,
-        id: isNew ? uid() : base.id,
+        id: (isNew || !UUID_RE.test(String(base.id))) ? crypto.randomUUID() : base.id,
         name: name.trim(), type, desc, recipient,
         color: colorForType(type),
         sections: Object.fromEntries(ALL_SECTIONS.map(s => [s, { enabled: secEnabled[s], text: secText[s]||"" }])),
@@ -21402,6 +21602,16 @@ const { profile: authProfile, user: authUser, loading: authLoading } = useAuth()
 useEffect(() => {
   setAuthKey(k => k + 1);
 }, [authProfile?.user_id]);
+  // ── Persist AI generation usage immediately when Kraken count changes ──
+  const prevAiUsed = useRef(undefined);
+  useEffect(() => {
+    const cur = settings?.aiGenerationsUsed;
+    if (cur === undefined || cur === prevAiUsed.current) return;
+    prevAiUsed.current = cur;
+    const orgId  = authProfile?.organization_id;
+    const userId = authProfile?.user_id;
+    if (orgId || userId) saveSettingsToDB(orgId, userId, settings).catch(() => {});
+  }, [settings?.aiGenerationsUsed]);
   // ── One-time migration: push localStorage projects to Supabase ───────────
   // Runs once when authenticated. Finds projects that exist in localStorage
   // but not in Supabase and saves them. Safe to run repeatedly.
@@ -21497,7 +21707,19 @@ useEffect(() => {
             }
             return { ...row, photos: mergedPhotos };
           });
-          setProjects(merged);
+          // Use functional update to preserve secondary-loaded data (sketches, voiceNotes, videos)
+          // that live in separate tables and are NOT returned by getProjects().
+          // Without this, every time loadProjectsFromDB() runs (e.g. on auth cycle), it wipes
+          // those arrays back to [] — causing the "tabs show no items" intermittent bug.
+          setProjects(prev => merged.map(newProj => {
+            const oldProj = prev.find(p => p.id === newProj.id);
+            return {
+              ...newProj,
+              sketches:   oldProj?.sketches?.length   ? oldProj.sketches   : newProj.sketches,
+              voiceNotes: oldProj?.voiceNotes?.length ? oldProj.voiceNotes : newProj.voiceNotes,
+              videos:     oldProj?.videos?.length     ? oldProj.videos     : newProj.videos,
+            };
+          }));
         }
       } catch (err) {
         console.warn("[KrakenCam] Could not load projects from Supabase:", err.message || err);
@@ -21528,7 +21750,11 @@ useEffect(() => {
             return [...prev, {
               id: r.id, title: r.title || "Untitled Project",
               address: r.address || "", city: r.city || "", state: r.state || "", zip: r.zip || "",
-              clientName: r.client_name || "", type: r.type || "", status: r.status || "active",
+              clientFirstName: r.client_first_name || "", clientLastName: r.client_last_name || "",
+              clientName: (r.client_first_name || r.client_last_name)
+                ? [r.client_first_name, r.client_last_name].filter(Boolean).join(' ')
+                : (r.client_name || ""),
+              type: r.type || "", status: r.status || "active",
               notes: r.notes || "", color: r.color || "#4a90d9", createdAt: r.created_at || "",
               photos: [], rooms: [], reports: [], videos: [], voiceNotes: [],
               sketches: [], files: [], checklists: [], tasks: [],
@@ -22110,7 +22336,10 @@ useEffect(() => {
     if (activeProject?.id === id) { setActiveProject(null); setPage("projects"); }
 
     // ── Remove from Supabase (fire-and-forget) ──
-    if (authProfile?.organization_id) {
+    // Guard: only call the DB if `id` is a real UUID — demo/seed projects use
+    // ids like "proj_1" which PostgreSQL rejects with a 400 type-mismatch error.
+    const isRealUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    if (authProfile?.organization_id && isRealUuid) {
       dbDeleteProject(id).catch(err =>
         console.warn("[KrakenCam] Failed to delete project from DB:", err.message || err)
       );
@@ -22767,7 +22996,9 @@ useEffect(() => {
               onSendFileToChat={sendProjectFileToDirectMessage}
               onSendPhotoToChat={sendProjectPhotoToChat}
               settings={settings}
+              onSettingsChange={setSettings}
               orgId={authProfile?.organization_id}
+              userId={authProfile?.user_id}
             />
           )}
           {page === "camera" && (
@@ -22829,16 +23060,24 @@ useEffect(() => {
                 const url = import.meta.env.VITE_SUPABASE_URL;
                 // Upsert all templates with full data
                 getAuthHeaders({ 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' }).then(headers => {
+                  // Only upsert templates with valid UUIDs — default templates
+                  // have integer IDs (1-6) which PostgreSQL rejects on a uuid column.
+                  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                  const toSave = newTemplates.filter(t => UUID_RE.test(String(t.id || '')));
+                  if (!toSave.length) return;
                   fetch(`${url}/rest/v1/report_templates?on_conflict=id`, {
                     method: 'POST', headers,
-                    body: JSON.stringify(newTemplates.map(t => ({
+                    body: JSON.stringify(toSave.map(t => ({
                       id: t.id,
                       organization_id: orgId,
                       name: t.name,
                       type: t.type || '',
                       color: t.color || '#4a90d9',
-                      // Store extra fields in sections._meta until ALTER TABLE adds columns
-                      sections: { ...(t.sections || {}), _meta: { desc: t.desc || '', recipient: t.recipient || 'Client', coverImg: (!t.coverImg || t.coverImg.startsWith('data:')) ? null : t.coverImg, signatureImg: (!t.signatureImg || t.signatureImg.startsWith('data:')) ? null : t.signatureImg } },
+                      description: t.desc || '',
+                      recipient: t.recipient || 'Client',
+                      cover_img: (!t.coverImg || t.coverImg.startsWith('data:')) ? null : t.coverImg,
+                      signature_img: (!t.signatureImg || t.signatureImg.startsWith('data:')) ? null : t.signatureImg,
+                      sections: Object.fromEntries(Object.entries(t.sections || {}).filter(([k]) => k !== '_meta')),
                       updated_at: new Date().toISOString(),
                     }))),
                   }).catch(() => {});

@@ -69,6 +69,47 @@ export async function removeUser(profileId) {
 }
 
 /**
+ * Create a new team member profile in Supabase.
+ * Used when an admin adds a user before they have a Supabase Auth account.
+ *
+ * @param {Object} user  - User form data.
+ * @param {string} orgId - Organization ID (UUID) from the admin's profile.
+ */
+export async function createTeamMember(user, orgId) {
+  const patch = {
+    organization_id:   orgId,
+    role:              user.role        || 'user',
+    full_name:         `${user.firstName||''} ${user.lastName||''}`.trim(),
+    first_name:        user.firstName   || '',
+    last_name:         user.lastName    || '',
+    email:             user.email       || '',
+    phone:             user.phone       || '',
+    mobile:            user.mobile      || '',
+    title:             user.title       || '',
+    department:        user.department  || '',
+    employee_id:       user.employeeId  || '',
+    start_date:        user.startDate   || '',
+    status:            user.status      || 'active',
+    is_active:         user.status !== 'inactive',
+    notes:             user.notes       || '',
+    certifications:    user.certifications    || [],
+    permissions:       user.permissions       || {},
+    assigned_projects: user.assignedProjects  || [],
+    address_street:    user.address     || '',
+    address_city:      user.city        || '',
+    address_state:     user.state       || '',
+    address_zip:       user.zip         || '',
+  };
+
+  // Upsert on (organization_id, email) so re-submitting doesn't duplicate
+  const { error } = await supabase
+    .from('profiles')
+    .upsert(patch, { onConflict: 'organization_id,email' });
+
+  if (error) throw error;
+}
+
+/**
  * Update a team member's full profile in Supabase.
  * If email changed, also updates Supabase Auth login email via edge function.
  */
