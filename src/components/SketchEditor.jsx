@@ -1288,7 +1288,7 @@ export function ProjectActivityFeed({ project, onUpdateProject, settings }) {
 
   // Photos
   (project.photos || []).forEach(p => {
-    if (p.date) events.push({ id:`ph-${p.id}`, type:"photo", date:p.date, time:p.time||"", icon:"ð·", label:"Photo captured", detail: `${p.name || "Photo"}${p.room ? ` Â· ${p.room}` : ""}` });
+    if (p.date) events.push({ id:`ph-${p.id}`, type:"photo", date:p.date, time:p.time||"", icon:"ð·", label:"Photo captured", detail: `${p.name || "Photo"}${p.room ? ` · ${p.room}` : ""}` });
   });
 
   // Videos
@@ -1393,7 +1393,7 @@ export function ProjectActivityFeed({ project, onUpdateProject, settings }) {
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
                   <span style={{ fontSize:13, fontWeight:600, color:"var(--text)" }}>{ev.label}</span>
-                  <span style={{ fontSize:11, color:"var(--text3)" }}>{ev.date}{ev.time ? ` Â· ${ev.time}` : ""}</span>
+                  <span style={{ fontSize:11, color:"var(--text3)" }}>{ev.date}{ev.time ? ` · ${ev.time}` : ""}</span>
                 </div>
                 <div style={{ fontSize:13, color:"var(--text2)", marginTop:3, lineHeight:1.5, wordBreak:"break-word" }}>
                   {ev.detail}
@@ -1403,7 +1403,7 @@ export function ProjectActivityFeed({ project, onUpdateProject, settings }) {
               {ev.deletable && (
                 <button onClick={() => deleteNote(ev._raw.id)} style={{ background:"none", border:"none", color:"var(--text3)", cursor:"pointer", padding:"2px 4px", flexShrink:0, opacity:.6, fontSize:16, lineHeight:1 }}
                   onMouseEnter={e => e.currentTarget.style.opacity=1}
-                  onMouseLeave={e => e.currentTarget.style.opacity=0.6}>Ã</button>
+                  onMouseLeave={e => e.currentTarget.style.opacity=0.6}>×</button>
               )}
             </div>
           ))}

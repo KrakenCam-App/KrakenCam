@@ -463,7 +463,7 @@ export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) 
               </div>
             </div>
             <div style={{ fontSize:12,color:"rgba(255,255,255,.6)",marginBottom:10 }}>
-              ð¬ Duration: {fmtTime(recSeconds)} Â· {gps ? `GPS: ${gps.lat}, ${gps.lng}` : "No GPS"}
+              ð¬ Duration: {fmtTime(recSeconds)} · {gps ? `GPS: ${gps.lat}, ${gps.lng}` : "No GPS"}
             </div>
             <div style={{ display:"flex",gap:10 }}>
               <button className="btn btn-secondary" style={{ flex:1 }} onClick={discardVideo}>Discard</button>
@@ -554,7 +554,7 @@ export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) 
             <span style={{ fontSize:20 }}>ð</span>
             <span style={{ fontSize:13,color:"white",fontWeight:500 }}>Turn off rotation lock for landscape photos</span>
             <button onClick={() => { setShowRotateTip(false); localStorage.setItem("kc_rotate_tip_seen","1"); }}
-              style={{ background:"none",border:"none",color:"rgba(255,255,255,0.6)",fontSize:18,cursor:"pointer",padding:"0 0 0 4px",lineHeight:1 }}>Ã</button>
+              style={{ background:"none",border:"none",color:"rgba(255,255,255,0.6)",fontSize:18,cursor:"pointer",padding:"0 0 0 4px",lineHeight:1 }}>×</button>
 
           </div>
         )}
@@ -619,7 +619,7 @@ export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) 
             </div>
             <div style={{ fontSize:11,color:"rgba(255,255,255,.55)" }}>
               {session.filter(s=>!s.isVideo).length} photo{session.filter(s=>!s.isVideo).length!==1?"s":""}
-              {session.filter(s=>s.isVideo).length > 0 && ` Â· ${session.filter(s=>s.isVideo).length} video${session.filter(s=>s.isVideo).length!==1?"s":""}`} captured
+              {session.filter(s=>s.isVideo).length > 0 && ` · ${session.filter(s=>s.isVideo).length} video${session.filter(s=>s.isVideo).length!==1?"s":""}`} captured
             </div>
           </div>
         )}
@@ -696,7 +696,7 @@ export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) 
             </div>
             {mode === "photo" && (
               <div style={{ display:"flex",flexDirection:"column",alignItems:"center",gap:3 }}>
-                <span style={{ fontSize:10,color:"rgba(255,255,255,.6)",fontWeight:600 }}>{zoom.toFixed(1)}Ã</span>
+                <span style={{ fontSize:10,color:"rgba(255,255,255,.6)",fontWeight:600 }}>{zoom.toFixed(1)}×</span>
                 <input type="range" className="zoom-slider" min="1" max="5" step="0.1" value={zoom} onChange={e => setZoom(+e.target.value)} />
               </div>
             )}
@@ -1316,7 +1316,7 @@ export function ImageEditor({ photo, onClose, onSave }) {
                     <text x={cx + cw/2} y={cy + ch/2} textAnchor="middle" dominantBaseline="middle"
                       fill="white" fontSize="12" fontFamily="sans-serif"
                       style={{ textShadow:"0 1px 3px rgba(0,0,0,0.8)" }}>
-                      {Math.round(Math.abs(cropRect.w))} Ã {Math.round(Math.abs(cropRect.h))}
+                      {Math.round(Math.abs(cropRect.w))} × {Math.round(Math.abs(cropRect.h))}
                     </text>
                   )}
                 </svg>

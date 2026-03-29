@@ -379,7 +379,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                 <div>
                   <div style={{ fontWeight:600,fontSize:13.5,marginBottom:6 }}>Company Logo</div>
                   <div style={{ fontSize:12.5,color:"var(--text2)",marginBottom:12,lineHeight:1.6 }}>
-                    Appears in the nav sidebar and on all generated reports.<br />Recommended: PNG with transparent background, min 200Ã200px.
+                    Appears in the nav sidebar and on all generated reports.<br />Recommended: PNG with transparent background, min 200×200px.
                   </div>
                   <div style={{ display:"flex",gap:8 }}>
                     <button className="btn btn-secondary btn-sm" onClick={() => logoRef.current?.click()}>
@@ -756,7 +756,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                       }
                       <div>
                         <div style={{ fontWeight:700,fontSize:14,color:"#111" }}>{form.companyName || "Your Company"}</div>
-                        <div style={{ fontSize:11,color:"#666" }}>{form.phone} Â· {form.email}</div>
+                        <div style={{ fontSize:11,color:"#666" }}>{form.phone} · {form.email}</div>
                       </div>
                     </div>
                     <div style={{ textAlign:"right",fontSize:11,color:"#666",lineHeight:1.8 }}>
@@ -768,7 +768,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                 </div>
               </div>
               <div className="form-group"><label className="form-label">Header Title (e.g. "Property Inspection Report")</label><input className="form-input" value={form.reportHeaderTitle} onChange={e => set("reportHeaderTitle", e.target.value)} placeholder="Property Inspection Report" /></div>
-              <div className="form-group"><label className="form-label">Header Tagline / Note (optional)</label><input className="form-input" value={form.reportHeaderNote} onChange={e => set("reportHeaderNote", e.target.value)} placeholder="Licensed & Insured Â· Serving the Greater Denver Area" /></div>
+              <div className="form-group"><label className="form-label">Header Tagline / Note (optional)</label><input className="form-input" value={form.reportHeaderNote} onChange={e => set("reportHeaderNote", e.target.value)} placeholder="Licensed & Insured · Serving the Greater Denver Area" /></div>
             </div>
           </div>
 
@@ -781,9 +781,9 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                 <div style={{ fontSize:11,color:"var(--text3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10 }}>Footer Preview</div>
                 <div style={{ background:"white",borderRadius:8,padding:"12px 20px",color:"#222",borderTop:`2px solid ${form.accent}` }}>
                   <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10.5,color:"#666" }}>
-                    <span>{form.reportFooterLeft || form.companyName || "Your Company"} Â· {form.phone}</span>
+                    <span>{form.reportFooterLeft || form.companyName || "Your Company"} · {form.phone}</span>
                     <span style={{ color:form.accent,fontWeight:600 }}>{form.reportFooterCenter || "Confidential"}</span>
-                    <span>Page 1 of 1 Â· {formatDate(new Date().toISOString().slice(0,10), settings)}</span>
+                    <span>Page 1 of 1 · {formatDate(new Date().toISOString().slice(0,10), settings)}</span>
                   </div>
                   {form.reportFooterDisclaimer && <div style={{ marginTop:8,fontSize:9.5,color:"#aaa",lineHeight:1.5 }}>{form.reportFooterDisclaimer}</div>}
                 </div>
@@ -964,7 +964,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                 <label className="form-label">Custom HTML <span style={{ fontWeight:400,color:"var(--text3)" }}>(optional â added below signature)</span></label>
                 <textarea className="form-input form-textarea" style={{ minHeight:72,fontSize:12,fontFamily:"monospace" }}
                   value={form.emailSignatureCustomHtml||""} onChange={e=>set("emailSignatureCustomHtml",e.target.value)}
-                  placeholder={'<p style="color:#999">Licensed & Insured Â· CO License #12345</p>'} />
+                  placeholder={'<p style="color:#999">Licensed & Insured · CO License #12345</p>'} />
               </div>
             </div>
           </div>
@@ -1100,9 +1100,9 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                 <div style={{ fontSize:12,color:"var(--text2)",marginBottom:12,lineHeight:1.5 }}>Higher quality produces sharper images but larger file sizes.</div>
                 <div style={{ display:"flex",gap:8 }}>
                   {[
-                    { id:"low",      label:"Low",      desc:"720p Â· 50% JPEG",   icon:"ð" },
-                    { id:"moderate", label:"Moderate", desc:"1080p Â· 85% JPEG",  icon:"â¡" },
-                    { id:"high",     label:"High",     desc:"4K Â· 97% JPEG",     icon:"ð" },
+                    { id:"low",      label:"Low",      desc:"720p · 50% JPEG",   icon:"ð" },
+                    { id:"moderate", label:"Moderate", desc:"1080p · 85% JPEG",  icon:"â¡" },
+                    { id:"high",     label:"High",     desc:"4K · 97% JPEG",     icon:"ð" },
                   ].map(q => (
                     <div key={q.id} onClick={() => set("photoQuality", q.id)}
                       style={{ flex:1,border:`2px solid ${form.photoQuality===q.id?"var(--accent)":"var(--border)"}`,borderRadius:"var(--radius)",padding:"12px 10px",cursor:"pointer",background:form.photoQuality===q.id?"var(--accent-glow)":"var(--surface2)",transition:"all .15s",textAlign:"center" }}>
@@ -1216,7 +1216,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                     ["America/New_York",   "Eastern Time (UTCâ5)"],
                     ["America/Halifax",    "Atlantic Time (UTCâ4)"],
                     ["America/St_Johns",   "Newfoundland (UTCâ3:30)"],
-                    ["America/Sao_Paulo",  "BrasÃ­lia (UTCâ3)"],
+                    ["America/Sao_Paulo",  "Brasília (UTCâ3)"],
                     ["UTC",                "UTC (UTC+0)"],
                     ["Europe/London",      "London (UTC+0/+1)"],
                     ["Europe/Paris",       "Central European (UTC+1/+2)"],
@@ -1280,8 +1280,8 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                 <label className="form-label" style={{ marginBottom:8,display:"block" }}>Measurement Units</label>
                 <div style={{ display:"flex",gap:8 }}>
                   {[
-                    { id:"imperial", label:"Imperial", example:"ft, in, lbs, Â°F", icon:"ðºð¸" },
-                    { id:"metric",   label:"Metric",   example:"m, cm, kg, Â°C",   icon:"ð" },
+                    { id:"imperial", label:"Imperial", example:"ft, in, lbs, °F", icon:"ðºð¸" },
+                    { id:"metric",   label:"Metric",   example:"m, cm, kg, °C",   icon:"ð" },
                   ].map(u => (
                     <div key={u.id} onClick={() => set("units", u.id)}
                       style={{ flex:1,border:`2px solid ${form.units===u.id?"var(--accent)":"var(--border)"}`,borderRadius:"var(--radius-sm)",padding:"12px 16px",cursor:"pointer",background:form.units===u.id?"var(--accent-glow)":"var(--surface2)",transition:"all .15s",textAlign:"center" }}>
@@ -1352,13 +1352,13 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                   </a>
                 </div>
                 <div style={{ fontSize:11.5,color:"var(--text3)" }}>
-                  ð§ support@krakencam.com &nbsp;Â·&nbsp; info@krakencam.com
+                  ð§ support@krakencam.com &nbsp;·&nbsp; info@krakencam.com
                 </div>
               </div>
 
               <div style={{ borderTop:"1px solid var(--border)",paddingTop:14,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8 }}>
                 <div style={{ fontSize:11.5,color:"var(--text3)" }}>
-                  Â© {new Date().getFullYear()} KrakenCam Inc. All rights reserved.
+                  © {new Date().getFullYear()} KrakenCam Inc. All rights reserved.
                 </div>
                 <div style={{ display:"flex",gap:12 }}>
                   <a href="https://www.krakencam.com/privacy-policy" target="_blank" rel="noopener noreferrer" style={{ fontSize:11.5,color:"var(--text3)",textDecoration:"underline" }}>Privacy Policy</a>

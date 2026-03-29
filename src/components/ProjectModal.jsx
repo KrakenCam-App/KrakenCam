@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { supabase } from "../lib/supabase";
 import { Icon, ic, RoomIcon } from "../utils/icons.jsx";
-import { hasPermissionLevel, getEffectivePermissions, getPermissionPolicies } from "../utils/constants.js";
+import { hasPermissionLevel, getEffectivePermissions, getPermissionPolicies, FIELD_TYPES } from "../utils/constants.js";
 import { uid, today , ROOM_ICONS, ROOM_COLORS, STATUS_META, normaliseStatuses, getStatusMeta, ROLE_META
 } from "../utils/helpers.js";
 
@@ -545,7 +545,7 @@ export function ProjectModal({ project, teamUsers = [], settings = {}, onSave, o
                 <div key={r} style={{ display:"flex",alignItems:"center",gap:8,background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:20,padding:"4px 10px 4px 8px",fontSize:0 }}>
                   <span>{ROOM_ICONS[r]||"ð¦"}</span>
                   <RoomIconBadge name={r} size={14} box={28} /><span style={{ fontSize:13 }}>{r}</span>
-                  <span style={{ color:"var(--text3)",cursor:"pointer",marginLeft:2,fontSize:12,lineHeight:1 }} onClick={() => removeRoom(r)}>Ã</span>
+                  <span style={{ color:"var(--text3)",cursor:"pointer",marginLeft:2,fontSize:12,lineHeight:1 }} onClick={() => removeRoom(r)}>×</span>
                 </div>
               ))}
             </div>
@@ -806,15 +806,7 @@ export function ProjectsList({ projects, teamUsers = [], settings = {}, onSelect
   );
 }
 
-// ââ Checklist System ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-
-const FIELD_TYPES = [
-  { id:"checkbox",       label:"Single Checkbox",    icon:"â" },
-  { id:"multi_checkbox", label:"Multi Checkbox",     icon:"ââ" },
-  { id:"dropdown",       label:"Dropdown",           icon:"â¾" },
-  { id:"text",           label:"Text Answer",        icon:"â" },
-  { id:"yesno",          label:"Yes / No",           icon:"Y/N" },
-  { id:"number",         label:"Number",             icon:"#" },
-];
+// ── Checklist System ─────────────────────────────────────────────────────────
+// FIELD_TYPES imported from utils/constants.js
 
 // Default checklist templates available to all projects

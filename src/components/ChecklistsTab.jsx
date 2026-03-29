@@ -4,7 +4,7 @@ import { uploadVoiceNote as dbUploadVoiceNote, deleteVoiceNote as dbDeleteVoiceN
 import { deleteVideo as dbDeleteVideo } from "../lib/videos.js";
 import { deleteProjectFile as dbDeleteProjectFile } from "../lib/projectFiles.js";
 import { Icon, ic } from "../utils/icons.jsx";
-import { hasPermissionLevel, getEffectivePermissions, DEFAULT_CL_TEMPLATES, getPermissionPolicies } from "../utils/constants.js";
+import { hasPermissionLevel, getEffectivePermissions, DEFAULT_CL_TEMPLATES, getPermissionPolicies, FIELD_TYPES } from "../utils/constants.js";
 import { uid, formatDate, formatDateTimeLabel, today, buildEmbedCode, formatDurationLabel , isPortalApprovedItem, filterPortalApprovedItems, withPortalFilteredProject, getPortalItemDateValue, formatPortalRelativeLabel, buildPortalActivity, formatFileSizeLabel, getFileExtension, isPreviewableFile, inferProjectFileKind, normaliseProjectFile, parseTagInput, decodeDataUrlText
 } from "../utils/helpers.js";
 import { getAuthHeaders } from "../lib/supabase.js";
@@ -83,8 +83,8 @@ function LegacyChecklistsTab({ project, onUpdateProject }) {
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontWeight:700, fontSize:14, marginBottom:2 }}>{cl.name}</div>
                     <div style={{ fontSize:12, color:"var(--text2)" }}>
-                      {done}/{total} items Â· {cl.createdAt}
-                      {cl.assignee && <span style={{ marginLeft:8, color:"var(--text3)" }}>Â· {cl.assignee}</span>}
+                      {done}/{total} items · {cl.createdAt}
+                      {cl.assignee && <span style={{ marginLeft:8, color:"var(--text3)" }}>· {cl.assignee}</span>}
                     </div>
                   </div>
                   <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20,
@@ -150,7 +150,7 @@ function LegacyChecklistsTab({ project, onUpdateProject }) {
                         <span style={{ fontWeight:700, fontSize:13.5 }}>{t.name}</span>
                         <span style={{ fontSize:10, padding:"1px 6px", borderRadius:10, background:`${catColor}22`, color:catColor, fontWeight:600 }}>{t.category||"General"}</span>
                       </div>
-                      <div style={{ fontSize:12, color:"var(--text2)", marginTop:2 }}>{t.desc} Â· {t.fields.length} fields</div>
+                      <div style={{ fontSize:12, color:"var(--text2)", marginTop:2 }}>{t.desc} · {t.fields.length} fields</div>
                       {(t.tags||[]).length > 0 && (
                         <div style={{ display:"flex", gap:4, flexWrap:"wrap", marginTop:4 }}>
                           {(t.tags||[]).map(tag => <span key={tag} style={{ fontSize:10, padding:"1px 6px", borderRadius:8, background:"var(--surface3)", color:"var(--text3)" }}>#{tag}</span>)}
@@ -234,7 +234,7 @@ function LegacyChecklistRunner({ checklist, onSave, onBack }) {
         <button className="btn btn-ghost btn-sm" onClick={onBack}><Icon d={ic.arrowLeft} size={14} /> Back</button>
         <div style={{ flex:1, minWidth:150 }}>
           <div style={{ fontWeight:700, fontSize:16 }}>{cl.name}</div>
-          <div style={{ fontSize:12, color:"var(--text2)", marginTop:2 }}>{complete}/{total} completed Â· {pct}%</div>
+          <div style={{ fontSize:12, color:"var(--text2)", marginTop:2 }}>{complete}/{total} completed · {pct}%</div>
         </div>
         <div style={{ display:"flex", gap:8, marginLeft:"auto" }}>
           <button className="btn btn-sm btn-secondary" onClick={() => onSave({ ...cl, status:"in_progress" })}>Save Draft</button>
@@ -401,7 +401,7 @@ function LegacyChecklistBuilder({ checklist, onSave, onBack }) {
                 <div style={{ fontSize:13, fontWeight:600 }}>{f.label}{f.required && <span style={{ color:"var(--accent)",marginLeft:4 }}>*</span>}</div>
                 <div style={{ fontSize:11.5, color:"var(--text3)", marginTop:1 }}>
                   {FIELD_TYPES.find(t=>t.id===f.type)?.label}
-                  {f.options?.length > 0 && ` Â· ${f.options.length} options`}
+                  {f.options?.length > 0 && ` · ${f.options.length} options`}
                 </div>
               </div>
               <button className="btn btn-ghost btn-icon btn-sm" onClick={()=>removeField(f.id)}><Icon d={ic.trash} size={13} stroke="#ff6b6b" /></button>
@@ -597,7 +597,7 @@ export function ChecklistsTab({ project, onUpdateProject }) {
                   <div style={{ width:44, height:44, borderRadius:10, background:`conic-gradient(var(--accent) ${pct*3.6}deg, var(--surface2) 0)`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><div style={{ width:34, height:34, borderRadius:8, background:"var(--surface)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700, color:"var(--accent)" }}>{pct}%</div></div>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontWeight:700, fontSize:14, marginBottom:2 }}>{cl.name}</div>
-                    <div style={{ fontSize:12, color:"var(--text2)" }}>{done}/{total} items Â· {cl.createdAt}{cl.assignee && <span style={{ marginLeft:8, color:"var(--text3)" }}>Â· {cl.assignee}</span>}</div>
+                    <div style={{ fontSize:12, color:"var(--text2)" }}>{done}/{total} items · {cl.createdAt}{cl.assignee && <span style={{ marginLeft:8, color:"var(--text3)" }}>· {cl.assignee}</span>}</div>
                     <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:8 }}>
                       <span className="tag tag-blue">{roomsUsed.length} room{roomsUsed.length!==1?"s":""}</span>
                       <span className="tag tag-orange">{evidence} evidence</span>
@@ -626,7 +626,7 @@ export function ChecklistsTab({ project, onUpdateProject }) {
                 {templates.map(t => (
                   <div key={t.id} onClick={() => startFromTemplate(t)} style={{ padding:"12px 14px", border:"1px solid var(--border)", borderRadius:"var(--radius-sm)", cursor:"pointer", display:"flex", alignItems:"center", gap:12, background:"var(--surface2)" }}>
                     <div style={{ width:36, height:36, borderRadius:8, background:"var(--accent-glow)", border:"1px solid var(--accent)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0 }}>ð</div>
-                    <div style={{ flex:1 }}><div style={{ fontWeight:700, fontSize:13.5 }}>{t.name}</div><div style={{ fontSize:12, color:"var(--text2)", marginTop:2 }}>{t.desc} Â· {t.fields.length} fields</div></div>
+                    <div style={{ flex:1 }}><div style={{ fontWeight:700, fontSize:13.5 }}>{t.name}</div><div style={{ fontSize:12, color:"var(--text2)", marginTop:2 }}>{t.desc} · {t.fields.length} fields</div></div>
                     <Icon d={ic.chevRight} size={14} stroke="var(--text3)" />
                   </div>
                 ))}
@@ -738,7 +738,7 @@ function ChecklistRunner({ checklist, project, onSave, onBack }) {
     <div>
       <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20, flexWrap:"wrap" }}>
         <button className="btn btn-ghost btn-sm" onClick={onBack}><Icon d={ic.arrowLeft} size={14} /> Back</button>
-        <div style={{ flex:1, minWidth:150 }}><div style={{ fontWeight:700, fontSize:16 }}>{cl.name}</div><div style={{ fontSize:12, color:"var(--text2)", marginTop:2 }}>{complete}/{total} completed Â· {pct}% Â· {failedCount} failed Â· {openIssues} issues</div></div>
+        <div style={{ flex:1, minWidth:150 }}><div style={{ fontWeight:700, fontSize:16 }}>{cl.name}</div><div style={{ fontSize:12, color:"var(--text2)", marginTop:2 }}>{complete}/{total} completed · {pct}% · {failedCount} failed · {openIssues} issues</div></div>
         <div style={{ display:"flex", gap:8, marginLeft:"auto", flexWrap:"wrap" }}>
           {isLocked && <button className="btn btn-sm btn-secondary" onClick={() => setCl(prev => ({ ...prev, status:"in_progress", completedAt:null }))}>Reopen Checklist</button>}
           <button className="btn btn-sm btn-secondary" onClick={() => { try { localStorage.removeItem(_draftKey); } catch {} onSave({ ...cl, status:isLocked ? "complete" : "in_progress" }); }}>Save Draft</button>
@@ -760,7 +760,7 @@ function ChecklistRunner({ checklist, project, onSave, onBack }) {
             <div>
               <div style={{ fontSize:14, fontWeight:700 }}>Completion Workflow</div>
               <div style={{ fontSize:12, color:"var(--text2)", marginTop:2 }}>
-                {completionSettings.requireSignature ? "Signature required" : "Signature optional"} Â· {completionSettings.lockAfterComplete === false ? "Remains editable" : "Locks after complete"}
+                {completionSettings.requireSignature ? "Signature required" : "Signature optional"} · {completionSettings.lockAfterComplete === false ? "Remains editable" : "Locks after complete"}
               </div>
             </div>
             {cl.completedAt && <span className="tag tag-green">Completed {cl.completedAt}</span>}
@@ -947,7 +947,7 @@ function ChecklistBuilder({ checklist, rooms = [], onSave, onBack }) {
                 <button onClick={()=>moveField(f.id,1)} disabled={i===(cl.fields||[]).length-1} style={{ background:"none",border:"none",cursor:i===(cl.fields||[]).length-1?"default":"pointer",color:i===(cl.fields||[]).length-1?"var(--border)":"var(--text3)",lineHeight:1,padding:0,fontSize:11 }}>â¼</button>
               </div>
               <div style={{ width:28, height:28, borderRadius:6, background:"var(--surface2)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, flexShrink:0 }}>{FIELD_TYPES.find(t=>t.id===f.type)?.icon || "?"}</div>
-              <div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:13, fontWeight:600 }}>{f.label}{f.required && <span style={{ color:"var(--accent)",marginLeft:4 }}>*</span>}</div><div style={{ fontSize:11.5, color:"var(--text3)", marginTop:1 }}>{FIELD_TYPES.find(t=>t.id===f.type)?.label}{f.options?.length > 0 && ` Â· ${f.options.length} options`}{` Â· ${f.room || "General"}`}</div><div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:6 }}>{f.requireCommentOnFail && <span className="tag tag-orange">Comment on fail</span>}{f.requireEvidenceOnFail && <span className="tag tag-blue">Evidence on fail</span>}{f.createIssueOnFail !== false && <span className="tag tag-purple">Punchlist on fail</span>}</div></div>
+              <div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:13, fontWeight:600 }}>{f.label}{f.required && <span style={{ color:"var(--accent)",marginLeft:4 }}>*</span>}</div><div style={{ fontSize:11.5, color:"var(--text3)", marginTop:1 }}>{FIELD_TYPES.find(t=>t.id===f.type)?.label}{f.options?.length > 0 && ` · ${f.options.length} options`}{` · ${f.room || "General"}`}</div><div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:6 }}>{f.requireCommentOnFail && <span className="tag tag-orange">Comment on fail</span>}{f.requireEvidenceOnFail && <span className="tag tag-blue">Evidence on fail</span>}{f.createIssueOnFail !== false && <span className="tag tag-purple">Punchlist on fail</span>}</div></div>
               <button className="btn btn-ghost btn-icon btn-sm" onClick={()=>removeField(f.id)}><Icon d={ic.trash} size={13} stroke="#ff6b6b" /></button>
             </div>
           </div>
@@ -1216,7 +1216,7 @@ function TemplateManagerModal({ templates, setTemplates, onClose }) {
                       <span style={{ fontWeight:700, fontSize:13 }}>{t.name}</span>
                       <span style={{ fontSize:10, padding:"1px 7px", borderRadius:10, background:`${catColor}22`, color:catColor, fontWeight:600, border:`1px solid ${catColor}44` }}>{t.category||"General"}</span>
                     </div>
-                    <div style={{ fontSize:11.5, color:"var(--text3)", marginTop:2 }}>{t.fields.length} fields Â· {t.desc}</div>
+                    <div style={{ fontSize:11.5, color:"var(--text3)", marginTop:2 }}>{t.fields.length} fields · {t.desc}</div>
                     {(t.tags||[]).length > 0 && (
                       <div style={{ display:"flex", gap:4, flexWrap:"wrap", marginTop:4 }}>
                         {(t.tags||[]).map(tag => (
@@ -1249,7 +1249,7 @@ function TemplateManagerModal({ templates, setTemplates, onClose }) {
                   <button onClick={() => removeCategory(cat)} title={`Remove ${cat}`}
                     style={{ background:"none", border:"none", cursor:"pointer", color, opacity:.7, fontSize:13, lineHeight:1, padding:"0 1px", display:"flex", alignItems:"center" }}
                     onMouseEnter={e=>e.currentTarget.style.opacity=1}
-                    onMouseLeave={e=>e.currentTarget.style.opacity=0.7}>Ã</button>
+                    onMouseLeave={e=>e.currentTarget.style.opacity=0.7}>×</button>
                 </div>
               );
             })}
@@ -1314,7 +1314,7 @@ export function ReportsTab({ project, onUpdateProject, onOpenReportCreator, sett
   return (
     <div>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,gap:10 }}>
-        <div style={{ fontSize:13,color:"var(--text2)" }}>{filteredReports.length} of {reports.length} report{reports.length!==1?"s":""}{selected.size>0&&<span style={{ marginLeft:8,color:"var(--accent)",fontWeight:600 }}> Â· {selected.size} selected</span>}</div>
+        <div style={{ fontSize:13,color:"var(--text2)" }}>{filteredReports.length} of {reports.length} report{reports.length!==1?"s":""}{selected.size>0&&<span style={{ marginLeft:8,color:"var(--accent)",fontWeight:600 }}> · {selected.size} selected</span>}</div>
         <div style={{ display:"flex",gap:8 }}>
           {REPORT_EMAIL_FEATURE_VISIBLE && selected.size > 0 && (
             <button className="btn btn-sm btn-secondary" onClick={() => setShowEmail(true)}>
@@ -1364,8 +1364,8 @@ export function ReportsTab({ project, onUpdateProject, onOpenReportCreator, sett
               <div style={{ flex:1 }}>
                 <div style={{ fontWeight:600,fontSize:13.5,marginBottom:2 }}>{r.title}</div>
                 <div style={{ fontSize:12,color:"var(--text2)" }}>
-                  {r.reportType||r.type} Â· {r.date} Â· {r.photos||0} photo{r.photos!==1?"s":""}
-                  {r.lastSentTo && <span style={{ marginLeft:8,color:"var(--text3)" }}>Â· Last sent to {r.lastSentTo}</span>}
+                  {r.reportType||r.type} · {r.date} · {r.photos||0} photo{r.photos!==1?"s":""}
+                  {r.lastSentTo && <span style={{ marginLeft:8,color:"var(--text3)" }}>· Last sent to {r.lastSentTo}</span>}
                 </div>
               </div>
               <span className={`tag tag-${r.status==="sent"?"green":r.status==="final"?"blue":r.status==="review"?"purple":"orange"}`}>{r.status}</span>
@@ -1510,7 +1510,7 @@ function SendEmailModal({ project, reports, settings, onClose, onSent }) {
                       <div key={r.email||r.name} style={{ display:"flex",alignItems:"center",gap:6,padding:"4px 10px",borderRadius:20,background:"var(--surface2)",border:"1px solid var(--border)",fontSize:12.5 }}>
                         <span style={{ fontWeight:600 }}>{r.name||r.email}</span>
                         {r.email && <span style={{ color:"var(--text3)" }}>&lt;{r.email}&gt;</span>}
-                        <button onClick={()=>removeRecipient(r.email)} style={{ background:"none",border:"none",cursor:"pointer",color:"var(--text3)",padding:0,lineHeight:1,fontSize:14 }}>Ã</button>
+                        <button onClick={()=>removeRecipient(r.email)} style={{ background:"none",border:"none",cursor:"pointer",color:"var(--text3)",padding:0,lineHeight:1,fontSize:14 }}>×</button>
                       </div>
                     ))}
                   </div>
@@ -1683,7 +1683,7 @@ export function VideosTab({ project, onUpdateProject, onOpenCamera, orgId }) {
                 <div style={{ fontWeight:700,fontSize:13.5,marginBottom:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{v.name}</div>
                 <div style={{ display:"flex",alignItems:"center",gap:6,fontSize:11.5,color:"var(--text3)",marginBottom:10 }}>
                   <Icon d={ic.clockIcon} size={11}/>{v.date}
-                  {v.gps && <><span>Â·</span><Icon d={ic.mapPin} size={11} stroke="#3dba7e"/><span style={{ color:"#3dba7e" }}>GPS</span></>}
+                  {v.gps && <><span>·</span><Icon d={ic.mapPin} size={11} stroke="#3dba7e"/><span style={{ color:"#3dba7e" }}>GPS</span></>}
                 </div>
                 <div style={{ display:"flex",gap:6 }}>
                   <button className="btn btn-ghost btn-sm" style={{ flex:1,justifyContent:"center" }} onClick={()=>setPlaying(v.id)}>
@@ -1713,7 +1713,7 @@ export function VideosTab({ project, onUpdateProject, onOpenCamera, orgId }) {
             <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",background:"#111",borderBottom:"1px solid #222" }}>
               <div style={{ fontWeight:700,fontSize:14,color:"white" }}>{playingVid.name}</div>
               <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-                <span style={{ fontSize:11.5,color:"rgba(255,255,255,.5)" }}>{playingVid.room} Â· {playingVid.date}{playingVid.duration!=null?` Â· ${fmtTime(playingVid.duration)}`:""}</span>
+                <span style={{ fontSize:11.5,color:"rgba(255,255,255,.5)" }}>{playingVid.room} · {playingVid.date}{playingVid.duration!=null?` · ${fmtTime(playingVid.duration)}`:""}</span>
                 <button className="btn btn-ghost btn-icon" style={{ color:"white",width:30,height:30 }} onClick={()=>setPlaying(null)}><Icon d={ic.close} size={16}/></button>
               </div>
             </div>

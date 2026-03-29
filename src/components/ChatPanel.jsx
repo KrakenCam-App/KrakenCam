@@ -617,7 +617,7 @@ export function ChatPanel({ chats, onChatsChange, teamUsers, settings, currentUs
                 }
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ fontSize:12, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{attachFile.name}</div>
-                  <div style={{ fontSize:11, color:"var(--text3)" }}>{attachFile.type?.startsWith("audio/") && attachFile.durationMs ? `${formatDurationLabel(attachFile.durationMs)} Â· ` : ""}{(attachFile.size/1024).toFixed(0)} KB</div>
+                  <div style={{ fontSize:11, color:"var(--text3)" }}>{attachFile.type?.startsWith("audio/") && attachFile.durationMs ? `${formatDurationLabel(attachFile.durationMs)} · ` : ""}{(attachFile.size/1024).toFixed(0)} KB</div>
                 </div>
                 <button className="btn btn-ghost btn-sm btn-icon" onClick={() => setAttachFile(null)}><Icon d={ic.close} size={14} /></button>
               </div>

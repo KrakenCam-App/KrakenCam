@@ -1,5 +1,5 @@
 // ââ Plan limits ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-const PLAN_AI_LIMITS   = { base: 5, pro: 75, command: 1000 }; // weekly Krakens per account
+const PLAN_AI_LIMITS   = { base: 10, pro: 75, command: 1000 }; // weekly Krakens per account
 const PLAN_CHAT_LIMITS     = { base: 4, pro: 15, command: 50  }; // max chat groups per account
 const PLAN_CALENDAR_USERS  = { base: 10, pro: 25, command: Infinity }; // max users visible on calendar
 const PLAN_VIDEO_LIMIT_SECS = { base: 90, pro: 360, command: 720 }; // max video recording seconds (90s=1.5min, 360s=6min, 720s=12min)
@@ -241,6 +241,16 @@ const DEFAULT_COLUMNS = [
   { id:"done",        label:"Done",         color:"#3dba7e" },
 ];
 
+// ── Checklist field types ────────────────────────────────────────────────────
+const FIELD_TYPES = [
+  { id:"checkbox",       label:"Single Checkbox",    icon:"☑"  },
+  { id:"multi_checkbox", label:"Multi Checkbox",     icon:"☑☑" },
+  { id:"dropdown",       label:"Dropdown",           icon:"▾"  },
+  { id:"text",           label:"Text Answer",        icon:"T"  },
+  { id:"yesno",          label:"Yes / No",           icon:"Y/N"},
+  { id:"number",         label:"Number",             icon:"#"  },
+];
+
 export {
   PLAN_AI_LIMITS, PLAN_CHAT_LIMITS, PLAN_CALENDAR_USERS, PLAN_VIDEO_LIMIT_SECS,
   PLAN_CALENDAR_RECUR, PLAN_CALENDAR_DISPATCH,
@@ -253,5 +263,6 @@ export {
   EMPTY_USER, EMPTY_CERT,
   DEFAULT_CLIENT_PORTAL, DEFAULT_ROOMS,
   TEMPLATES, DEFAULT_CL_TEMPLATES, DEFAULT_COLUMNS,
+  FIELD_TYPES,
   getWeekWindowStart, getNextResetDate,
 };

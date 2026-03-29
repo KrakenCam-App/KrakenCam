@@ -199,7 +199,7 @@ function TaskModal({ task, projects, teamUsers, settings, onSave, onClose, onNot
                   {form.tags.map(t=>(
                     <span key={t} style={{ display:"flex",alignItems:"center",gap:4,fontSize:12,background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:20,padding:"2px 10px" }}>
                       <Icon d={ic.tag} size={11} stroke="var(--accent)"/>{t}
-                      <span style={{ cursor:"pointer",color:"var(--text3)",marginLeft:2,fontSize:13,lineHeight:1 }} onClick={()=>set("tags",form.tags.filter(x=>x!==t))}>Ã</span>
+                      <span style={{ cursor:"pointer",color:"var(--text3)",marginLeft:2,fontSize:13,lineHeight:1 }} onClick={()=>set("tags",form.tags.filter(x=>x!==t))}>×</span>
                     </span>
                   ))}
                 </div>
@@ -303,7 +303,7 @@ function TaskModal({ task, projects, teamUsers, settings, onSave, onClose, onNot
                     }
                     <div style={{ flex:1,minWidth:0 }}>
                       <div style={{ fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{att.name}</div>
-                      <div style={{ fontSize:11,color:"var(--text3)" }}>{(att.size/1024).toFixed(0)} KB Â· {new Date(att.addedAt).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>
+                      <div style={{ fontSize:11,color:"var(--text3)" }}>{(att.size/1024).toFixed(0)} KB · {new Date(att.addedAt).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>
                     </div>
                     {att.type?.startsWith("image/") && (
                       <a href={att.dataUrl} download={att.name} className="btn btn-ghost btn-sm btn-icon" title="Download" style={{ width:30,height:30 }}><Icon d={ic.arrowUpRight} size={14}/></a>
@@ -593,7 +593,7 @@ function CommentInput({ value, onChange, onPost, mentionables }) {
                 </div>
                 <div>
                   <div style={{ fontWeight:700,fontSize:13 }}>{u.firstName} {u.lastName}</div>
-                  <div style={{ fontSize:11,color:"var(--text2)" }}>{m.label}{u.title?` Â· ${u.title}`:""}</div>
+                  <div style={{ fontSize:11,color:"var(--text2)" }}>{m.label}{u.title?` · ${u.title}`:""}</div>
                 </div>
                 <span style={{ marginLeft:"auto",fontSize:10.5,color:m.color,fontWeight:700,padding:"1px 7px",background:`${m.color}15`,borderRadius:10 }}>{m.label}</span>
               </div>
@@ -939,7 +939,7 @@ export function AnalyticsDashboard({ projects, tasks, teamUsers, settings, onClo
                 <div style={{ flex:1,minWidth:0 }}>
                   <div style={{ fontWeight:800,fontSize:14 }}>{fullName(mvk)}</div>
                   <div style={{ fontSize:11.5,color:"var(--text3)",marginTop:2 }}>
-                    {mvk.photosTotal} photos Â· {mvk.reportsTotal} reports Â· {mvk.tasksCompleted} tasks done
+                    {mvk.photosTotal} photos · {mvk.reportsTotal} reports · {mvk.tasksCompleted} tasks done
                   </div>
                 </div>
                 <div style={{ flexShrink:0,textAlign:"right" }}>
@@ -959,7 +959,7 @@ export function AnalyticsDashboard({ projects, tasks, teamUsers, settings, onClo
                   <div style={{ fontSize:12,fontWeight:800,color:idx===0?"var(--accent)":"var(--text3)" }}>#{idx + 1}</div>
                   <div style={{ minWidth:0 }}>
                     <div style={{ fontSize:12.5,fontWeight:700,color:"var(--text)" }}>{fullName(u)}</div>
-                    <div style={{ fontSize:10.5,color:"var(--text3)" }}>{u.reportsTotal} reports Â· {u.tasksCompleted} tasks Â· {u.photosTotal} photos</div>
+                    <div style={{ fontSize:10.5,color:"var(--text3)" }}>{u.reportsTotal} reports · {u.tasksCompleted} tasks · {u.photosTotal} photos</div>
                   </div>
                   <div style={{ fontSize:12.5,fontWeight:800,color:"var(--accent)" }}>{u.score.toFixed(1)}</div>
                 </div>
@@ -983,7 +983,7 @@ export function AnalyticsDashboard({ projects, tasks, teamUsers, settings, onClo
                         {fullName(u)}
                         {u.id===mvk?.id && mvk?.score>0 && <span style={{ fontSize:10 }}>ð¦</span>}
                       </div>
-                      <div style={{ fontSize:11,color:"var(--text3)",textTransform:"capitalize" }}>{u.role} Â· {u.activeProjects} active jobs</div>
+                      <div style={{ fontSize:11,color:"var(--text3)",textTransform:"capitalize" }}>{u.role} · {u.activeProjects} active jobs</div>
                     </div>
                     <div style={{ fontSize:13,fontWeight:700,color:"var(--text3)" }}>{u.score.toFixed(1)} pts</div>
                   </div>
@@ -1052,7 +1052,7 @@ export function AnalyticsDashboard({ projects, tasks, teamUsers, settings, onClo
 
           {/* Scoring key */}
           <div style={{ fontSize:10.5,color:"var(--text3)",padding:"10px 14px",background:"var(--surface2)",borderRadius:8,border:"1px solid var(--border)",lineHeight:1.7 }}>
-            <strong style={{ color:"var(--text2)" }}>Scoring:</strong> Photo = 0.25 pts Â· Report = 10 pts Â· Task completed = 3 pts
+            <strong style={{ color:"var(--text2)" }}>Scoring:</strong> Photo = 0.25 pts · Report = 10 pts · Task completed = 3 pts
             <br />
             <strong style={{ color:"var(--text2)" }}>KPIs tracked:</strong> active jobs, active reports, completed projects, overdue tasks, open issues, files, voice notes, and checklist closeouts.
           </div>
@@ -1328,7 +1328,7 @@ export function JobsiteMapPage({ projects, settings, onSelectProject }) {
     // Always use light tiles â dark tiles don't render clearly on jobsite maps
     const tileUrl = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
     L.tileLayer(tileUrl, {
-      attribution: 'Â© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> Â© <a href="https://carto.com/">CARTO</a>',
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
       maxZoom: 19,
     }).addTo(map);
 
@@ -1487,7 +1487,7 @@ pins.forEach(function(p){
           </span>
           {noCoords.length > 0 && (
             <span style={{ fontSize:11.5,color:"var(--text3)",marginLeft:4 }}>
-              Â· {noCoords.length} missing coordinates
+              · {noCoords.length} missing coordinates
             </span>
           )}
         </div>
@@ -1616,7 +1616,7 @@ pins.forEach(function(p){
               </div>
               {/* Info row */}
               <div style={{ fontSize:12,color:"var(--text3)",marginBottom:10 }}>
-                <strong>{withCoords.length}</strong> location{withCoords.length!==1?"s":""} Â· Zoom and pan the live map first, then copy the code to capture that exact view.
+                <strong>{withCoords.length}</strong> location{withCoords.length!==1?"s":""} · Zoom and pan the live map first, then copy the code to capture that exact view.
               </div>
               {/* Code box */}
               <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6 }}>
@@ -1920,7 +1920,7 @@ export function TasksPage({ projects, teamUsers, settings, tasks, onTasksChange,
         <div>
           <div className="section-title" style={{ marginBottom:4 }}>Tasks</div>
           <div className="section-sub" style={{ marginBottom:0 }}>
-            {totalOpen} open Â· {totalDone} completed Â· {tasks.length} total
+            {totalOpen} open · {totalDone} completed · {tasks.length} total
           </div>
         </div>
         <div style={{ display:"flex",gap:8,alignItems:"center" }}>
