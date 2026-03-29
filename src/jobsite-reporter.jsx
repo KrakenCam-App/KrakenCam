@@ -2156,7 +2156,7 @@ useEffect(() => {
               </div>
               <div className="nav-footer-text">
                 <div style={{ fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{settings.userFirstName} {settings.userLastName}</div>
-                <div style={{ fontSize:11,color:"var(--text2)" }}>{settings?.plan==="command" ? "⬡ Command III" : settings?.plan==="pro" ? "✦ Intelligence II" : "Capture I"} � {settings?.billingCycle==="annual"?"Annual":"Monthly"}</div>
+                <div style={{ fontSize:11,color:"var(--text2)" }}>{settings?.plan==="command" ? "⬡ Command III" : settings?.plan==="pro" ? "✦ Intelligence II" : "Capture I"} &middot; {settings?.billingCycle==="annual"?"Annual":"Monthly"}</div>
               </div>
               {!navCollapsed && <div className="dot" />}
             </div>
@@ -2384,7 +2384,13 @@ useEffect(() => {
               catch(e) { console.warn("[KrakenCam] calEvents sync delete failed:", e.message); }
             });
           }} onNotify={addNotification} />}
-          {page === "account" && canOpenAccount && <AccountPage settings={settings} onSettingsChange={setSettings} projects={projects} users={teamUsers} onUsersChange={setTeamUsers} onProjectsChange={setProjects} onNotify={addNotification} />}
+          {page === "account" && canOpenAccount && <AccountPage settings={settings} onSettingsChange={s => {
+              setSettings(s);
+              // Persist to Supabase so Account Owner edits survive refresh
+              const orgId  = authProfile?.organization_id;
+              const userId = authProfile?.user_id;
+              if (orgId || userId) saveSettingsToDB(orgId, userId, s).catch(() => {});
+            }} projects={projects} users={teamUsers} onUsersChange={setTeamUsers} onProjectsChange={setProjects} onNotify={addNotification} />}
           {page === "settings" && canOpenSettings && (
             <SettingsPage settings={settings} onSave={s => {
               setSettings(s);
