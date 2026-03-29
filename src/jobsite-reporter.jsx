@@ -6762,7 +6762,7 @@ function BAPairCard({ pair, bPhoto, aPhoto, onDelete, settings }) {
 
   const companyLogo = settings?.logo || null;
 
-  const generateEmbed = () => buildEmbedCode(pair, bPhoto, aPhoto, maxWidth, showCompanyLogo ? companyLogo : null);
+  const generateEmbed = () => buildEmbedCode(pair, bPhoto, aPhoto, maxWidth, showCompanyLogo ? companyLogo : null, KRAKENCAM_LOGO);
 
   const copyEmbed = () => {
     const code = generateEmbed();
