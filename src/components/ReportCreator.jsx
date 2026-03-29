@@ -8,7 +8,7 @@ import {
   formatFileSizeLabel, inferProjectFileKind
 } from "../utils/helpers.js";
 
-// ââ Report Pages (paginated preview) ââââââââââââââââââââââââââââââââââââââââââ
+// ── Report Pages (paginated preview) ──────────────────────────────────────────
 // Estimates block heights and splits them into 8.5Ã11 pages (816Ã1056px at 96dpi).
 // Header/footer on each page consume fixed space; remaining body space is filled
 // block by block. A block that is too tall to fit starts a new page.
@@ -274,7 +274,7 @@ export function BlockRenderer({ block, showGps, showTimestamp, showRooms, showTa
   return null;
 }
 
-// ââ Scaled preview wrapper â measures its container and zooms pages to fit ââ
+// ── Scaled preview wrapper — measures its container and zooms pages to fit ──
 export function ScaledReportPreview(props) {
   const wrapRef = useRef(null);
   const [scale, setScale] = useState(1);
@@ -315,7 +315,7 @@ export function ScaledReportPreview(props) {
 export function ReportPages({ title, reportType, reportDate, reportTime, accentColor, project, coverPhoto, blocks, settings, showCoverInfo, showGps, showTimestamp, showRooms, showTags, gridClass, forPrint = false }) {
   const today = reportDate ? formatDate(reportDate, settings) : formatDate(new Date().toISOString().slice(0,10), settings);
 
-  // ââ Page 1: cover + property info (always fills exactly one page) ââ
+  // ── Page 1: cover + property info (always fills exactly one page) ──
   const page1 = (
     <div key="p1" style={{ width:PAGE_W,height:PAGE_H,background:"white",boxShadow:forPrint?"none":"0 4px 40px rgba(0,0,0,.6)",marginBottom:forPrint?0:2,fontFamily:"'Inter',system-ui,sans-serif",color:"#1a1a1a",display:"flex",flexDirection:"column",flexShrink:0,overflow:"hidden" }}>
       {/* Header */}
@@ -356,7 +356,7 @@ export function ReportPages({ title, reportType, reportDate, reportTime, accentC
           </div>
         )}
       </div>
-      {/* Property info â all fields */}
+      {/* Property info — all fields */}
       {(() => {
         const InfoRow = ({ label, value }) => value ? (
           <div>
@@ -444,7 +444,7 @@ export function ReportPages({ title, reportType, reportDate, reportTime, accentC
 
   if (blocks.length === 0) return <>{page1}</>;
 
-  // ââ Paginate content blocks ââ
+  // ── Paginate content blocks ──
   const PAGE_BODY_H = PAGE_H - HEADER_H - FOOTER_H;
   const pages = [];    // array of arrays of blocks
   let current = [];
@@ -504,7 +504,7 @@ export function ReportPages({ title, reportType, reportDate, reportTime, accentC
 }
 
 
-// ââ Signature Draw Modal ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── Signature Draw Modal ──────────────────────────────────────────────────────
 export function SignatureDrawModal({ onSave, onClose }) {
   const [mode, setMode] = useState("draw"); // "draw" | "upload"
   const canvasRef  = useRef(null);
@@ -599,7 +599,7 @@ export function SignatureDrawModal({ onSave, onClose }) {
                 />
               </div>
               <div style={{ display:"flex", justifyContent:"flex-end", marginTop:8 }}>
-                <button className="btn btn-ghost btn-sm" style={{ fontSize:12, color:"var(--text3)" }} onClick={clearCanvas}>â Clear</button>
+                <button className="btn btn-ghost btn-sm" style={{ fontSize:12, color:"var(--text3)" }} onClick={clearCanvas}>✕ Clear</button>
               </div>
             </div>
           ) : (
@@ -696,7 +696,7 @@ export function BlockInsertBar({ onAdd, prefix, extraLeft, extraRight }) {
   );
 }
 
-// ââ AI Writer Modal ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── AI Writer Modal ──────────────────────────────────────────────────────────
 export function AiWriterModal({ block, project, settings, onAccept, onClose, onUsageIncrement }) {
   const [prompt,    setPrompt]    = useState("");
   const [result,    setResult]    = useState("");
@@ -743,7 +743,7 @@ Write ONLY the report text content. No preamble, no "here is the text", no markd
       ? `Write the "${blockLabel}" section. Instructions: ${prompt}`
       : `Rewrite this text more professionally: ${result}`;
     try {
-      // ââ Proxy via Vercel serverless function (/api/generate-report) ââââââ
+      // ── Proxy via Vercel serverless function (/api/generate-report) ──────
       // This keeps ANTHROPIC_API_KEY server-side; never in the browser bundle.
       const { data: { session: _sess } } = await supabase.auth.getSession();
       const _token = _sess?.access_token || "";
@@ -794,7 +794,7 @@ Write ONLY the report text content. No preamble, no "here is the text", no markd
         <div style={{ flex:1,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:12 }}>
           {/* Prompt input */}
           <div>
-            <div style={{ fontSize:11.5,fontWeight:600,color:"var(--text2)",marginBottom:5 }}>Describe what you want â or press Generate for a smart draft</div>
+            <div style={{ fontSize:11.5,fontWeight:600,color:"var(--text2)",marginBottom:5 }}>Describe what you want — or press Generate for a smart draft</div>
             <div style={{ display:"flex",gap:8 }}>
               <input ref={promptRef} className="form-input" value={prompt} onChange={e=>setPrompt(e.target.value)} onKeyDown={handleKey}
                 placeholder={`e.g. "Water damage to ceiling joists from roof leak, moderate severity"`}
@@ -832,7 +832,7 @@ Write ONLY the report text content. No preamble, no "here is the text", no markd
           )}
           {result && (
             <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
-              <div style={{ fontSize:11.5,fontWeight:600,color:"var(--text2)" }}>Generated draft â edit before accepting:</div>
+              <div style={{ fontSize:11.5,fontWeight:600,color:"var(--text2)" }}>Generated draft — edit before accepting:</div>
               <textarea value={result} onChange={e=>setResult(e.target.value)}
                 style={{ width:"100%",minHeight:160,background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 14px",fontSize:13,lineHeight:1.75,fontFamily:"inherit",color:"var(--text)",resize:"vertical",outline:"none",boxSizing:"border-box" }} />
             </div>
@@ -853,11 +853,11 @@ Write ONLY the report text content. No preamble, no "here is the text", no markd
   );
 }
 
-// ââ AI Writer Upgrade Modal ââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── AI Writer Upgrade Modal ──────────────────────────────────────────────────
 export function AiWriterUpgradeModal({ onUpgrade, onClose, isAdmin, settings, users }) {
   const [confirming, setConfirming] = React.useState(false);
 
-  // Proration â only computed when admin hits "Upgrade"
+  // Proration — only computed when admin hits "Upgrade"
   const p = isAdmin ? calcProration(settings, users || [], "base", "pro") : null;
 
   return (
@@ -875,16 +875,16 @@ export function AiWriterUpgradeModal({ onUpgrade, onClose, isAdmin, settings, us
           </div>
           <div style={{ fontSize:13,color:"rgba(255,255,255,.82)",lineHeight:1.5 }}>
             {confirming
-              ? "Review the charges below â AI Write unlocks the moment you confirm."
+              ? "Review the charges below — AI Write unlocks the moment you confirm."
               : isAdmin
-                ? "AI Report Writer is included in Intelligence II and Command III â upgrade to unlock it for your whole team"
+                ? "AI Report Writer is included in Intelligence II and Command III — upgrade to unlock it for your whole team"
                 : "Ask your account admin to upgrade the plan to unlock this feature"}
           </div>
         </div>
 
         <div style={{ padding:"20px 24px 22px" }}>
 
-          {/* ââ Step 1: Feature overview ââ */}
+          {/* ── Step 1: Feature overview ── */}
           {!confirming && (
             <>
               <div style={{ display:"flex",flexDirection:"column",gap:9,marginBottom:18 }}>
@@ -936,7 +936,7 @@ export function AiWriterUpgradeModal({ onUpgrade, onClose, isAdmin, settings, us
                       <div>
                         <div style={{ fontWeight:700,fontSize:13,marginBottom:3 }}>Admin upgrade required</div>
                         <div style={{ fontSize:12,color:"var(--text2)",lineHeight:1.6 }}>
-                          Your account is on Capture I. Ask your admin to upgrade to Intelligence II or Command III in <strong>Account â Billing</strong>. AI Write will unlock immediately.
+                          Your account is on Capture I. Ask your admin to upgrade to Intelligence II or Command III in <strong>Account → Billing</strong>. AI Write will unlock immediately.
                         </div>
                       </div>
                     </div>
@@ -947,7 +947,7 @@ export function AiWriterUpgradeModal({ onUpgrade, onClose, isAdmin, settings, us
             </>
           )}
 
-          {/* ââ Step 2: Proration confirm (admin only) ââ */}
+          {/* ── Step 2: Proration confirm (admin only) ── */}
           {confirming && p && (
             <>
               <div style={{ background:"var(--surface2)",borderRadius:9,overflow:"hidden",border:"1px solid var(--border)",marginBottom:14,fontSize:12.5 }}>
@@ -974,7 +974,7 @@ export function AiWriterUpgradeModal({ onUpgrade, onClose, isAdmin, settings, us
                 <button className="btn btn-primary btn-sm" style={{ flex:2,background:"linear-gradient(135deg,#7c3aed,#a855f7)",border:"none",fontWeight:700,gap:6 }}
                   onClick={onUpgrade}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
-                  Confirm â Pay ${Math.max(0, p.netCharge)} now
+                  Confirm — Pay ${Math.max(0, p.netCharge)} now
                 </button>
               </div>
             </>
@@ -987,7 +987,7 @@ export function AiWriterUpgradeModal({ onUpgrade, onClose, isAdmin, settings, us
 }
 
 
-// ââ AI 1-Click Report Generator âââââââââââââââââââââââââââââââââââââââââââââ
+// ── AI 1-Click Report Generator ─────────────────────────────────────────────
 function parseAiOutputToBlocks(rawText) {
   const paras = rawText.split(/\n{2,}/);
   const out = [];
@@ -1086,7 +1086,7 @@ function AiOneClickModal({ project, settings, onGenerate, onClose, onUsageIncrem
                 <div style={{flex:1}}>
                   <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
                     <span style={{fontWeight:700,fontSize:13.5}}>{type.label}</span>
-                    <span style={{fontSize:11,fontWeight:700,color:"#a855f7",background:"rgba(168,85,247,.12)",padding:"2px 8px",borderRadius:20}}>â¡ {type.krakens} Krakens</span>
+                    <span style={{fontSize:11,fontWeight:700,color:"#a855f7",background:"rgba(168,85,247,.12)",padding:"2px 8px",borderRadius:20}}>⚡ {type.krakens} Krakens</span>
                   </div>
                   <div style={{fontSize:12,color:"var(--text2)",lineHeight:1.5}}>{type.desc}</div>
                 </div>
@@ -1119,7 +1119,7 @@ function AiOneClickModal({ project, settings, onGenerate, onClose, onUsageIncrem
             <button className="btn btn-sm" onClick={handleGenerate} disabled={!sel||loading}
               style={{background:"linear-gradient(135deg,#7c3aed,#a855f7)",color:"white",border:"none",gap:6,display:"flex",alignItems:"center",minWidth:130,justifyContent:"center",opacity:(!sel||loading)?0.65:1,padding:"6px 14px",borderRadius:7,fontWeight:700,fontSize:13,cursor:(!sel||loading)?"not-allowed":"pointer"}}>
               {loading
-                ?<><span style={{display:"inline-block",width:12,height:12,border:"2px solid rgba(255,255,255,.3)",borderTopColor:"white",borderRadius:"50%",animation:"spin .7s linear infinite"}}/> Generatingâ¦</>
+                ?<><span style={{display:"inline-block",width:12,height:12,border:"2px solid rgba(255,255,255,.3)",borderTopColor:"white",borderRadius:"50%",animation:"spin .7s linear infinite"}}/> Generating…</>
                 :<><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg> Generate Report</>
               }
             </button>
@@ -1136,7 +1136,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
   const photoLayout = settings?.reportPhotoLayout || "3 per row";
   const colMap = { "2 per row":"rp-photo-grid-2","3 per row":"rp-photo-grid-3","4 per row":"rp-photo-grid-4","Full width":"rp-photo-grid-2" };
 
-  // Derive cert codes for a signer name â looks up matching user in users array
+  // Derive cert codes for a signer name — looks up matching user in users array
   const getCertCodesForSigner = (name) => {
     if (!name || !users?.length) return [];
     const normalized = name.trim().toLowerCase();
@@ -1152,8 +1152,8 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
   const defaultSignerName = `${settings?.userFirstName||""} ${settings?.userLastName||""}`.trim();
   const defaultSignerCertCodes = getCertCodesForSigner(defaultSignerName);
 
-  // ââ Report meta ââ
-  const [title,       setTitle]       = useState(reportData?.title       || `${project.title} â Report`);
+  // ── Report meta ──
+  const [title,       setTitle]       = useState(reportData?.title       || `${project.title} — Report`);
   const [reportType,  setReportType]  = useState(reportData?.reportType  || settings?.defaultReportType || "Assessment");
   const [reportDate,  setReportDate]  = useState(reportData?.reportDate  || new Date().toLocaleDateString("en-CA")); // en-CA gives YYYY-MM-DD for date input
   const [reportTime,  setReportTime]  = useState(reportData?.reportTime  || "");
@@ -1161,7 +1161,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
   const [coverPhoto,  setCoverPhoto]  = useState(reportData?.coverPhoto  || null);
   const [selectedTpl, setSelectedTpl] = useState(null);
 
-  // ââ Display toggles (start from settings defaults) ââ
+  // ── Display toggles (start from settings defaults) ──
   const [showGps,       setShowGps]       = useState(settings?.reportShowGps !== "no");
   const [showTimestamp, setShowTimestamp] = useState(settings?.reportShowTimestamp !== "no");
   const [showRooms,     setShowRooms]     = useState(true);
@@ -1171,7 +1171,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
   const [showSigModal,  setShowSigModal]  = useState(false);
   const [signatureTargetId, setSignatureTargetId] = useState(null);
 
-  // ââ Content blocks ââ
+  // ── Content blocks ──
   const [blocks, setBlocks] = useState(reportData?.blocks || [
     { id:uid(), type:"text",   content:"" },
   ]);
@@ -1182,7 +1182,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
   const addBlockFileRef = useRef();
   const [addingPhotosToBlock, setAddingPhotosToBlock] = useState(null);
 
-  // ââ Photo picker state ââ
+  // ── Photo picker state ──
   const [photoPickerOpen, setPhotoPickerOpen] = useState(false);
   const [photoPickerTarget, setPhotoPickerTarget] = useState(null); // blockId or "cover"
   const [selectedProjectPhotos, setSelectedProjectPhotos] = useState([]);
@@ -1196,7 +1196,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
 
   const accentColor = settings?.accent || "#2b7fe8";
 
-  // Apply template â respects enabled sections and uses saved default text
+  // Apply template — respects enabled sections and uses saved default text
   const applyTemplate = (tpl) => {
     if (!tpl) return;
     setSelectedTpl(tpl);
@@ -1394,7 +1394,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
 
   const gridClass = colMap[photoLayout] || "rp-photo-grid-3";
 
-  // ââ Render ââ
+  // ── Render ──
   return (
     <>
     <div className="rc-wrap">
@@ -1411,7 +1411,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
           <button className="btn btn-secondary btn-sm" onClick={()=>setPreviewOpen(true)}><Icon d={ic.eye} size={13} /> Preview</button>
           {settings?.plan === "command" && (
             <button className="btn btn-sm" onClick={() => aiEnabled ? setShowAiOneClick(true) : setShowAiUpgrade(true)}
-              title="AI 1-Click Report Generator â Command Plan exclusive"
+              title="AI 1-Click Report Generator — Command Plan exclusive"
               style={{ background:"linear-gradient(135deg,#7c3aed,#a855f7)",color:"white",border:"none",display:"flex",alignItems:"center",gap:5,padding:"5px 12px",borderRadius:7,fontWeight:700,fontSize:13,cursor:"pointer" }}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
               1 Click
@@ -1444,7 +1444,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
         <span style={{ fontSize:11.5,fontWeight:600,color:"var(--text3)",whiteSpace:"nowrap" }}>TEMPLATE:</span>
         <select className="form-input form-select" style={{ width:180,padding:"4px 8px",fontSize:12 }}
           value={selectedTpl?.id||""} onChange={e => { const t=templates?.find(t=>t.id===parseInt(e.target.value)); applyTemplate(t); }}>
-          <option value="">â None / Custom â</option>
+          <option value="">— None / Custom —</option>
           {(templates||[]).map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
         <div style={{ marginLeft:"auto",display:"flex",gap:8 }}>
@@ -1454,7 +1454,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
       {/* Body */}
       <div className="rc-body">
 
-        {/* ââ Document canvas ââ */}
+        {/* ── Document canvas ── */}
         <div className="rc-canvas" onClick={()=>setSelectedBlock(null)}>
 
           {/* Cover photo */}
@@ -1511,7 +1511,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                 <div className="rp-section-title" style={{ "--sec-color":accentColor }}>Property &amp; Client Information</div>
                 <div className="rp-info-grid">
                   {[
-                    ["Property Address", [project.address,project.city,project.state,project.zip].filter(Boolean).join(", ")||"â"],
+                    ["Property Address", [project.address,project.city,project.state,project.zip].filter(Boolean).join(", ")||"—"],
                     ["Property Type",    project.propertyType],
                     ["Project #",        project.projectNumber],
                     ["Client",           project.clientName],
@@ -1690,7 +1690,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                           transition:"border-color .15s, background .15s" }}
                       />
                       {!block.content && editingBlock!==block.id && (
-                        <div style={{ position:"absolute",top:10,left:10,color:"#aaa",fontSize:(block.textStyle?.fontSize||12.5)+"px",pointerEvents:"none",fontStyle:"italic" }}>Click to type textâ¦</div>
+                        <div style={{ position:"absolute",top:10,left:10,color:"#aaa",fontSize:(block.textStyle?.fontSize||12.5)+"px",pointerEvents:"none",fontStyle:"italic" }}>Click to type text…</div>
                       )}
                       <button title="â¨ Write with AI" onClick={e=>{e.stopPropagation(); aiEnabled ? setAiWriterBlock(block.id) : setShowAiUpgrade(true);}}
                         style={{ position:"absolute",top:6,right:6,height:32,padding:"0 10px",borderRadius:7,border:"none",background:"linear-gradient(135deg,#2b7fe8,#1a5fc8)",display:"flex",alignItems:"center",justifyContent:"center",gap:5,cursor:"pointer",boxShadow:"0 2px 8px rgba(43,127,232,.45)",transition:"transform .1s,box-shadow .1s",whiteSpace:"nowrap" }}
@@ -1737,7 +1737,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                         <div style={{ marginTop:10,display:"flex",gap:8 }}>
                           <button className="btn btn-secondary btn-sm" onClick={e=>{e.stopPropagation();openPhotoPicker(block.id);}}><Icon d={ic.plus} size={12} /> Add Photos</button>
                           {editingBlock===block.id
-                            ? <input autoFocus value={block.caption||""} onChange={e=>updateBlock(block.id,{caption:e.target.value})} onBlur={()=>setEditingBlock(null)} style={{ flex:1,background:"#fafafa",border:"1px solid #ddd",borderRadius:4,padding:"4px 8px",fontSize:11.5,outline:"none" }} placeholder="Add captionâ¦" />
+                            ? <input autoFocus value={block.caption||""} onChange={e=>updateBlock(block.id,{caption:e.target.value})} onBlur={()=>setEditingBlock(null)} style={{ flex:1,background:"#fafafa",border:"1px solid #ddd",borderRadius:4,padding:"4px 8px",fontSize:11.5,outline:"none" }} placeholder="Add caption…" />
                             : <div style={{ fontSize:11,color:"#aaa",cursor:"text",padding:"4px 0",flex:1 }} onDoubleClick={()=>setEditingBlock(block.id)}>{block.caption||<span>Double-click to add caption</span>}</div>
                           }
                         </div>
@@ -1887,7 +1887,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                         {block.signatureImg && (
                           <button className="btn btn-ghost btn-sm" style={{ fontSize:11, color:"var(--text3)" }}
                             onClick={e => { e.stopPropagation(); updateBlock(block.id, { signatureImg: null }); }}>
-                            â Remove
+                            ✕ Remove
                           </button>
                         )}
                       </div>
@@ -1939,7 +1939,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                           value={block.baPairId||""}
                           onChange={e=>updateBlock(block.id,{baPairId:e.target.value||null})}
                           onClick={e=>e.stopPropagation()}>
-                          <option value="">â Choose a Before &amp; After pair â</option>
+                          <option value="">— Choose a Before &amp; After pair —</option>
                           {baPairs.map(p=><option key={p.id} value={p.id}>{p.name}{p.room?` Â· ${p.room}`:""}</option>)}
                         </select>
                       </div>
@@ -1958,7 +1958,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                           {editingBlock===block.id
                             ? <input autoFocus value={block.caption||""} onChange={e=>updateBlock(block.id,{caption:e.target.value})} onBlur={()=>setEditingBlock(null)}
                                 style={{ width:"100%",fontSize:11,color:"#888",background:"transparent",border:"none",borderBottom:"1px dashed #ccc",outline:"none",textAlign:"center" }}
-                                placeholder="Add captionâ¦" />
+                                placeholder="Add caption…" />
                             : <div style={{ fontSize:11,color:"#bbb",textAlign:"center",cursor:"text",fontStyle:"italic" }} onDoubleClick={()=>setEditingBlock(block.id)}>{block.caption||"Double-click to add caption"}</div>
                           }
                         </>
@@ -1989,7 +1989,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                         }
                         <div style={{ display:"flex",gap:8,marginTop:10,justifyContent:"center" }}>
                           <button className="btn btn-secondary btn-sm" style={{ fontSize:11 }} onClick={e=>{ e.stopPropagation(); updateBlock(block.id,{dataUrl:null}); }}>
-                            â Remove Image
+                            ✕ Remove Image
                           </button>
                         </div>
                       </div>
@@ -2048,7 +2048,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
 
                   return (
                     <div onClick={()=>setEditingBlock(block.id)}>
-                      {/* ââ Toolbar (only when active) ââ */}
+                      {/* ── Toolbar (only when active) ── */}
                       {isActive && (
                         <div className="tbl-toolbar" onClick={e=>e.stopPropagation()}>
                           {/* Title & heading toggles */}
@@ -2115,7 +2115,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                         </div>
                       )}
 
-                      {/* ââ Table itself ââ */}
+                      {/* ── Table itself ── */}
                       <div style={{padding:"18px 24px 22px",overflowX:"auto"}} onClick={e=>e.stopPropagation()}>
                         {/* Title + heading (view mode only; editing happens in toolbar) */}
                         {!isActive && (block.tableTitle || block.tableHeading) && (
@@ -2254,7 +2254,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                   <button className="btn btn-ghost btn-sm btn-icon" title="Delete block" onClick={e=>{e.stopPropagation();deleteBlock(block.id);}} style={{ color:"#e85a3a",padding:"2px 5px",flexShrink:0 }}><Icon d={ic.trash} size={13} /></button>
                 </>}
               />
-              {/* Text formatting toolbar â only for text/textphoto blocks */}
+              {/* Text formatting toolbar — only for text/textphoto blocks */}
               {(block.type==="text"||block.type==="textphoto"||block.type==="divider") && (() => {
                 const ts = block.textStyle || {};
                 const contentField = block.type==="text" ? "content" : block.type==="textphoto" ? "sideText" : "label";
@@ -2265,13 +2265,13 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                   const sel = window.getSelection();
                   const hasSelection = !isDivider && sel && sel.toString().length > 0;
                   if (hasSelection) {
-                    // Apply to selection â focus is preserved by onMouseDown preventDefault
+                    // Apply to selection — focus is preserved by onMouseDown preventDefault
                     document.execCommand(cmd, false, value || null);
                     // Persist HTML after execCommand modifies the DOM
                     const el = document.querySelector(`[data-block-id="${block.id}"]`);
                     if (el) updateBlock(block.id, { [contentField]: el.innerHTML });
                   } else {
-                    // No selection (or divider) â toggle block-level style
+                    // No selection (or divider) — toggle block-level style
                     const defaultBold = isDivider ? true : false;
                     const patch = {
                       bold:      cmd==="bold"      ? !(ts.bold??defaultBold) : (ts.bold??defaultBold),
@@ -2379,7 +2379,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
           </div>
         </div>
 
-        {/* ââ Right sidebar ââ */}
+        {/* ── Right sidebar ── */}
         <div className="rc-sidebar">
           <div className="rc-sidebar-section">
             <div className="rc-sidebar-title">Report Details</div>
@@ -2400,7 +2400,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                 {reportTime && (
                   <button onClick={() => setReportTime("")}
                     style={{ fontSize:11,color:"var(--text3)",background:"none",border:"none",cursor:"pointer",padding:"0 2px",lineHeight:1 }}>
-                    â Remove
+                    ✕ Remove
                   </button>
                 )}
               </div>
@@ -2443,7 +2443,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
         </div>
       </div>
 
-      {/* ââ Print layer â hidden normally, shown via @media print ââ */}
+      {/* ── Print layer — hidden normally, shown via @media print ── */}
       <div ref={printLayerRef} className={printing ? "print-layer print-layer--active" : "print-layer"}>
         <ReportPages
           title={title} reportType={reportType} reportDate={reportDate} reportTime={reportTime} accentColor={accentColor}
@@ -2456,13 +2456,13 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
 
     </div>{/* end rc-wrap */}
 
-    {/* ââ Modals rendered OUTSIDE rc-wrap so position:fixed isn't clipped ââ */}
-      {/* ââ Preview modal ââ */}
+    {/* ── Modals rendered OUTSIDE rc-wrap so position:fixed isn't clipped ── */}
+      {/* ── Preview modal ── */}
       {previewOpen && (
         <div style={{ position:"fixed",inset:0,zIndex:300,background:"rgba(0,0,0,.9)",display:"flex",flexDirection:"column",overflow:"hidden" }}>
           {/* Preview top bar */}
           <div style={{ height:52,background:"#0d1017",borderBottom:"1px solid #2a2f3e",display:"flex",alignItems:"center",padding:"0 16px",gap:10,flexShrink:0,flexWrap:"wrap" }}>
-            <div style={{ fontWeight:700,fontSize:14,color:"white",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>Print Preview â {title}</div>
+            <div style={{ fontWeight:700,fontSize:14,color:"white",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>Print Preview — {title}</div>
             <div style={{ fontSize:11,color:"#888",background:"#1a1e28",padding:"3px 10px",borderRadius:20,border:"1px solid #2a2f3e",flexShrink:0 }}>8.5â³ Ã 11â³</div>
             <button className="btn btn-secondary btn-sm" onClick={()=>_doPrint()} style={{ flexShrink:0 }} disabled={!canExportReports}><Icon d={ic.download} size={13} /> Export PDF</button>
             <button className="btn btn-secondary btn-sm btn-icon" title="Print" onClick={()=>_doPrint()} style={{ flexShrink:0 }} disabled={!canExportReports}><Icon d={ic.printer} size={13} /></button>
@@ -2612,7 +2612,7 @@ const ACCENT_PRESETS = [
   { name:"Coral",   value:"#f0614e" },
 ];
 
-// ââ TASKS PAGE âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── TASKS PAGE ───────────────────────────────────────────────────────────────
 
 const TASK_PRIORITIES = [
   { id:"critical", label:"Critical", color:"#e85a3a" },

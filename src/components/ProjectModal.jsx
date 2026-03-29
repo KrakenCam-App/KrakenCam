@@ -81,7 +81,7 @@ export function ProjectModal({ project, teamUsers = [], settings = {}, onSave, o
   const COLORS_PROJECT = ["#4a90d9","#3dba7e","#8b7cf8","#e85a3a","#e8703a","#e8c53a","#3ab8e8","#f0954e"];
   const PROJECT_TYPES = settings?.projectTypes?.length ? settings.projectTypes : ["Renovation","Insurance Claim","Inspection","Repair","New Construction","Mitigation","Remediation","Demolition","Consultation","Quote Request","Other"];
   const PROPERTY_TYPES = ["Single Family Home","Multi-Family Unit","Apartment","Commercial Building","Warehouse","Other"];
-  const CAUSE_OF_LOSS = settings?.causeOfLossOptions?.length ? settings.causeOfLossOptions : ["Water â Pipe Burst","Water â Flooding","Water â Sewage Backup","Water â Roof Leak","Fire â Structure","Fire â Smoke/Soot","Wind / Storm Damage","Mold / Microbial","Impact / Collision","Vandalism / Break-In","Earthquake","Hail","Electrical","Other"];
+  const CAUSE_OF_LOSS = settings?.causeOfLossOptions?.length ? settings.causeOfLossOptions : ["Water — Pipe Burst","Water — Flooding","Water — Sewage Backup","Water — Roof Leak","Fire — Structure","Fire — Smoke/Soot","Wind / Storm Damage","Mold / Microbial","Impact / Collision","Vandalism / Break-In","Earthquake","Hail","Electrical","Other"];
   const PPE_OPTIONS = ["Hard Hat","Safety Glasses / Goggles","Work Boots","Respirator","Tyvek Suit","Gloves","High Viz","Hearing Protection"];
   const togglePPE = item => set("ppeItems", form.ppeItems.includes(item) ? form.ppeItems.filter(x => x !== item) : [...form.ppeItems, item]);
   const TIMELINE_STAGES = [
@@ -100,18 +100,18 @@ export function ProjectModal({ project, teamUsers = [], settings = {}, onSave, o
     project?.lat && project?.lng ? "done" : "idle"
   ); // "idle" | "loading" | "done" | "error"
 
-  // Geocode via Nominatim â called on save if coords are missing/stale
+  // Geocode via Nominatim — called on save if coords are missing/stale
   const geocodeAddress = async (f) => {
     const parts = [f.address, f.city, f.state, f.zip].filter(Boolean);
     if (parts.length === 0) return { lat: "", lng: "", zip: "" };
     setGeocodeState("loading");
     try {
-      // ââ Proxy via Supabase Edge Function âââââââââââââââââââââââââââââââââ
+      // ── Proxy via Supabase Edge Function ─────────────────────────────────
       // Browsers cannot set the User-Agent header required by Nominatim, so
       // we proxy through our own edge function which sets it server-side.
       // Replace KRAKENCAM_SUPABASE_URL with your project ref.
       const GEOCODE_URL = "https://nszoateefidwhhsyexjd.supabase.co/functions/v1/geocode";
-      // âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+      // ─────────────────────────────────────────────────────────────────────
       const params = new URLSearchParams();
       if (f.address) params.set("address", f.address);
       if (f.city)    params.set("city",    f.city);
@@ -165,7 +165,7 @@ export function ProjectModal({ project, teamUsers = [], settings = {}, onSave, o
     });
   };
 
-  // Coordinates come from photo GPS or manual override â no auto-geocoding
+  // Coordinates come from photo GPS or manual override — no auto-geocoding
 
   const addRoom = () => {
     const n = newRoom.trim();
@@ -221,14 +221,14 @@ export function ProjectModal({ project, teamUsers = [], settings = {}, onSave, o
               <div className="form-group">
                 <label className="form-label">Property Type</label>
                 <select className="form-input form-select" value={form.propertyType} onChange={e => set("propertyType", e.target.value)}>
-                  <option value="">â Select â</option>
+                  <option value="">— Select —</option>
                   {PROPERTY_TYPES.map(t => <option key={t}>{t}</option>)}
                 </select>
               </div>
               <div className="form-group">
                 <label className="form-label">Cause of Loss / Issue</label>
                 <select className="form-input form-select" value={form.causeOfLoss} onChange={e => set("causeOfLoss", e.target.value)}>
-                  <option value="">â Select â</option>
+                  <option value="">— Select —</option>
                   {CAUSE_OF_LOSS.map(c => <option key={c}>{c}</option>)}
                 </select>
               </div>
@@ -345,7 +345,7 @@ export function ProjectModal({ project, teamUsers = [], settings = {}, onSave, o
                   </div>
                   {form.lat && form.lng && !isNaN(parseFloat(form.lat)) && !isNaN(parseFloat(form.lng)) && (
                     <div style={{ marginTop:8,fontSize:11,color:"#3dba7e",fontWeight:600 }}>
-                      â Valid coordinates â will show on map
+                      ✓ Valid coordinates — will show on map
                     </div>
                   )}
                 </>
@@ -368,14 +368,14 @@ export function ProjectModal({ project, teamUsers = [], settings = {}, onSave, o
               <div className="form-group">
                 <label className="form-label">Relationship to Property</label>
                 <select className="form-input form-select" value={form.clientRelationship} onChange={e => set("clientRelationship", e.target.value)}>
-                  <option value="">â Select â</option>
+                  <option value="">— Select —</option>
                   {["Owner","Tenant","Property Manager","Manager","Office Admin","Other"].map(o => <option key={o}>{o}</option>)}
                 </select>
               </div>
               <div className="form-group">
                 <label className="form-label">Building Occupancy Status</label>
                 <select className="form-input form-select" value={form.occupancyStatus} onChange={e => set("occupancyStatus", e.target.value)}>
-                  <option value="">â Select â</option>
+                  <option value="">— Select —</option>
                   {["Occupied","Unoccupied","Vacant","Partially Occupied","Condemned","Restricted","Seasonal Occupancy"].map(o => <option key={o}>{o}</option>)}
                 </select>
               </div>
@@ -403,7 +403,7 @@ export function ProjectModal({ project, teamUsers = [], settings = {}, onSave, o
 
             <div className="form-group">
               <label className="form-label">Access Limitations / Restricted Areas</label>
-              <input className="form-input" placeholder="e.g. Basement locked, roof access restrictedâ¦" value={form.accessLimitations} onChange={e => set("accessLimitations", e.target.value)} />
+              <input className="form-input" placeholder="e.g. Basement locked, roof access restricted…" value={form.accessLimitations} onChange={e => set("accessLimitations", e.target.value)} />
             </div>
 
             <div className="form-row">
@@ -442,23 +442,23 @@ export function ProjectModal({ project, teamUsers = [], settings = {}, onSave, o
                   return (
                     <div key={item} onClick={() => togglePPE(item)}
                       style={{ padding:"6px 14px", borderRadius:20, border:`1.5px solid ${active ? "var(--accent)" : "var(--border)"}`, background: active ? "var(--accent-glow)" : "var(--surface2)", cursor:"pointer", fontSize:12.5, fontWeight:600, color: active ? "var(--accent)" : "var(--text2)", transition:"all .15s", userSelect:"none" }}>
-                      {active ? "â " : ""}{item}
+                      {active ? "✓ " : ""}{item}
                     </div>
                   );
                 })}
                 {/* Other option */}
                 <div onClick={() => togglePPE("Other")}
                   style={{ padding:"6px 14px", borderRadius:20, border:`1.5px solid ${form.ppeItems.includes("Other") ? "var(--accent)" : "var(--border)"}`, background: form.ppeItems.includes("Other") ? "var(--accent-glow)" : "var(--surface2)", cursor:"pointer", fontSize:12.5, fontWeight:600, color: form.ppeItems.includes("Other") ? "var(--accent)" : "var(--text2)", transition:"all .15s", userSelect:"none" }}>
-                  {form.ppeItems.includes("Other") ? "â " : ""}Other
+                  {form.ppeItems.includes("Other") ? "✓ " : ""}Other
                 </div>
               </div>
               {form.ppeItems.includes("Other") && (
-                <input className="form-input" style={{ marginTop:10 }} placeholder="Describe other PPE requiredâ¦" value={form.ppeOtherText} onChange={e => set("ppeOtherText", e.target.value)} />
+                <input className="form-input" style={{ marginTop:10 }} placeholder="Describe other PPE required…" value={form.ppeOtherText} onChange={e => set("ppeOtherText", e.target.value)} />
               )}
             </div>
           </div>
 
-          {/* Insurance â collapsible */}
+          {/* Insurance — collapsible */}
           <div className="form-section">
             <div className="form-section-title" style={{ cursor:"pointer", userSelect:"none" }} onClick={() => set("insuranceEnabled", !form.insuranceEnabled)}>
               <Icon d={ic.briefcase} size={15} stroke="var(--accent)" /> Insurance Information
@@ -479,7 +479,7 @@ export function ProjectModal({ project, teamUsers = [], settings = {}, onSave, o
                 <div className="form-group">
                   <label className="form-label">Coverage Type</label>
                   <select className="form-input form-select" value={form.coverageType} onChange={e => set("coverageType", e.target.value)}>
-                    <option value="">â Select â</option>
+                    <option value="">— Select —</option>
                     {(settings?.coverageTypeOptions?.length ? settings.coverageTypeOptions : ["Dwelling","Contents","Liability","ALE (Additional Living Expenses)","Commercial Property","Business Interruption","Flood","Other"]).map(c => <option key={c}>{c}</option>)}
                   </select>
                 </div>
@@ -503,7 +503,7 @@ export function ProjectModal({ project, teamUsers = [], settings = {}, onSave, o
             {assignableUsers.length === 0 ? (
               <div style={{ padding:"14px 16px",background:"var(--surface2)",border:"1px dashed var(--border)",borderRadius:"var(--radius-sm)",fontSize:13,color:"var(--text2)",display:"flex",alignItems:"center",gap:10 }}>
                 <Icon d={ic.users} size={16} stroke="var(--text3)" />
-                <span>No managers or users in your account yet. Add team members in <strong style={{ color:"var(--accent)" }}>Account â Team Members</strong> first.</span>
+                <span>No managers or users in your account yet. Add team members in <strong style={{ color:"var(--accent)" }}>Account → Team Members</strong> first.</span>
               </div>
             ) : (
               <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
@@ -550,7 +550,7 @@ export function ProjectModal({ project, teamUsers = [], settings = {}, onSave, o
               ))}
             </div>
             <div style={{ display:"flex",gap:8 }}>
-              <input className="form-input" style={{ flex:1 }} placeholder="Add custom room (e.g. Sunroom)â¦" value={newRoom} onChange={e => setNewRoom(e.target.value)} onKeyDown={e => e.key==="Enter"&&addRoom()} />
+              <input className="form-input" style={{ flex:1 }} placeholder="Add custom room (e.g. Sunroom)…" value={newRoom} onChange={e => setNewRoom(e.target.value)} onKeyDown={e => e.key==="Enter"&&addRoom()} />
               <button className="btn btn-secondary" onClick={addRoom}><Icon d={ic.plus} size={15} /></button>
             </div>
             <div style={{ display:"flex",flexWrap:"wrap",gap:6,marginTop:10 }}>
@@ -564,7 +564,7 @@ export function ProjectModal({ project, teamUsers = [], settings = {}, onSave, o
           {/* Notes */}
           <div className="form-group">
             <label className="form-label">Notes</label>
-            <textarea className="form-input form-textarea" placeholder="Any notes about this projectâ¦" value={form.notes} onChange={e => set("notes", e.target.value)} />
+            <textarea className="form-input form-textarea" placeholder="Any notes about this project…" value={form.notes} onChange={e => set("notes", e.target.value)} />
           </div>
 
           {/* Project Timeline */}
@@ -610,12 +610,12 @@ export function ProjectModal({ project, teamUsers = [], settings = {}, onSave, o
             {form.timelineStage && (
               <div style={{ display:"grid", gap:10 }}>
                 <input className="form-input" style={{ fontSize:12.5 }}
-                  placeholder={`Internal note for "${TIMELINE_STAGES.find(s=>s.id===form.timelineStage)?.label}"â¦`}
+                  placeholder={`Internal note for "${TIMELINE_STAGES.find(s=>s.id===form.timelineStage)?.label}"…`}
                   value={form.timelineNotes?.[form.timelineStage] || ""}
                   onChange={e => set("timelineNotes", { ...form.timelineNotes, [form.timelineStage]: e.target.value })}
                 />
                 <input className="form-input" style={{ fontSize:12.5 }}
-                  placeholder={`Client portal note for "${TIMELINE_STAGES.find(s=>s.id===form.timelineStage)?.label}"â¦`}
+                  placeholder={`Client portal note for "${TIMELINE_STAGES.find(s=>s.id===form.timelineStage)?.label}"…`}
                   value={form.timelineClientNotes?.[form.timelineStage] || ""}
                   onChange={e => set("timelineClientNotes", { ...form.timelineClientNotes, [form.timelineStage]: e.target.value })}
                 />
@@ -628,7 +628,7 @@ export function ProjectModal({ project, teamUsers = [], settings = {}, onSave, o
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" onClick={handleSave} disabled={!form.title.trim() || geocodeState==="loading"}>
             {geocodeState==="loading"
-              ? <><span style={{ display:"inline-block",width:12,height:12,border:"2px solid rgba(255,255,255,.3)",borderTopColor:"white",borderRadius:"50%",animation:"spin .7s linear infinite" }} /> Locatingâ¦</>
+              ? <><span style={{ display:"inline-block",width:12,height:12,border:"2px solid rgba(255,255,255,.3)",borderTopColor:"white",borderRadius:"50%",animation:"spin .7s linear infinite" }} /> Locating…</>
               : <><Icon d={ic.check} size={14} /> {isEdit ? "Save Changes" : "Create Jobsite"}</>
             }
           </button>
@@ -638,7 +638,7 @@ export function ProjectModal({ project, teamUsers = [], settings = {}, onSave, o
   );
 }
 
-// ââ Projects List (Home) âââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── Projects List (Home) ───────────────────────────────────────────────────────
 export function ProjectsList({ projects, teamUsers = [], settings = {}, onSelect, onNew, onEdit, onDelete }) {
   const [showDeleteId, setShowDeleteId] = useState(null);
   const [filterStatus, setFilterStatus] = useState("all");
@@ -663,7 +663,7 @@ export function ProjectsList({ projects, teamUsers = [], settings = {}, onSelect
       if (sort === "alpha")  return a.title.localeCompare(b.title);
       if (sort === "oldest") return new Date(a.createdAt||0) - new Date(b.createdAt||0);
       if (sort === "newest") return new Date(b.createdAt||0) - new Date(a.createdAt||0);
-      // "recent" â by updatedAt falling back to createdAt
+      // "recent" — by updatedAt falling back to createdAt
       return new Date(b.updatedAt||b.createdAt||0) - new Date(a.updatedAt||a.createdAt||0);
     });
 
@@ -689,7 +689,7 @@ export function ProjectsList({ projects, teamUsers = [], settings = {}, onSelect
 
       {/* Toolbar */}
       <div style={{ display:"flex",flexDirection:"column",gap:10,marginBottom:20 }}>
-        <input className="form-input" style={{ width:"100%",padding:"8px 14px",boxSizing:"border-box" }} placeholder="Search jobsites, addresses, clientsâ¦" value={search} onChange={e => setSearch(e.target.value)} />
+        <input className="form-input" style={{ width:"100%",padding:"8px 14px",boxSizing:"border-box" }} placeholder="Search jobsites, addresses, clients…" value={search} onChange={e => setSearch(e.target.value)} />
         <div style={{ display:"flex",alignItems:"center",gap:8,flexWrap:"wrap" }}>
           <div style={{ display:"flex",gap:6,overflowX:"auto",WebkitOverflowScrolling:"touch",scrollbarWidth:"none",msOverflowStyle:"none",width:"100%",paddingBottom:2 }}>
             {[["all","All"],... ((normaliseStatuses(settings.projectStatuses)||[{id:"active",label:"Active"},{id:"onhold",label:"On Hold"},{id:"completed",label:"Completed"},{id:"archived",label:"Archived"}]).map(s=>[s.id,s.label]))].map(([k,l]) => (

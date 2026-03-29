@@ -517,7 +517,7 @@ const getStatusMeta = (statusId, settings) => {
 const STATUS_CLS_OPTIONS = ["green","blue","orange","purple","red","gray"];
 
 
-// getCertStatus â cert expiry checker, shared across AccountPage/PhotosTab/TasksPage
+// getCertStatus — cert expiry checker, shared across AccountPage/PhotosTab/TasksPage
 const getCertStatus = (dateExpires) => {
   if (!dateExpires) return "no-expiry";
   const now   = new Date(); now.setHours(0,0,0,0);
@@ -529,7 +529,7 @@ const getCertStatus = (dateExpires) => {
   return "valid";
 };
 
-// ROLE_META â shared role display metadata (admin/manager/user)
+// ROLE_META — shared role display metadata (admin/manager/user)
 const ROLE_META = {
   admin:   { label:"Admin",   color:"#e86c3a", desc:"Full system control"                            },
   manager: { label:"Manager", color:"#8b7cf8", desc:"Create projects, view reports, manage users"    },

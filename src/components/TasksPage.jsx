@@ -132,7 +132,7 @@ function TaskModal({ task, projects, teamUsers, settings, onSave, onClose, onNot
               </div>
               <div className="form-group">
                 <label className="form-label">Description</label>
-                <textarea className="form-input form-textarea" value={form.description} onChange={e=>set("description",e.target.value)} placeholder="Add more detail, context, or instructionsâ¦" style={{ minHeight:80 }} />
+                <textarea className="form-input form-textarea" value={form.description} onChange={e=>set("description",e.target.value)} placeholder="Add more detail, context, or instructions…" style={{ minHeight:80 }} />
               </div>
               <div className="form-row">
                 <div className="form-group">
@@ -165,7 +165,7 @@ function TaskModal({ task, projects, teamUsers, settings, onSave, onClose, onNot
                 <div className="form-group">
                   <label className="form-label">Linked Project</label>
                   <select className="form-input form-select" value={form.projectId} onChange={e=>set("projectId",e.target.value)}>
-                    <option value="">â None â</option>
+                    <option value="">— None —</option>
                     {projects.map(p=><option key={p.id} value={p.id}>{p.title}</option>)}
                   </select>
                 </div>
@@ -204,7 +204,7 @@ function TaskModal({ task, projects, teamUsers, settings, onSave, onClose, onNot
                   ))}
                 </div>
                 <div style={{ display:"flex",gap:8 }}>
-                  <input className="form-input" style={{ flex:1 }} placeholder="Add tagâ¦" value={newTag} onChange={e=>setNewTag(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addTag()} />
+                  <input className="form-input" style={{ flex:1 }} placeholder="Add tag…" value={newTag} onChange={e=>setNewTag(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addTag()} />
                   <button className="btn btn-secondary btn-sm" onClick={addTag}><Icon d={ic.plus} size={14}/></button>
                 </div>
               </div>
@@ -278,7 +278,7 @@ function TaskModal({ task, projects, teamUsers, settings, onSave, onClose, onNot
             </div>
           )}
 
-          {/* ââ ATTACHMENTS TAB ââ */}
+          {/* ── ATTACHMENTS TAB ── */}
           {tab==="attachments" && (
             <div>
               <input ref={attachFileRef} type="file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt,.csv" style={{ display:"none" }} onChange={handleAttachFile} />
@@ -337,7 +337,7 @@ function TaskModal({ task, projects, teamUsers, settings, onSave, onClose, onNot
                 ))}
               </div>
               <div style={{ display:"flex",gap:8 }}>
-                <input className="form-input" style={{ flex:1 }} placeholder="Add checklist itemâ¦" value={newCheckItem} onChange={e=>setNewCheckItem(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCheckItem()} />
+                <input className="form-input" style={{ flex:1 }} placeholder="Add checklist item…" value={newCheckItem} onChange={e=>setNewCheckItem(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCheckItem()} />
                 <button className="btn btn-secondary btn-sm" onClick={addCheckItem}><Icon d={ic.plus} size={14}/> Add</button>
               </div>
             </div>
@@ -345,7 +345,7 @@ function TaskModal({ task, projects, teamUsers, settings, onSave, onClose, onNot
 
           {tab==="comments" && (
             <div>
-              {form.comments.length === 0 && <div style={{ textAlign:"center",padding:"28px 0",color:"var(--text3)",fontSize:13 }}>No comments yet â start the conversation.</div>}
+              {form.comments.length === 0 && <div style={{ textAlign:"center",padding:"28px 0",color:"var(--text3)",fontSize:13 }}>No comments yet — start the conversation.</div>}
               <div style={{ display:"flex",flexDirection:"column",gap:10,marginBottom:16 }}>
                 {form.comments.map(c=>(
                   <div key={c.id} style={{ padding:"10px 14px",background:"var(--surface2)",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)" }}>
@@ -389,8 +389,8 @@ function TaskModal({ task, projects, teamUsers, settings, onSave, onClose, onNot
   );
 }
 
-// ââ COMMENT INPUT WITH @MENTION ââââââââââââââââââââââââââââââââââââââââââââââ
-// ââ Date Picker Input âââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── COMMENT INPUT WITH @MENTION ──────────────────────────────────────────────
+// ── Date Picker Input ─────────────────────────────────────────────────────────
 function DatePickerInput({ value, onChange, placeholder = "Select date" }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -608,7 +608,7 @@ function CommentInput({ value, onChange, onPost, mentionables }) {
         <div style={{ flex:1,position:"relative" }}>
           <textarea ref={textareaRef} className="form-input form-textarea"
             style={{ flex:1,minHeight:64,width:"100%",resize:"none",paddingRight:60 }}
-            placeholder="Write a commentâ¦ type @ to mention someone"
+            placeholder="Write a comment… type @ to mention someone"
             value={value}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
@@ -623,13 +623,13 @@ function CommentInput({ value, onChange, onPost, mentionables }) {
   );
 }
 
-// ââ Chat Button âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-// ââ Analytics Dashboard âââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── Chat Button ───────────────────────────────────────────────────────────────
+// ── Analytics Dashboard ───────────────────────────────────────────────────────
 export function AnalyticsDashboard({ projects, tasks, teamUsers, settings, onClose }) {
   const [period, setPeriod] = useState("week"); // day | week | month | year
   const isMobile = typeof window !== "undefined" && window.innerWidth <= 768;
 
-  // ââ Period window ââ
+  // ── Period window ──
   const now = new Date();
   const periodStart = (() => {
     const d = new Date(now);
@@ -665,13 +665,13 @@ export function AnalyticsDashboard({ projects, tasks, teamUsers, settings, onClo
   };
   const isCompletedProject = (project) => projectStatusLabel(project.status).includes("completed");
 
-  // ââ Build full user list (admin + team) ââ
+  // ── Build full user list (admin + team) ──
   const allUsers = [
     { id:"__admin__", firstName:settings?.userFirstName||"Admin", lastName:settings?.userLastName||"", role:"admin", certifications:settings?.userCertifications||[] },
     ...teamUsers.filter(u => u.status !== "archived"),
   ];
 
-  // ââ Per-user stats ââ
+  // ── Per-user stats ──
   const portfolio = projects.reduce((acc, p) => {
     const reports = p.reports || [];
     const photos = p.photos || [];
@@ -735,17 +735,17 @@ export function AnalyticsDashboard({ projects, tasks, teamUsers, settings, onClo
     return { ...u, photosTotal, reportsTotal, tasksCompleted, activeProjects, score };
   });
 
-  // MVK â top scorer
+  // MVK — top scorer
   const mvk = [...userStats].sort((a, b) => b.score - a.score)[0];
 
-  // ââ Totals ââ
+  // ── Totals ──
   const totals = userStats.reduce((acc, u) => ({
     photos:   acc.photos   + u.photosTotal,
     reports:  acc.reports  + u.reportsTotal,
     tasks:    acc.tasks    + u.tasksCompleted,
   }), { photos:0, reports:0, tasks:0 });
 
-  // ââ Cert expiry (all users, within 30 days or already expired) ââ
+  // ── Cert expiry (all users, within 30 days or already expired) ──
   const certAlerts = [];
   allUsers.forEach(u => {
     const certs = u.id === "__admin__" ? (settings?.userCertifications||[]) : (u.certifications||[]);
@@ -881,7 +881,7 @@ export function AnalyticsDashboard({ projects, tasks, teamUsers, settings, onClo
 
         <div style={{ flex:1,overflowY:"auto",padding:"16px 18px",display:"flex",flexDirection:"column",gap:20 }}>
 
-          {/* ââ Totals ââ */}
+          {/* ── Totals ── */}
           <div>
             <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".07em",color:"var(--text3)",marginBottom:10 }}>Executive Snapshot</div>
             <div style={{ display:"grid",gap:8,gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))" }}>
@@ -924,11 +924,11 @@ export function AnalyticsDashboard({ projects, tasks, teamUsers, settings, onClo
             </div>
           </div>
 
-          {/* ââ MVK ââ */}
+          {/* ── MVK ── */}
           {mvk && mvk.score > 0 && (
             <div style={{ background:"linear-gradient(135deg,var(--surface2),var(--surface3))",border:"1px solid var(--border)",borderRadius:12,padding:"14px 16px" }}>
               <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".07em",color:"var(--text3)",marginBottom:10,display:"flex",alignItems:"center",gap:6 }}>
-                <span style={{ fontSize:15 }}>ð¦</span> MVK â Most Valuable Kraken
+                <span style={{ fontSize:15 }}>ð¦</span> MVK — Most Valuable Kraken
               </div>
               <div style={{ display:"flex",alignItems:"center",gap:12 }}>
                 <div style={{ width:44,height:44,borderRadius:"50%",background:ROLE_COLORS[mvk.role]||"var(--accent)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:800,color:"white",flexShrink:0,overflow:"hidden" }}>
@@ -950,7 +950,7 @@ export function AnalyticsDashboard({ projects, tasks, teamUsers, settings, onClo
             </div>
           )}
 
-          {/* ââ Per-user breakdown ââ */}
+          {/* ── Per-user breakdown ── */}
           <div>
             <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".07em",color:"var(--text3)",marginBottom:10 }}>Leaderboard</div>
             <div style={{ background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:12,padding:"10px 12px",display:"flex",flexDirection:"column",gap:8 }}>
@@ -992,7 +992,7 @@ export function AnalyticsDashboard({ projects, tasks, teamUsers, settings, onClo
                     {[
                       { label:"ð·", value:u.photosTotal,   max:Math.max(1,...userStats.map(x=>x.photosTotal)),  color:"var(--blue)"   },
                       { label:"ð", value:u.reportsTotal,  max:Math.max(1,...userStats.map(x=>x.reportsTotal)), color:"var(--accent)" },
-                      { label:"â",  value:u.tasksCompleted,max:Math.max(1,...userStats.map(x=>x.tasksCompleted)),color:"var(--green)"  },
+                      { label:"✓",  value:u.tasksCompleted,max:Math.max(1,...userStats.map(x=>x.tasksCompleted)),color:"var(--green)"  },
                     ].map(({ label, value, max, color }) => (
                       <div key={label} style={{ flex:1 }}>
                         <div style={{ display:"flex",justifyContent:"space-between",fontSize:10,color:"var(--text3)",marginBottom:3 }}>
@@ -1009,15 +1009,15 @@ export function AnalyticsDashboard({ projects, tasks, teamUsers, settings, onClo
             </div>
           </div>
 
-          {/* ââ Cert Expiry ââ */}
+          {/* ── Cert Expiry ── */}
           <div>
             <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".07em",color:"var(--text3)",marginBottom:10,display:"flex",alignItems:"center",gap:6 }}>
-              <Icon d={ic.shield} size={12} stroke="var(--text3)" /> Certifications â Expired &amp; Expiring Soon
+              <Icon d={ic.shield} size={12} stroke="var(--text3)" /> Certifications — Expired &amp; Expiring Soon
             </div>
             {certAlerts.length === 0 ? (
               <div style={{ background:"var(--surface2)",borderRadius:10,padding:"14px 16px",border:"1px solid var(--border)",display:"flex",alignItems:"center",gap:10 }}>
                 <Icon d={ic.check} size={16} stroke="var(--green)" />
-                <span style={{ fontSize:13,color:"var(--text2)" }}>All certifications are current â nothing expiring within 30 days.</span>
+                <span style={{ fontSize:13,color:"var(--text2)" }}>All certifications are current — nothing expiring within 30 days.</span>
               </div>
             ) : (
               <div style={{ display:"flex",flexDirection:"column",gap:7 }}>
@@ -1162,7 +1162,7 @@ export function NotificationBell({ notifications, onMarkRead, onMarkAllRead, onC
                       onMouseEnter={e => { if (!isExpanded) e.currentTarget.style.background = "var(--surface2)"; }}
                       onMouseLeave={e => { if (!isExpanded) e.currentTarget.style.background = n.read ? "transparent" : "var(--accent-glow)"; }}>
 
-                      {/* Summary row â always visible */}
+                      {/* Summary row — always visible */}
                       <div style={{ display:"flex", gap:11, padding:"11px 16px 11px", alignItems:"flex-start" }}
                         onClick={() => handleClick(n)}>
                         {/* Icon */}
@@ -1178,7 +1178,7 @@ export function NotificationBell({ notifications, onMarkRead, onMarkAllRead, onC
                           <div style={{ fontSize:13, lineHeight:1.45, color:"var(--text)", marginBottom:2 }}>
                             {meta.summary}
                           </div>
-                          {/* Preview â truncated when collapsed */}
+                          {/* Preview — truncated when collapsed */}
                           {n.preview && !isExpanded && (
                             <div style={{ fontSize:12, color:"var(--text2)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                               {n.type === "assignment" ? n.preview : `"${n.preview}"`}
@@ -1226,7 +1226,7 @@ function ListCheckToggle({task, checkDone, checkTotal, onToggleChecklistItem}) {
   const [open, setOpen] = useState(false);
   return (
     <div style={{ flexShrink:0 }}>
-      {/* Pill â only this toggles open/close */}
+      {/* Pill — only this toggles open/close */}
       <div style={{ display:"flex",alignItems:"center",gap:6,cursor:"pointer",padding:"2px 6px",borderRadius:"var(--radius-sm)",background:"var(--surface2)",border:"1px solid var(--border)" }}
         onClick={e=>{e.stopPropagation();setOpen(v=>!v);}}>
         <Icon d={ic.listCheck} size={12} stroke={checkDone===checkTotal?"#3dba7e":"var(--text3)"}/>
@@ -1253,7 +1253,7 @@ function ListCheckToggle({task, checkDone, checkTotal, onToggleChecklistItem}) {
   );
 }
 
-// ââ Jobsite Map Page âââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── Jobsite Map Page ─────────────────────────────────────────────────────────
 export function JobsiteMapPage({ projects, settings, onSelectProject }) {
   const mapRef      = useRef(null);
   const leafletMap  = useRef(null);
@@ -1275,7 +1275,7 @@ export function JobsiteMapPage({ projects, settings, onSelectProject }) {
     return created >= cutoff;
   });
 
-  // Geocode from address â builds a lat/lng from stored geocode or returns null
+  // Geocode from address — builds a lat/lng from stored geocode or returns null
   // Projects store address/city/state. We use a simple lookup approach:
   // if the project already has latLng stored we use it, otherwise we show
   // it in the sidebar as "no coordinates" and prompt user to add them.
@@ -1325,7 +1325,7 @@ export function JobsiteMapPage({ projects, settings, onSelectProject }) {
     L.control.zoom({ position: "bottomleft" }).addTo(map);
     leafletMap.current = map;
 
-    // Always use light tiles â dark tiles don't render clearly on jobsite maps
+    // Always use light tiles — dark tiles don't render clearly on jobsite maps
     const tileUrl = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
     L.tileLayer(tileUrl, {
       attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
@@ -1346,7 +1346,7 @@ export function JobsiteMapPage({ projects, settings, onSelectProject }) {
 
     const pts = withCoords.map(p => getCoords(p));
     if (pts.length === 0) {
-      // Default view â Denver, CO if no projects with coords
+      // Default view — Denver, CO if no projects with coords
       map.setView([39.7392, -104.9903], 10);
       return;
     }
@@ -1413,7 +1413,7 @@ export function JobsiteMapPage({ projects, settings, onSelectProject }) {
     const center = map ? map.getCenter() : { lat: 39.7392, lng: -104.9903 };
     const zoom   = map ? map.getZoom()   : 10;
 
-    // Sanitise: only lat/lng/color per project â no names, addresses, client info
+    // Sanitise: only lat/lng/color per project — no names, addresses, client info
     const pins = withCoords.map(p => ({
       lat:   parseFloat(p.lat),
       lng:   parseFloat(p.lng),
@@ -1478,7 +1478,7 @@ pins.forEach(function(p){
   return (
     <div style={{ display:"flex",flexDirection:"column",height:"100%",overflow:"hidden" }}>
 
-      {/* ââ Toolbar ââ */}
+      {/* ── Toolbar ── */}
       <div style={{ padding:"12px 20px",background:"var(--surface)",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",gap:12,flexShrink:0,flexWrap:"wrap" }}>
         <div style={{ display:"flex",alignItems:"center",gap:6 }}>
           <Icon d={ic.mapPin} size={16} stroke="var(--accent)" />
@@ -1512,7 +1512,7 @@ pins.forEach(function(p){
         </div>
       </div>
 
-      {/* ââ Body: map + sidebar ââ */}
+      {/* ── Body: map + sidebar ── */}
       <div style={{ display:"flex",flex:1,overflow:"hidden" }}>
 
         {/* Map */}
@@ -1590,7 +1590,7 @@ pins.forEach(function(p){
         </div>
       </div>
 
-      {/* ââ Embed Map Modal ââ */}
+      {/* ── Embed Map Modal ── */}
       {embedOpen && (
         <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setEmbedOpen(false)}>
           <div className="modal modal-lg fade-in" style={{ maxWidth:640 }}>
@@ -1603,7 +1603,7 @@ pins.forEach(function(p){
               <div style={{ padding:"10px 14px",background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:"var(--radius-sm)",fontSize:12.5,color:"var(--text2)",marginBottom:14,lineHeight:1.6 }}>
                 <div style={{ fontWeight:700,color:"var(--text)",marginBottom:3 }}>ð Privacy-safe embed</div>
                 The generated code shows only <strong>pin locations</strong> at the current zoom level.
-                No project names, addresses, client info, or other jobsite data is included â just colored dots on a map.
+                No project names, addresses, client info, or other jobsite data is included — just colored dots on a map.
               </div>
               {/* Preview */}
               <div style={{ position:"relative",borderRadius:"var(--radius-sm)",overflow:"hidden",border:"1px solid var(--border)",marginBottom:14,height:220 }}>
@@ -1644,7 +1644,7 @@ pins.forEach(function(p){
   );
 }
 
-// ââ Calendar helpers ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── Calendar helpers ──────────────────────────────────────────────────────────
 const CAL_USER_COLORS = [
   "#2b7fe8","#a855f7","#3dba7e","#e85a3a","#e8c53a","#3ab8e8","#f0954e","#8b7cf8",
   "#e8703a","#1a9e6e","#d946ef","#06b6d4","#84cc16","#f43f5e","#6366f1","#14b8a6",
@@ -1684,7 +1684,7 @@ const expandRecurringEvent = (event, rangeStart, rangeEnd) => {
   return instances.length > 0 ? instances : [event];
 };
 
-// ââ Event Modal âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── Event Modal ───────────────────────────────────────────────────────────────
 export function TasksPage({ projects, teamUsers, settings, tasks, onTasksChange, onNotify }) {
   const [view, setView]           = useState("board");   // board | list
   const [editingTask, setEditingTask]   = useState(null);
@@ -1903,7 +1903,7 @@ export function TasksPage({ projects, teamUsers, settings, tasks, onTasksChange,
           <button className="btn btn-ghost btn-sm" disabled={!canFwd}
             style={{ fontSize:11,padding:"3px 8px",color:canFwd?"var(--accent)":"var(--text3)",opacity:canFwd?1:0.35,fontWeight:canFwd?700:400 }}
             onClick={()=>progressTask(task.id,1)}>
-            {canFwd ? `â ${columns[colIdx+1]?.label}` : "â Done"}
+            {canFwd ? `→ ${columns[colIdx+1]?.label}` : "✓ Done"}
           </button>
         </div>
       </div>
@@ -1941,7 +1941,7 @@ export function TasksPage({ projects, teamUsers, settings, tasks, onTasksChange,
 
       {/* Filter bar */}
       <div style={{ display:"flex",gap:8,marginBottom:20,flexWrap:"wrap",paddingRight:26,alignItems:"center" }}>
-        <input className="form-input" style={{ width:200 }} placeholder="Search tasksâ¦" value={searchQ} onChange={e=>setSearchQ(e.target.value)} />
+        <input className="form-input" style={{ width:200 }} placeholder="Search tasks…" value={searchQ} onChange={e=>setSearchQ(e.target.value)} />
         <select className="form-input form-select" style={{ width:"auto" }} value={filterAssignee} onChange={e=>setFilterAssignee(e.target.value)}>
           <option value="all">All Assignees</option>
           {allAssignees.map(u=><option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
@@ -1963,14 +1963,14 @@ export function TasksPage({ projects, teamUsers, settings, tasks, onTasksChange,
           <Icon d={ic.user} size={13}/> My Tasks
         </button>
         {(searchQ||filterAssignee!=="all"||filterPriority!=="all"||filterProject!=="all"||myTasksOnly) && (
-          <button className="btn btn-ghost btn-sm" style={{ color:"var(--text3)" }} onClick={()=>{setSearchQ("");setFilterAssignee("all");setFilterPriority("all");setFilterProject("all");setMyTasksOnly(false);}}>â Clear</button>
+          <button className="btn btn-ghost btn-sm" style={{ color:"var(--text3)" }} onClick={()=>{setSearchQ("");setFilterAssignee("all");setFilterPriority("all");setFilterProject("all");setMyTasksOnly(false);}}>✕ Clear</button>
         )}
         <div style={{ marginLeft:"auto",display:"flex",gap:6,alignItems:"center" }}>
           <span style={{ fontSize:12,color:"var(--text3)" }}>{filteredTasks.length} task{filteredTasks.length!==1?"s":""}</span>
         </div>
       </div>
 
-      {/* ââ BOARD VIEW ââ */}
+      {/* ── BOARD VIEW ── */}
       {view==="board" && (
         <div ref={boardRef} style={{ display:"flex",gap:14,overflowX:"auto",paddingBottom:12,paddingRight:26,alignItems:"flex-start",scrollbarWidth:"auto",scrollbarColor:"var(--border) transparent" }}
           className="board-scroll">
@@ -2015,9 +2015,9 @@ export function TasksPage({ projects, teamUsers, settings, tasks, onTasksChange,
           <div style={{ minWidth:220,flexShrink:0 }}>
             {editingCol==="__new__"
               ? <div style={{ display:"flex",gap:8,alignItems:"center" }}>
-                  <input className="form-input" style={{ flex:1 }} placeholder="Column nameâ¦" autoFocus value={newColLabel} onChange={e=>setNewColLabel(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addColumn()} />
+                  <input className="form-input" style={{ flex:1 }} placeholder="Column name…" autoFocus value={newColLabel} onChange={e=>setNewColLabel(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addColumn()} />
                   <button className="btn btn-primary btn-sm" onClick={addColumn}><Icon d={ic.check} size={14}/></button>
-                  <button className="btn btn-ghost btn-sm" onClick={()=>{setEditingCol(null);setNewColLabel("");}}>â</button>
+                  <button className="btn btn-ghost btn-sm" onClick={()=>{setEditingCol(null);setNewColLabel("");}}>✕</button>
                 </div>
               : <button className="btn btn-ghost btn-sm" style={{ width:"100%",justifyContent:"center",border:"2px dashed var(--border)",padding:"10px",color:"var(--text3)",fontSize:12.5 }}
                   onClick={()=>setEditingCol("__new__")} onMouseEnter={e=>e.currentTarget.style.borderColor="var(--accent)"} onMouseLeave={e=>e.currentTarget.style.borderColor="var(--border)"}>
@@ -2040,7 +2040,7 @@ export function TasksPage({ projects, teamUsers, settings, tasks, onTasksChange,
         </div>
       )}
 
-      {/* ââ LIST VIEW ââ */}
+      {/* ── LIST VIEW ── */}
       {view==="list" && (
         <div style={{ paddingRight:26 }}>
           {columns.map(col=>{
@@ -2080,7 +2080,7 @@ export function TasksPage({ projects, teamUsers, settings, tasks, onTasksChange,
                             <button className="btn btn-ghost btn-icon" style={{ width:44,height:44,color:"#e85a3a" }} onClick={()=>setConfirmDel(task)}><Icon d={ic.trash} size={22}/></button>
                           </div>
                         </div>
-                        {/* Row 2: meta â description, tags, project, assignees, due, status */}
+                        {/* Row 2: meta — description, tags, project, assignees, due, status */}
                         <div style={{ display:"flex",flexWrap:"wrap",alignItems:"center",gap:6,paddingLeft:19 }}>
                           {task.description && <span style={{ fontSize:11.5,color:"var(--text2)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:200 }}>{task.description}</span>}
                           {(task.tags||[]).map(t=><span key={t} style={{ fontSize:10,background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:10,padding:"1px 7px",color:"var(--text2)" }}>{t}</span>)}
@@ -2111,7 +2111,7 @@ export function TasksPage({ projects, teamUsers, settings, tasks, onTasksChange,
         </div>
       )}
 
-      {/* ââ MODALS ââ */}
+      {/* ── MODALS ── */}
       {(addingTask || editingTask) && (
         <TaskModal
           task={editingTask||null}

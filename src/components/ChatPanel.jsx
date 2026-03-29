@@ -25,7 +25,7 @@ export function ChatButton({ chats, currentUserId, onClick }) {
   );
 }
 
-// ââ Chat Panel ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── Chat Panel ────────────────────────────────────────────────────────────────
 export function ChatPanel({ chats, onChatsChange, teamUsers, settings, currentUserId, initialChatId = null, onInitialChatOpened, onClose, onNotify, orgId }) {
   const [view,         setView]         = useState("list");   // "list" | "chat"
   const [activeChatId, setActiveChatId] = useState(null);
@@ -359,7 +359,7 @@ export function ChatPanel({ chats, onChatsChange, teamUsers, settings, currentUs
     return { name: u ? `${u.firstName||""} ${u.lastName||""}`.trim() : "Unknown", color: m.color, initials: `${u?.firstName?.[0]||""}${u?.lastName?.[0]||""}`.toUpperCase() || "?" };
   };
 
-  // Panel styles â slides in from right on desktop, bottom sheet on mobile
+  // Panel styles — slides in from right on desktop, bottom sheet on mobile
   const panelStyle = isMobile ? {
     position:"fixed", bottom:"58px", left:0, right:0, height:"75dvh",
     borderRadius:"16px 16px 0 0", zIndex:600,
@@ -375,7 +375,7 @@ export function ChatPanel({ chats, onChatsChange, teamUsers, settings, currentUs
 
       <div style={{ ...panelStyle, background:"var(--surface)", display:"flex", flexDirection:"column", overflow:"hidden", boxShadow:"-8px 0 40px rgba(0,0,0,.25)" }}>
 
-        {/* ââ Header ââ */}
+        {/* ── Header ── */}
         <div style={{ padding:"14px 16px", borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", gap:10, flexShrink:0, background:"var(--surface)" }}>
           {view === "chat" && (
             <button className="btn btn-ghost btn-sm btn-icon" onClick={() => setView("list")}>
@@ -403,7 +403,7 @@ export function ChatPanel({ chats, onChatsChange, teamUsers, settings, currentUs
           <div style={{ display:"flex", gap:4, alignItems:"center" }}>
             {view === "chat" && isAdminOrMgr && (
               confirmAction ? (
-                // Inline confirm row â replaces buttons while confirming
+                // Inline confirm row — replaces buttons while confirming
                 <div style={{ display:"flex", alignItems:"center", gap:6, background:"var(--surface2)", border:"1px solid var(--border)", borderRadius:8, padding:"4px 8px" }}>
                   <span style={{ fontSize:11.5, color:"var(--text2)", whiteSpace:"nowrap" }}>
                     {confirmAction === "delete" ? "Delete this chat?" : "Clear all messages?"}
@@ -437,7 +437,7 @@ export function ChatPanel({ chats, onChatsChange, teamUsers, settings, currentUs
           </div>
         </div>
 
-        {/* ââ Member manager panel ââ */}
+        {/* ── Member manager panel ── */}
         {view === "chat" && editingChat === "members" && (
           <div style={{ padding:"10px 14px", borderBottom:"1px solid var(--border)", background:"var(--surface2)", flexShrink:0, maxHeight:200, overflowY:"auto" }}>
             <div style={{ fontSize:11, fontWeight:700, color:"var(--text3)", textTransform:"uppercase", letterSpacing:".06em", marginBottom:8 }}>Members</div>
@@ -462,7 +462,7 @@ export function ChatPanel({ chats, onChatsChange, teamUsers, settings, currentUs
           </div>
         )}
 
-        {/* ââ Chat list ââ */}
+        {/* ── Chat list ── */}
         {view === "list" && (
           <div style={{ flex:1, overflowY:"auto", display:"flex", flexDirection:"column" }}>
             {/* Plan limit bar */}
@@ -525,7 +525,7 @@ export function ChatPanel({ chats, onChatsChange, teamUsers, settings, currentUs
           </div>
         )}
 
-        {/* ââ Chat view ââ */}
+        {/* ── Chat view ── */}
         {view === "chat" && activeChat && (
           <>
             {/* Messages */}
@@ -547,8 +547,8 @@ export function ChatPanel({ chats, onChatsChange, teamUsers, settings, currentUs
                         fontWeight:700,
                         borderRadius:4,
                         padding:"0 3px",
-                        // Own bubble = accent bg â use white text + white tint bg
-                        // Other bubble = surface2 bg â use accent text + accent-glow bg
+                        // Own bubble = accent bg → use white text + white tint bg
+                        // Other bubble = surface2 bg → use accent text + accent-glow bg
                         color:      isMe ? "white"              : "var(--accent)",
                         background: isMe ? "rgba(255,255,255,.25)" : "var(--accent-glow)",
                       }}>{p}</span>
@@ -681,7 +681,7 @@ export function ChatPanel({ chats, onChatsChange, teamUsers, settings, currentUs
                 <textarea ref={textareaRef} className="form-input" value={newMsg}
                   onChange={handleMsgChange}
                   onKeyDown={handleMsgKeyDown}
-                  placeholder={voiceRecState === "recording" ? "Recording voice message..." : "Messageâ¦ type @ to mention"}
+                  placeholder={voiceRecState === "recording" ? "Recording voice message..." : "Message… type @ to mention"}
                   style={{ flex:1, minHeight:38, maxHeight:100, resize:"none", padding:"8px 12px", fontSize:13, lineHeight:1.5, borderRadius:18 }}
                   rows={1}
                 />
@@ -695,7 +695,7 @@ export function ChatPanel({ chats, onChatsChange, teamUsers, settings, currentUs
           </>
         )}
 
-        {/* ââ New Chat modal ââ */}
+        {/* ── New Chat modal ── */}
         {showNewChat && (
           <NewChatModal
             allUsers={allUsers}
@@ -710,7 +710,7 @@ export function ChatPanel({ chats, onChatsChange, teamUsers, settings, currentUs
   );
 }
 
-// ââ New Chat Modal ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── New Chat Modal ────────────────────────────────────────────────────────────
 export function NewChatModal({ allUsers, currentUserId, directMsgOk, onCreate, onClose }) {
   const [type,       setType]       = useState("group");  // "group" | "direct"
   const [name,       setName]       = useState("");
@@ -780,7 +780,7 @@ export function NewChatModal({ allUsers, currentUserId, directMsgOk, onCreate, o
                 </div>
               );
             })}
-            {others.length === 0 && <div style={{ fontSize:12.5,color:"var(--text3)",textAlign:"center",padding:16 }}>No team members yet. Add users in Account â Team Members.</div>}
+            {others.length === 0 && <div style={{ fontSize:12.5,color:"var(--text3)",textAlign:"center",padding:16 }}>No team members yet. Add users in Account → Team Members.</div>}
           </div>
         </div>
         {/* Direct message permission notice */}
@@ -801,4 +801,4 @@ export function NewChatModal({ allUsers, currentUserId, directMsgOk, onCreate, o
   );
 }
 
-// ââ NOTIFICATION BELL ââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── NOTIFICATION BELL ────────────────────────────────────────────────────────

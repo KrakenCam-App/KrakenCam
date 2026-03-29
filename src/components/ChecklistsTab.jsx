@@ -46,7 +46,7 @@ function LegacyChecklistsTab({ project, onUpdateProject }) {
     setActive(cl); setView("build");
   };
 
-  // ââ LIST VIEW ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+  // ── LIST VIEW ──────────────────────────────────────────────────────────────
   if (view === "list") return (
     <div>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
@@ -90,7 +90,7 @@ function LegacyChecklistsTab({ project, onUpdateProject }) {
                   <span style={{ fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20,
                     background: cl.status==="complete" ? "rgba(61,186,126,.15)" : "rgba(43,127,232,.1)",
                     color: cl.status==="complete" ? "#3dba7e" : "var(--accent)" }}>
-                    {cl.status==="complete" ? "â Complete" : "In Progress"}
+                    {cl.status==="complete" ? "✓ Complete" : "In Progress"}
                   </span>
                   <div style={{ display:"flex", gap:6 }}>
                     <button className="btn btn-sm btn-secondary" onClick={() => { setActive(cl); setView("run"); }}><Icon d={ic.edit} size={12} /> Open</button>
@@ -120,7 +120,7 @@ function LegacyChecklistsTab({ project, onUpdateProject }) {
             </div>
             <div className="modal-body" style={{ paddingBottom:0 }}>
               {/* Search */}
-              <input className="form-input" placeholder="Search templatesâ¦" value={pickerSearch||""} onChange={e=>setPickerSearch(e.target.value)} style={{ marginBottom:10 }} />
+              <input className="form-input" placeholder="Search templates…" value={pickerSearch||""} onChange={e=>setPickerSearch(e.target.value)} style={{ marginBottom:10 }} />
               {/* Category pills */}
               <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:12 }}>
                 {pickerCategories.map(cat => (
@@ -185,7 +185,7 @@ function LegacyChecklistsTab({ project, onUpdateProject }) {
     </div>
   );
 
-  // ââ RUN VIEW (fill out checklist) âââââââââââââââââââââââââââââââââââââââââ
+  // ── RUN VIEW (fill out checklist) ─────────────────────────────────────────
   if (view === "run") return (
     <ChecklistRunner
       checklist={activeChecklist}
@@ -194,7 +194,7 @@ function LegacyChecklistsTab({ project, onUpdateProject }) {
     />
   );
 
-  // ââ BUILD VIEW (design checklist) ââââââââââââââââââââââââââââââââââââââââ
+  // ── BUILD VIEW (design checklist) ────────────────────────────────────────
   if (view === "build") return (
     <ChecklistBuilder
       checklist={activeChecklist}
@@ -204,7 +204,7 @@ function LegacyChecklistsTab({ project, onUpdateProject }) {
   );
 }
 
-// ââ Checklist Runner ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── Checklist Runner ──────────────────────────────────────────────────────────
 function LegacyChecklistRunner({ checklist, onSave, onBack }) {
   const [cl, setCl] = useState({ ...checklist, fields: checklist.fields.map(f => ({ ...f })) });
 
@@ -255,7 +255,7 @@ function LegacyChecklistRunner({ checklist, onSave, onBack }) {
         <div className="card-body" style={{ padding:"12px 16px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
             <label style={{ fontSize:12, fontWeight:600, color:"var(--text2)", textTransform:"uppercase", letterSpacing:".04em", whiteSpace:"nowrap" }}>Assigned To</label>
-            <input className="form-input" style={{ flex:1 }} placeholder="Inspector nameâ¦" value={cl.assignee} onChange={e => setCl(p=>({...p, assignee:e.target.value}))} />
+            <input className="form-input" style={{ flex:1 }} placeholder="Inspector name…" value={cl.assignee} onChange={e => setCl(p=>({...p, assignee:e.target.value}))} />
           </div>
         </div>
       </div>
@@ -306,7 +306,7 @@ function LegacyChecklistRunner({ checklist, onSave, onBack }) {
                       return (
                         <div key={opt} onClick={()=>toggleMulti(field.id, opt)}
                           style={{ padding:"5px 13px", borderRadius:20, border:`1.5px solid ${sel?"var(--accent)":"var(--border)"}`, background:sel?"var(--accent-glow)":"var(--surface2)", cursor:"pointer", fontSize:12.5, fontWeight:600, color:sel?"var(--accent)":"var(--text2)", transition:"all .15s", userSelect:"none" }}>
-                          {sel?"â ":""}{opt}
+                          {sel?"✓ ":""}{opt}
                         </div>
                       );
                     })}
@@ -316,14 +316,14 @@ function LegacyChecklistRunner({ checklist, onSave, onBack }) {
                 {/* Dropdown */}
                 {field.type==="dropdown" && (
                   <select className="form-input form-select" style={{ marginLeft:32, marginTop:6, width:"calc(100% - 32px)", minWidth:0 }} value={field.value||""} onChange={e=>updateField(field.id, e.target.value)}>
-                    <option value="">â Select â</option>
+                    <option value="">— Select —</option>
                     {(field.options||[]).map(o=><option key={o}>{o}</option>)}
                   </select>
                 )}
 
                 {/* Text */}
                 {field.type==="text" && (
-                  <textarea className="form-input form-textarea" style={{ marginLeft:32, marginTop:6, minHeight:72, fontSize:13, resize:"vertical", width:"calc(100% - 32px)", boxSizing:"border-box" }} placeholder="Enter your answerâ¦" value={field.value||""} onChange={e=>updateField(field.id, e.target.value)} />
+                  <textarea className="form-input form-textarea" style={{ marginLeft:32, marginTop:6, minHeight:72, fontSize:13, resize:"vertical", width:"calc(100% - 32px)", boxSizing:"border-box" }} placeholder="Enter your answer…" value={field.value||""} onChange={e=>updateField(field.id, e.target.value)} />
                 )}
 
                 {/* Number */}
@@ -343,7 +343,7 @@ function LegacyChecklistRunner({ checklist, onSave, onBack }) {
   );
 }
 
-// ââ Checklist Builder ââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── Checklist Builder ────────────────────────────────────────────────────────
 function LegacyChecklistBuilder({ checklist, onSave, onBack }) {
   const [cl, setCl] = useState({ ...checklist });
   const [addingField, setAddingField] = useState(false);
@@ -380,7 +380,7 @@ function LegacyChecklistBuilder({ checklist, onSave, onBack }) {
     <div>
       <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
         <button className="btn btn-ghost btn-sm" onClick={onBack}><Icon d={ic.arrowLeft} size={14} /> Back</button>
-        <input className="form-input" style={{ flex:1, fontWeight:700, fontSize:15 }} value={cl.name} onChange={e=>setCl(p=>({...p,name:e.target.value}))} placeholder="Checklist nameâ¦" />
+        <input className="form-input" style={{ flex:1, fontWeight:700, fontSize:15 }} value={cl.name} onChange={e=>setCl(p=>({...p,name:e.target.value}))} placeholder="Checklist name…" />
         <button className="btn btn-sm btn-primary" disabled={!cl.name.trim()||cl.fields.length===0}
           onClick={()=>onSave(cl)}><Icon d={ic.check} size={13} /> Save Checklist</button>
       </div>
@@ -408,7 +408,7 @@ function LegacyChecklistBuilder({ checklist, onSave, onBack }) {
             </div>
           </div>
         ))}
-        {cl.fields.length===0 && <div style={{ textAlign:"center",padding:"24px 0",color:"var(--text3)",fontSize:13 }}>No fields yet â add one below</div>}
+        {cl.fields.length===0 && <div style={{ textAlign:"center",padding:"24px 0",color:"var(--text3)",fontSize:13 }}>No fields yet — add one below</div>}
       </div>
 
       {/* Add field panel */}
@@ -456,7 +456,7 @@ function LegacyChecklistBuilder({ checklist, onSave, onBack }) {
   );
 }
 
-// ââ Template Manager Modal ââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── Template Manager Modal ────────────────────────────────────────────────────
 export function ChecklistsTab({ project, onUpdateProject }) {
   const [view, setView] = useState("list");
   const [activeChecklist, setActive] = useState(null);
@@ -837,8 +837,8 @@ function ChecklistRunner({ checklist, project, onSave, onBack }) {
 
                     {field.type==="checkbox" && <div style={{ display:"flex", alignItems:"center", gap:8, marginLeft:32 }}><input type="checkbox" checked={!!field.value} disabled={isLocked} onChange={e=>updateFieldValue(field.id, e.target.checked)} style={{ width:18,height:18,accentColor:"var(--accent)" }} /><span style={{ fontSize:13, color:"var(--text2)" }}>Confirmed</span></div>}
                     {field.type==="yesno" && <div style={{ display:"flex", gap:8, marginLeft:32, flexWrap:"wrap" }}>{["Yes","No","N/A"].map(opt => <div key={opt} onClick={()=>!isLocked&&updateFieldValue(field.id, opt)} style={{ padding:"6px 20px", borderRadius:"var(--radius-sm)", border:`2px solid ${field.value===opt?"var(--accent)":"var(--border)"}`, background:field.value===opt?"var(--accent-glow)":"var(--surface2)", cursor:isLocked?"default":"pointer", fontSize:13, fontWeight:600, color:field.value===opt?"var(--accent)":"var(--text2)", opacity:isLocked?0.7:1 }}>{opt}</div>)}</div>}
-                    {field.type==="multi_checkbox" && <div style={{ display:"flex", flexWrap:"wrap", gap:7, marginLeft:32 }}>{(field.options||[]).map(opt => { const sel = (field.value||[]).includes(opt); return <div key={opt} onClick={()=>!isLocked&&toggleMulti(field.id, opt)} style={{ padding:"5px 13px", borderRadius:20, border:`1.5px solid ${sel?"var(--accent)":"var(--border)"}`, background:sel?"var(--accent-glow)":"var(--surface2)", cursor:isLocked?"default":"pointer", fontSize:12.5, fontWeight:600, color:sel?"var(--accent)":"var(--text2)", opacity:isLocked?0.7:1 }}>{sel?"â ":""}{opt}</div>; })}</div>}
-                    {field.type==="dropdown" && <select className="form-input form-select" disabled={isLocked} style={{ marginLeft:32, width:"calc(100% - 32px)" }} value={field.value||""} onChange={e=>updateFieldValue(field.id, e.target.value)}><option value="">â Select â</option>{(field.options||[]).map(o=><option key={o}>{o}</option>)}</select>}
+                    {field.type==="multi_checkbox" && <div style={{ display:"flex", flexWrap:"wrap", gap:7, marginLeft:32 }}>{(field.options||[]).map(opt => { const sel = (field.value||[]).includes(opt); return <div key={opt} onClick={()=>!isLocked&&toggleMulti(field.id, opt)} style={{ padding:"5px 13px", borderRadius:20, border:`1.5px solid ${sel?"var(--accent)":"var(--border)"}`, background:sel?"var(--accent-glow)":"var(--surface2)", cursor:isLocked?"default":"pointer", fontSize:12.5, fontWeight:600, color:sel?"var(--accent)":"var(--text2)", opacity:isLocked?0.7:1 }}>{sel?"✓ ":""}{opt}</div>; })}</div>}
+                    {field.type==="dropdown" && <select className="form-input form-select" disabled={isLocked} style={{ marginLeft:32, width:"calc(100% - 32px)" }} value={field.value||""} onChange={e=>updateFieldValue(field.id, e.target.value)}><option value="">— Select —</option>{(field.options||[]).map(o=><option key={o}>{o}</option>)}</select>}
                     {field.type==="text" && <textarea className="form-input form-textarea" disabled={isLocked} style={{ marginLeft:32, minHeight:72, width:"calc(100% - 32px)", resize:"vertical" }} placeholder="Enter your answer..." value={field.value||""} onChange={e=>updateFieldValue(field.id, e.target.value)} />}
                     {field.type==="number" && <input type="number" className="form-input" disabled={isLocked} style={{ marginLeft:32, width:"calc(100% - 32px)" }} placeholder="0" value={field.value||""} onChange={e=>updateFieldValue(field.id, e.target.value)} />}
 
@@ -952,7 +952,7 @@ function ChecklistBuilder({ checklist, rooms = [], onSave, onBack }) {
             </div>
           </div>
         ))}
-        {(cl.fields||[]).length===0 && <div style={{ textAlign:"center",padding:"24px 0",color:"var(--text3)",fontSize:13 }}>No fields yet â add one below</div>}
+        {(cl.fields||[]).length===0 && <div style={{ textAlign:"center",padding:"24px 0",color:"var(--text3)",fontSize:13 }}>No fields yet — add one below</div>}
       </div>
       {!addingField ? (
         <button className="btn btn-secondary" style={{ width:"100%", justifyContent:"center", borderStyle:"dashed" }} onClick={()=>setAddingField(true)}><Icon d={ic.plus} size={14} /> Add Field</button>
@@ -994,10 +994,10 @@ function TemplateManagerModal({ templates, setTemplates, onClose }) {
   const [newTmplName, setNewTmplName] = useState("");
   const [tmplSearch, setTmplSearch] = useState("");
   const [tmplCategory, setTmplCategory] = useState("All");
-  // Local tags string â decoupled from the parsed array so commas work freely
+  // Local tags string — decoupled from the parsed array so commas work freely
   const [tagsInput, setTagsInput] = useState("");
   const [customCatInput, setCustomCatInput] = useState("");
-  // Custom categories â seeded from localStorage cache, then overwritten by Supabase on load
+  // Custom categories — seeded from localStorage cache, then overwritten by Supabase on load
   const [customCats, setCustomCats] = useState(() => {
     try { return JSON.parse(localStorage.getItem("kc_cl_custom_cats") || "[]"); } catch { return []; }
   });
@@ -1128,7 +1128,7 @@ function TemplateManagerModal({ templates, setTemplates, onClose }) {
         </div>
         <div className="modal-body" style={{ maxHeight:"60vh", overflowY:"auto" }}>
           <div className="form-group"><label className="form-label">Template Name</label><input className="form-input" value={editing.name} onChange={e=>setEditing(p=>({...p,name:e.target.value}))} placeholder="e.g. Fire Damage Walkthrough" /></div>
-          <div className="form-group"><label className="form-label">Description</label><input className="form-input" value={editing.desc||""} onChange={e=>setEditing(p=>({...p,desc:e.target.value}))} placeholder="Short descriptionâ¦" /></div>
+          <div className="form-group"><label className="form-label">Description</label><input className="form-input" value={editing.desc||""} onChange={e=>setEditing(p=>({...p,desc:e.target.value}))} placeholder="Short description…" /></div>
           <div style={{ display:"flex", gap:10, marginBottom:6 }}>
             <div className="form-group" style={{ flex:1, marginBottom:0 }}>
               <label className="form-label">Category</label>
@@ -1150,7 +1150,7 @@ function TemplateManagerModal({ templates, setTemplates, onClose }) {
           <div style={{ display:"flex", gap:8, marginBottom:14, alignItems:"center" }}>
             <input className="form-input" style={{ flex:1, fontSize:12 }}
               value={customCatInput} onChange={e=>setCustomCatInput(e.target.value)}
-              placeholder="Add custom categoryâ¦"
+              placeholder="Add custom category…"
               onKeyDown={e=>{ if(e.key==="Enter"){ saveCustomCat(customCatInput); setEditing(p=>({...p,category:customCatInput.trim()})); setCustomCatInput(""); }}}
             />
             <button className="btn btn-secondary btn-sm" disabled={!customCatInput.trim()} onClick={()=>{ saveCustomCat(customCatInput); setEditing(p=>({...p,category:customCatInput.trim()})); setCustomCatInput(""); }}>
@@ -1191,7 +1191,7 @@ function TemplateManagerModal({ templates, setTemplates, onClose }) {
         <div className="modal-body" style={{ paddingBottom:0 }}>
           {/* Search + category filter */}
           <div style={{ display:"flex", gap:8, marginBottom:12, flexWrap:"wrap" }}>
-            <input className="form-input" placeholder="Search templates or tagsâ¦" value={tmplSearch} onChange={e=>setTmplSearch(e.target.value)} style={{ flex:1, minWidth:160 }} />
+            <input className="form-input" placeholder="Search templates or tags…" value={tmplSearch} onChange={e=>setTmplSearch(e.target.value)} style={{ flex:1, minWidth:160 }} />
           </div>
           <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:14 }}>
             {allCategories.map(cat => (
@@ -1270,7 +1270,7 @@ function TemplateManagerModal({ templates, setTemplates, onClose }) {
           <div style={{ display:"flex", gap:8 }}>
             <input className="form-input" style={{ flex:1, fontSize:12, height:32 }}
               value={customCatInput} onChange={e=>setCustomCatInput(e.target.value)}
-              placeholder="Add new categoryâ¦"
+              placeholder="Add new category…"
               onKeyDown={e=>{ if(e.key==="Enter" && customCatInput.trim()){ saveCustomCat(customCatInput); setCustomCatInput(""); }}}
             />
             <button className="btn btn-secondary btn-sm" disabled={!customCatInput.trim()} onClick={()=>{ saveCustomCat(customCatInput); setCustomCatInput(""); }}>
@@ -1287,7 +1287,7 @@ function TemplateManagerModal({ templates, setTemplates, onClose }) {
   );
 }
 
-// ââ Reports Tab (with multi-select + email send) ââââââââââââââââââââââââââââââ
+// ── Reports Tab (with multi-select + email send) ──────────────────────────────
 export function ReportsTab({ project, onUpdateProject, onOpenReportCreator, settings }) {
   const [selected,    setSelected]    = useState(new Set());
   const [showEmail,   setShowEmail]   = useState(false);
@@ -1407,7 +1407,7 @@ export function ReportsTab({ project, onUpdateProject, onOpenReportCreator, sett
   );
 }
 
-// ââ Send Email Modal âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── Send Email Modal ───────────────────────────────────────────────────────────
 function SendEmailModal({ project, reports, settings, onClose, onSent }) {
   const interpolate = (str, recipient) => (str||"")
     .replace(/{{company}}/g,     settings?.companyName||"")
@@ -1419,15 +1419,15 @@ function SendEmailModal({ project, reports, settings, onClose, onSent }) {
     .replace(/{{reports_list}}/g, reports.map(r=>`  â¢ ${r.title} (${r.reportType||r.type})`).join("\n"));
 
   const QUICK_RECIPIENTS = [
-    project.clientName    && project.clientEmail    ? { label:`Client â ${project.clientName}`,    email:project.clientEmail,    name:project.clientName }    : null,
-    project.adjusterName  && project.adjusterEmail  ? { label:`Adjuster â ${project.adjusterName}`,email:project.adjusterEmail,  name:project.adjusterName }  : null,
-    project.insuranceCarrier                         ? { label:`Carrier â ${project.insuranceCarrier}`, email:"",                name:project.insuranceCarrier } : null,
+    project.clientName    && project.clientEmail    ? { label:`Client — ${project.clientName}`,    email:project.clientEmail,    name:project.clientName }    : null,
+    project.adjusterName  && project.adjusterEmail  ? { label:`Adjuster — ${project.adjusterName}`,email:project.adjusterEmail,  name:project.adjusterName }  : null,
+    project.insuranceCarrier                         ? { label:`Carrier — ${project.insuranceCarrier}`, email:"",                name:project.insuranceCarrier } : null,
   ].filter(Boolean);
 
   const [toList,    setToList]    = useState(QUICK_RECIPIENTS.length>0 ? [QUICK_RECIPIENTS[0]] : [{ label:"Custom", email:"", name:"" }]);
   const [customEmail, setCustomEmail] = useState("");
   const [customName,  setCustomName]  = useState("");
-  const [subject,   setSubject]   = useState(() => interpolate(settings?.emailSubject || "Report from {{company}} â {{project}}", QUICK_RECIPIENTS[0]?.name||""));
+  const [subject,   setSubject]   = useState(() => interpolate(settings?.emailSubject || "Report from {{company}} — {{project}}", QUICK_RECIPIENTS[0]?.name||""));
   const [body,      setBody]      = useState(() => interpolate(settings?.emailBody || "Hello {{recipient}},\n\nPlease find attached the reports for {{project}}.\n\n{{reports_list}}\n\nBest regards,", QUICK_RECIPIENTS[0]?.name||""));
   const [activeTab, setActiveTab] = useState("compose"); // compose | preview
 
@@ -1452,7 +1452,7 @@ function SendEmailModal({ project, reports, settings, onClose, onSent }) {
 
   const previewHtml = `
     <div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.7;color:#222;max-width:600px;padding:20px;">
-      <p><strong>To:</strong> ${toList.map(r=>r.email||r.name).join(", ")||"â"}</p>
+      <p><strong>To:</strong> ${toList.map(r=>r.email||r.name).join(", ")||"—"}</p>
       <p><strong>Subject:</strong> ${subject}</p>
       <hr style="border:1px solid #eee;margin:12px 0"/>
       <div style="white-space:pre-wrap">${body}</div>
@@ -1497,7 +1497,7 @@ function SendEmailModal({ project, reports, settings, onClose, onSent }) {
                       return (
                         <div key={r.email} onClick={()=>added?removeRecipient(r.email):addQuick(r)}
                           style={{ padding:"5px 12px",borderRadius:20,border:`1.5px solid ${added?"var(--accent)":"var(--border)"}`,background:added?"var(--accent-glow)":"var(--surface2)",cursor:"pointer",fontSize:12.5,fontWeight:600,color:added?"var(--accent)":"var(--text2)",transition:"all .15s",userSelect:"none" }}>
-                          {added?"â ":""}{r.label}
+                          {added?"✓ ":""}{r.label}
                         </div>
                       );
                     })}
@@ -1537,8 +1537,8 @@ function SendEmailModal({ project, reports, settings, onClose, onSent }) {
 
               {/* Signature preview */}
               <div style={{ padding:"12px 14px",background:"var(--surface2)",borderRadius:"var(--radius-sm)",borderLeft:"3px solid var(--border)",fontSize:12.5 }}>
-                <div style={{ fontSize:11,fontWeight:700,color:"var(--text3)",textTransform:"uppercase",letterSpacing:".05em",marginBottom:8 }}>Signature (from Settings â Email)</div>
-                <div style={{ color:"var(--text2)",lineHeight:1.7,whiteSpace:"pre-wrap" }}>{sig||"No signature configured â add one in Settings â Email"}</div>
+                <div style={{ fontSize:11,fontWeight:700,color:"var(--text3)",textTransform:"uppercase",letterSpacing:".05em",marginBottom:8 }}>Signature (from Settings → Email)</div>
+                <div style={{ color:"var(--text2)",lineHeight:1.7,whiteSpace:"pre-wrap" }}>{sig||"No signature configured — add one in Settings → Email"}</div>
               </div>
             </div>
           ) : (
@@ -1558,7 +1558,7 @@ function SendEmailModal({ project, reports, settings, onClose, onSent }) {
   );
 }
 
-// ââ Videos Tab ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── Videos Tab ────────────────────────────────────────────────────────────────
 export function VideosTab({ project, onUpdateProject, onOpenCamera, orgId }) {
   const videos = project.videos || [];
   const [playing,      setPlaying]      = useState(null);
@@ -1776,8 +1776,8 @@ export function VideosTab({ project, onUpdateProject, onOpenCamera, orgId }) {
   );
 }
 
-// ââ Photos Tab ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-// ââ Embed code builder â lives outside JSX so </div> strings don't confuse the parser ââ
+// ── Photos Tab ────────────────────────────────────────────────────────────────
+// ── Embed code builder — lives outside JSX so </div> strings don't confuse the parser ──
 export function VoiceNotesTab({ project, teamUsers = [], settings = {}, onUpdateProject, onSendToDirectMessage, orgId }) {
   const voiceNotes = project.voiceNotes || [];
   const [recState,     setRecState]     = useState("idle");
@@ -1835,7 +1835,7 @@ export function VoiceNotesTab({ project, teamUsers = [], settings = {}, onUpdate
         dbUploadVoiceNote(project.id, orgId, blob, durationSeconds, title, authorName, durationMs).then(row => {
           // Base64 dataUrl already works for playback this session.
           // Just tag the note with its DB id in local state so delete works later.
-          // Don't call onUpdateProject again â the stale project closure would wipe the note.
+          // Don't call onUpdateProject again — the stale project closure would wipe the note.
           if (row?.id) {
             note.supabaseId  = row.id;
             note.storagePath = row.storage_path;
@@ -2177,7 +2177,7 @@ export function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpda
               });
               const dbRow = dbRes.ok ? (await dbRes.json())[0] : null;
               // Tag the local file object with its Storage URL and DB id in-place
-              // Do NOT call patchFiles here â it would use a stale snapshot and wipe the file
+              // Do NOT call patchFiles here — it would use a stale snapshot and wipe the file
               // Instead, update only the specific file via onUpdateProject with the latest project state
               newFile.dataUrl = publicUrl;
               newFile.storagePath = storagePath;
@@ -2380,7 +2380,7 @@ export function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpda
                   </div>
                   {!selectMode && (
                   <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,max-content))",gap:8,justifyContent:"end" }}>
-                    {/* Single Preview button â opens in new tab for all types, or shows inline viewer for supported types */}
+                    {/* Single Preview button — opens in new tab for all types, or shows inline viewer for supported types */}
                     <button className="btn btn-secondary btn-sm" onClick={() => {
                       if (previewable) setViewerFile(file);
                       else openFile(file);
@@ -2448,7 +2448,7 @@ export function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpda
         const vUrl       = viewerFile.dataUrl || "";
         const vIsStorage = vUrl.startsWith("http");
         const vIsImg     = viewerFile.type?.startsWith("image/");
-        // PDFs: use <object> only for base64 (data:) â storage URLs fail silently in many browsers
+        // PDFs: use <object> only for base64 (data:) — storage URLs fail silently in many browsers
         const vIsPdfInline = viewerFile.type === "application/pdf" && !vIsStorage;
         const vIsText    = (viewerFile.type?.startsWith("text/") || ["txt","csv","json","md"].includes(getFileExtension(viewerFile.name))) && !vIsStorage;
         const onImgDown  = e => { e.preventDefault(); imgPanStart.current = { mx:e.clientX, my:e.clientY, px:imgPan.x, py:imgPan.y }; };
@@ -2495,7 +2495,7 @@ export function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpda
                   </pre>
                 </div>
               ) : (
-                /* Storage URL PDF, unsupported type, or anything else â Open in New Tab */
+                /* Storage URL PDF, unsupported type, or anything else → Open in New Tab */
                 <div style={{ textAlign:"center",color:"rgba(255,255,255,.7)",padding:40 }}>
                   <div style={{ fontSize:56,marginBottom:16 }}>ð</div>
                   <div style={{ fontSize:15,fontWeight:600,color:"white",marginBottom:8 }}>{viewerFile.name}</div>
@@ -2619,7 +2619,7 @@ function ClientPortalPreview({ project, settings = {}, portal, onAddClientNote }
       setPasswordError("");
       return;
     }
-    setPasswordError("That password doesnât match this portal.");
+    setPasswordError("That password doesn’t match this portal.");
   }
   if (portal?.passwordEnabled && portal?.password && !portalUnlocked) {
     return (
@@ -2632,7 +2632,7 @@ function ClientPortalPreview({ project, settings = {}, portal, onAddClientNote }
                 : <div style={{ width:58,height:58,borderRadius:16,background:"rgba(255,255,255,.95)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:22,color:brandColor }}>{(settings?.companyName||"K")[0]}</div>}
               <div>
                 <div style={{ fontSize:12,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",opacity:.82 }}>Client Portal</div>
-                <div style={{ fontSize:26,fontWeight:900,lineHeight:1.05,marginTop:2 }}>{portal.welcomeTitle || `Hi${project.clientName ? ` ${project.clientName}` : ""}, hereâs your project update`}</div>
+                <div style={{ fontSize:26,fontWeight:900,lineHeight:1.05,marginTop:2 }}>{portal.welcomeTitle || `Hi${project.clientName ? ` ${project.clientName}` : ""}, here’s your project update`}</div>
                 <div style={{ fontSize:14.5,opacity:.95,lineHeight:1.55,marginTop:10,maxWidth:720 }}>This portal is password protected. Enter the project password to continue.</div>
               </div>
             </div>
@@ -2670,7 +2670,7 @@ function ClientPortalPreview({ project, settings = {}, portal, onAddClientNote }
               : <div style={{ width:58,height:58,borderRadius:16,background:"rgba(255,255,255,.95)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:22,color:brandColor }}>{(settings?.companyName||"K")[0]}</div>}
             <div>
               <div style={{ fontSize:12,fontWeight:700,letterSpacing:".08em",textTransform:"uppercase",opacity:.82 }}>Client Portal</div>
-              <div style={{ fontSize:26,fontWeight:900,lineHeight:1.05,marginTop:2 }}>{portal.welcomeTitle || `Hi${project.clientName ? ` ${project.clientName}` : ""}, hereâs your project update`}</div>
+              <div style={{ fontSize:26,fontWeight:900,lineHeight:1.05,marginTop:2 }}>{portal.welcomeTitle || `Hi${project.clientName ? ` ${project.clientName}` : ""}, here’s your project update`}</div>
               <div style={{ fontSize:14.5,opacity:.95,lineHeight:1.55,marginTop:10,maxWidth:720 }}>{portal.welcomeMessage}</div>
             </div>
           </div>
@@ -2690,7 +2690,7 @@ function ClientPortalPreview({ project, settings = {}, portal, onAddClientNote }
             { label:"Current Stage", value:timelineStages.find(([id]) => id === visibleStageId)?.[1] || "Preparing update", sub:project.status || "Active" },
             { label:"Photos Shared", value:String(photos.length), sub:"Visual progress" },
             { label:"Files Shared", value:String(files.length + reports.length), sub:"Files and reports" },
-            { label:"Last Activity", value:activity[0] ? formatPortalRelativeLabel(activity[0].when) : "No updates yet", sub:"Weâll keep this fresh" },
+            { label:"Last Activity", value:activity[0] ? formatPortalRelativeLabel(activity[0].when) : "No updates yet", sub:"We’ll keep this fresh" },
           ].map(card => (
             <div key={card.label} style={{ background:"#fff",border:"1px solid #d9e5f4",borderRadius:20,padding:"16px 16px 14px" }}>
               <div style={{ fontSize:11.5,fontWeight:800,color:"#5f7b96",letterSpacing:".08em",textTransform:"uppercase" }}>{card.label}</div>
@@ -2867,7 +2867,7 @@ function ClientPortalPreview({ project, settings = {}, portal, onAddClientNote }
           <div style={{ background:"#fff7ec",border:"1px solid #f5d7aa",borderRadius:22,padding:"18px 18px 16px",display:"flex",justifyContent:"space-between",gap:14,alignItems:"center",flexWrap:"wrap" }}>
             <div>
               <div style={{ fontSize:18,fontWeight:800,color:"#17324d" }}>Enjoying the experience so far?</div>
-              <div style={{ fontSize:13,color:"#7b6a52",marginTop:5,lineHeight:1.55 }}>If youâd like, you can leave feedback for our team using the review link below.</div>
+              <div style={{ fontSize:13,color:"#7b6a52",marginTop:5,lineHeight:1.55 }}>If you’d like, you can leave feedback for our team using the review link below.</div>
             </div>
             <a href={portal.reviewUrl} target="_blank" rel="noopener noreferrer" style={{ display:"inline-flex",alignItems:"center",gap:8,padding:"12px 18px",borderRadius:999,background:"#f0a34d",color:"white",fontWeight:800,textDecoration:"none" }}>
               <Icon d={ic.star} size={15} stroke="white" /> {portal.reviewLabel || "Leave us a Review"}
@@ -3023,7 +3023,7 @@ export function ClientPortalTab({ project, settings = {}, onUpdateProject }) {
             <div>
               <div style={{ fontSize:16,fontWeight:800,color:"#17324d" }}>Private, project-only client portal</div>
               <div style={{ fontSize:13,color:"#5f7b96",marginTop:5,lineHeight:1.55,maxWidth:720 }}>
-                Share a clean project page with your client that only shows this jobsiteâs updates, files, photos, videos, sketches, reports, and notes.
+                Share a clean project page with your client that only shows this jobsite’s updates, files, photos, videos, sketches, reports, and notes.
               </div>
             </div>
             <div onClick={() => toggle("enabled")} style={{ width:56,height:30,borderRadius:999,background:portal.enabled ? "var(--accent)" : "var(--surface3)",position:"relative",cursor:"pointer",flexShrink:0 }}>
@@ -3068,7 +3068,7 @@ export function ClientPortalTab({ project, settings = {}, onUpdateProject }) {
           <div className="form-row">
             <div className="form-group" style={{ marginBottom:0 }}>
               <label className="form-label">Welcome Title</label>
-              <input className="form-input" value={portal.welcomeTitle || ""} onChange={e=>patchPortal({ welcomeTitle:e.target.value })} placeholder={`Hi${project.clientName ? ` ${project.clientName}` : ""}, hereâs your project update`} />
+              <input className="form-input" value={portal.welcomeTitle || ""} onChange={e=>patchPortal({ welcomeTitle:e.target.value })} placeholder={`Hi${project.clientName ? ` ${project.clientName}` : ""}, here’s your project update`} />
             </div>
             <div className="form-group" style={{ marginBottom:0 }}>
               <label className="form-label">Review Button Label</label>
@@ -3078,7 +3078,7 @@ export function ClientPortalTab({ project, settings = {}, onUpdateProject }) {
 
           <div className="form-group" style={{ marginBottom:0 }}>
             <label className="form-label">Friendly Welcome Message</label>
-            <textarea className="form-input form-textarea" value={portal.welcomeMessage || ""} onChange={e=>patchPortal({ welcomeMessage:e.target.value })} placeholder="Write a short, client-friendly note to explain what theyâll find here." style={{ minHeight:90 }} />
+            <textarea className="form-input form-textarea" value={portal.welcomeMessage || ""} onChange={e=>patchPortal({ welcomeMessage:e.target.value })} placeholder="Write a short, client-friendly note to explain what they’ll find here." style={{ minHeight:90 }} />
           </div>
 
           <div className="form-group" style={{ marginBottom:0 }}>
@@ -3524,7 +3524,7 @@ export function BAPairCard({ pair, bPhoto, aPhoto, onDelete, settings }) {
         )
       }
 
-      {/* ââ Embed Panel ââ */}
+      {/* ── Embed Panel ── */}
       {showEmbed && (
         <div style={{ padding:"14px 16px",borderTop:"1px solid var(--border)",background:"var(--surface)" }}>
           <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:10 }}>
@@ -3533,7 +3533,7 @@ export function BAPairCard({ pair, bPhoto, aPhoto, onDelete, settings }) {
             <button className="btn btn-ghost btn-sm btn-icon" style={{ width:24,height:24 }} onClick={()=>setShowEmbed(false)}><Icon d={ic.close} size={13}/></button>
           </div>
           <div style={{ fontSize:12,color:"var(--text2)",marginBottom:10,lineHeight:1.6 }}>
-            Paste this into any website builder's <strong>Custom HTML</strong> block (Squarespace, Wix, Webflow, WordPress, etc). The slider works fully on desktop and mobile â no plugins needed.
+            Paste this into any website builder's <strong>Custom HTML</strong> block (Squarespace, Wix, Webflow, WordPress, etc). The slider works fully on desktop and mobile — no plugins needed.
           </div>
           {/* Max width control */}
           <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:10 }}>
@@ -3569,7 +3569,7 @@ export function BAPairCard({ pair, bPhoto, aPhoto, onDelete, settings }) {
           {/* Copy button */}
           <div style={{ display:"flex",justifyContent:"flex-end",marginTop:8,gap:8 }}>
             <div style={{ fontSize:11,color:"var(--text3)",alignSelf:"center" }}>
-              â  Images are embedded as data â keep file sizes reasonable.
+              â  Images are embedded as data — keep file sizes reasonable.
             </div>
             <button className="btn btn-primary btn-sm" onClick={copyEmbed}
               style={{ minWidth:130,background:embedCopied?"#3dba7e":undefined,borderColor:embedCopied?"#3dba7e":undefined,transition:"background .2s" }}>

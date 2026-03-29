@@ -16,7 +16,7 @@ import { useAuth } from "./AuthProvider.jsx";
 const billingDaySuffix = (dateStr) => {
   const d = new Date(dateStr || "2025-03-11").getDate();
   const v = d % 100;
-  // 11th, 12th, 13th are exceptions â always "th"
+  // 11th, 12th, 13th are exceptions — always "th"
   if (v >= 11 && v <= 13) return d + "th";
   const s = { 1:"st", 2:"nd", 3:"rd" };
   return d + (s[d % 10] || "th");
@@ -71,7 +71,7 @@ const calcProration = (settings, users, fromPlan, toPlan) => {
   return { unusedCredit, newCharge, netCharge, daysLeft: info.daysLeft, daysTotal: info.daysTotal, cycleEnd: info.cycleEnd, fromTotal, toTotal };
 };
 
-// ââ ACCOUNT PAGE âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── ACCOUNT PAGE ─────────────────────────────────────────────────────────────
 const PRICING = {
   monthly: {
     base:    { admin: 39, user: 29 },
@@ -154,7 +154,7 @@ export function UserModal({ user, projects, settings = {}, currentUserRole = "ad
     <div className="modal-overlay" onClick={e => e.target===e.currentTarget && onClose()}>
       <div className="modal modal-lg fade-in" style={{ maxWidth:640 }}>
         <div className="modal-header">
-          <div className="modal-title">{isNew ? "Add New User" : `Edit â ${user.firstName} ${user.lastName}`}</div>
+          <div className="modal-title">{isNew ? "Add New User" : `Edit — ${user.firstName} ${user.lastName}`}</div>
           <button className="btn btn-ghost btn-icon" style={{ width:44,height:44 }} onClick={onClose}><Icon d={ic.close} size={22} /></button>
         </div>
 
@@ -171,7 +171,7 @@ export function UserModal({ user, projects, settings = {}, currentUserRole = "ad
 
         <div className="modal-body" style={{ maxHeight:480,overflowY:"auto" }}>
 
-          {/* ââ INFO ââ */}
+          {/* ── INFO ── */}
           {tab==="info" && (
             <div>
               <div className="form-row">
@@ -180,7 +180,7 @@ export function UserModal({ user, projects, settings = {}, currentUserRole = "ad
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Email Address * <span style={{ fontSize:11,color:"var(--text3)",fontWeight:400 }}>â also updates login email</span></label>
+                  <label className="form-label">Email Address * <span style={{ fontSize:11,color:"var(--text3)",fontWeight:400 }}>— also updates login email</span></label>
                   <input className="form-input" type="email" value={form.email} onChange={e=>set("email",e.target.value)} placeholder="jane@company.com" />
                 </div>
                 <div className="form-group"><label className="form-label">Mobile Phone</label><input className="form-input" value={form.mobile} onChange={e=>set("mobile",e.target.value)} placeholder="+1 (555) 000-0000" /></div>
@@ -216,11 +216,11 @@ export function UserModal({ user, projects, settings = {}, currentUserRole = "ad
                 <div className="form-group"><label className="form-label">State / Province</label><input className="form-input" value={form.state} onChange={e=>set("state",e.target.value)} /></div>
                 <div className="form-group"><label className="form-label">Zip / Postal Code</label><input className="form-input" value={form.zip} onChange={e=>set("zip",e.target.value)} /></div>
               </div>
-              <div className="form-group"><label className="form-label">Notes</label><textarea className="form-input form-textarea" value={form.notes} onChange={e=>set("notes",e.target.value)} placeholder="Internal notes about this userâ¦" style={{ minHeight:68 }} /></div>
+              <div className="form-group"><label className="form-label">Notes</label><textarea className="form-input form-textarea" value={form.notes} onChange={e=>set("notes",e.target.value)} placeholder="Internal notes about this user…" style={{ minHeight:68 }} /></div>
             </div>
           )}
 
-          {/* ââ ACCESS ââ */}
+          {/* ── ACCESS ── */}
           {tab==="access" && (
             <div>
               <div style={{ marginBottom:18 }}>
@@ -271,7 +271,7 @@ export function UserModal({ user, projects, settings = {}, currentUserRole = "ad
             </div>
           )}
 
-          {/* ââ PROJECTS ââ */}
+          {/* ── PROJECTS ── */}
           {tab==="projects" && (
             <div>
               <div style={{ fontSize:12.5,color:"var(--text2)",marginBottom:14,lineHeight:1.6 }}>
@@ -282,7 +282,7 @@ export function UserModal({ user, projects, settings = {}, currentUserRole = "ad
                     <Icon d={ic.shield} size={16} stroke="var(--accent)" /><span>This role has access to <strong style={{ color:"var(--text)" }}>all projects</strong> automatically.</span>
                   </div>
                 : projects.length === 0
-                  ? <div style={{ padding:16,color:"var(--text3)",fontSize:13 }}>No projects yet â create a jobsite first.</div>
+                  ? <div style={{ padding:16,color:"var(--text3)",fontSize:13 }}>No projects yet — create a jobsite first.</div>
                   : <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
                       {projects.map(p=>{
                         const sel = form.assignedProjects.includes(p.id);
@@ -303,7 +303,7 @@ export function UserModal({ user, projects, settings = {}, currentUserRole = "ad
             </div>
           )}
 
-          {/* ââ CERTIFICATIONS ââ */}
+          {/* ── CERTIFICATIONS ── */}
           {tab==="certs" && (() => {
             const certs = form.certifications || [];
             const saveCert = (cert) => {
@@ -327,7 +327,7 @@ export function UserModal({ user, projects, settings = {}, currentUserRole = "ad
                           ? `${certs.filter(c=>getCertStatus(c.dateExpires)==="expired").length} certification(s) expired`
                           : `${certs.filter(c=>["expiring-soon","expiring-warning"].includes(getCertStatus(c.dateExpires))).length} certification(s) expiring soon`}
                       </strong>
-                      {" â update or renew before the expiry date"}
+                      {" — update or renew before the expiry date"}
                     </span>
                   </div>
                 )}
@@ -380,7 +380,7 @@ export function UserModal({ user, projects, settings = {}, currentUserRole = "ad
                                 {status==="expired"
                                   ? `Expired ${Math.abs(daysLeft)} day${Math.abs(daysLeft)!==1?"s":""} ago`
                                   : status==="expiring-soon"
-                                    ? `Expires in ${daysLeft} day${daysLeft!==1?"s":""} â renew now`
+                                    ? `Expires in ${daysLeft} day${daysLeft!==1?"s":""} — renew now`
                                     : status==="expiring-warning"
                                       ? `Expires in ${daysLeft} days`
                                       : `Expires: ${new Date(cert.dateExpires+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`}
@@ -410,7 +410,7 @@ export function UserModal({ user, projects, settings = {}, currentUserRole = "ad
                   </button>
                 )}
 
-                {/* ââ Cert edit/add form ââ */}
+                {/* ── Cert edit/add form ── */}
                 {editingCert && (
                   <div style={{ background:"var(--surface2)",borderRadius:12,border:"1px solid var(--border)",overflow:"hidden" }}>
                     <div style={{ padding:"13px 16px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--surface)" }}>
@@ -511,8 +511,8 @@ export function UserModal({ user, projects, settings = {}, currentUserRole = "ad
                           <div style={{ padding:"8px 12px",borderRadius:8,background:sm.bg,border:`1px solid ${sm.border}`,marginBottom:12,fontSize:12,color:sm.color,fontWeight:600,display:"flex",alignItems:"center",gap:7 }}>
                             <span style={{ width:7,height:7,borderRadius:"50%",background:sm.color,display:"inline-block",flexShrink:0 }} />
                             {st==="expired" ? `Expired ${Math.abs(days)} days ago`
-                              : st==="expiring-soon" ? `Expires in ${days} days â will trigger urgent notification`
-                              : st==="expiring-warning" ? `Expires in ${days} days â will trigger 90-day warning`
+                              : st==="expiring-soon" ? `Expires in ${days} days — will trigger urgent notification`
+                              : st==="expiring-warning" ? `Expires in ${days} days — will trigger 90-day warning`
                               : `Valid · expires ${new Date(editingCert.dateExpires+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}`}
                           </div>
                         );
@@ -574,7 +574,7 @@ export function UserModal({ user, projects, settings = {}, currentUserRole = "ad
                             background: r.ok ? "#3dba7e22" : "var(--surface2)",
                             color: r.ok ? "#3dba7e" : "var(--text3)",
                             border: `1px solid ${r.ok ? "#3dba7e44" : "var(--border)"}` }}>
-                            {r.ok ? "â" : "â"} {r.label}
+                            {r.ok ? "✓" : "â"} {r.label}
                           </span>
                         ))}
                       </div>
@@ -798,7 +798,7 @@ export function UpdateCardModal({ current, onSave, onClose }) {
   );
 }
 
-// ââ InviteUserButton ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── InviteUserButton ──────────────────────────────────────────────────────────
 export function InviteUserButton({ canEdit }) {
   const { session } = useAuth();
   const [open, setOpen] = React.useState(false);
@@ -926,7 +926,7 @@ export function InviteUserButton({ canEdit }) {
               opacity: sending ? 0.7 : 1,
             }}
           >
-            {sending ? "Sendingâ¦" : "Send Invite"}
+            {sending ? "Sending…" : "Send Invite"}
           </button>
         </div>
       </div>
@@ -970,7 +970,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
   const canViewPerms = hasPermissionLevel(currentUserPerms, "settings", "view");
   const canEditPerms = currentUserRole === "admin" || (permissionPolicies.allowManagerPermissionEditing && currentUserRole === "manager" && hasPermissionLevel(currentUserPerms, "settings", "edit"));
 
-  // AI generation tracking â reset if window has expired
+  // AI generation tracking — reset if window has expired
   const aiLimit       = PLAN_AI_LIMITS[currentPlan] || 0;
   const hasAI         = aiLimit > 0;
   const windowStart   = settings?.aiGenerationsWindowStart ? new Date(settings.aiGenerationsWindowStart) : null;
@@ -1025,7 +1025,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
     // Persist to Supabase profiles table
     if (normalizedUser.email) {
       if (!exists) {
-        // Brand-new user â insert a pending profile (no auth account yet)
+        // Brand-new user — insert a pending profile (no auth account yet)
         const orgId = acctAuthProfile?.organization_id;
         if (orgId) {
           createTeamMember(normalizedUser, orgId).catch(err =>
@@ -1033,7 +1033,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
           );
         }
       } else {
-        // Existing user â update their profile (pass previous email so auth email can be updated if changed)
+        // Existing user — update their profile (pass previous email so auth email can be updated if changed)
         const previousEmail = exists.email || null;
         updateTeamMember(normalizedUser, previousEmail).catch(err =>
           console.warn("[KrakenCam] Failed to save team member:", err.message || err)
@@ -1041,7 +1041,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
       }
     }
 
-    // Sync user.assignedProjects â each project's assignedUserIds
+    // Sync user.assignedProjects → each project's assignedUserIds
     if (onProjectsChange) {
       onProjectsChange(prev => prev.map(proj => {
         const userWantsThisProject = (normalizedUser.assignedProjects||[]).includes(proj.id);
@@ -1074,7 +1074,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
           action: isNewUser ? "added you to jobsite" : "assigned you to jobsite",
           context: proj.title,
           preview: userName
-            ? `${userName} â assigned to: ${proj.title}`
+            ? `${userName} — assigned to: ${proj.title}`
             : `You've been assigned to "${proj.title}"`,
           date: today(),
           read: false,
@@ -1213,7 +1213,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
           ))}
         </div>
 
-        {/* AI Generation Krakens usage box â shown for admins/managers on AI-enabled plans */}
+        {/* AI Generation Krakens usage box — shown for admins/managers on AI-enabled plans */}
         {hasAI && (
           <div style={{ marginTop:12,background:"var(--surface)",border:`1px solid ${aiRemaining===0?"#e85a3a44":isCommand?"#2b7fe844":isPro?"#a855f744":"#3dba7e44"}`,borderRadius:"var(--radius)",padding:"14px 18px",display:"flex",alignItems:"center",gap:16 }}>
             {/* Icon */}
@@ -1224,7 +1224,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
             <div style={{ flex:1,minWidth:0 }}>
               <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5 }}>
                 <div style={{ fontWeight:700,fontSize:13,color:"var(--text)" }}>
-                  AI Generation Krakens â {PLAN_NAMES[currentPlan]}
+                  AI Generation Krakens — {PLAN_NAMES[currentPlan]}
                 </div>
                 <div style={{ fontSize:12,fontWeight:800,color:aiRemaining===0?"#e85a3a":isCommand?"#2b7fe8":isPro?"#a855f7":"#3dba7e" }}>
                   {aiRemaining === 0 ? "â  Limit reached" : `${aiRemaining} remaining`}
@@ -1262,18 +1262,18 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
         ))}
       </div>}
 
-      {/* ââ TEAM MEMBERS ââ */}
+      {/* ── TEAM MEMBERS ── */}
       {tab==="team" && (
         <div className="fade-in">
           <div style={{ display:"flex",gap:10,marginBottom:18,alignItems:"center" }}>
-            <input className="form-input" style={{ flex:1,maxWidth:320 }} placeholder="Search usersâ¦" value={searchQ} onChange={e=>setSearchQ(e.target.value)} />
+            <input className="form-input" style={{ flex:1,maxWidth:320 }} placeholder="Search users…" value={searchQ} onChange={e=>setSearchQ(e.target.value)} />
             <button className="btn btn-primary btn-sm" onClick={()=>canEditTeam && setAddingUser(true)} disabled={!canEditTeam}>
               <Icon d={ic.userPlus} size={14} /> Add User <span style={{ opacity:.7,fontSize:11 }}>+${userSeat}/mo</span>
             </button>
             <InviteUserButton canEdit={canEditTeam} />
           </div>
 
-          {/* Admin row â clickable self-edit */}
+          {/* Admin row — clickable self-edit */}
           {(() => {
             const accentColor = ROLE_META.admin.color;
             const adminInitials = `${settings.userFirstName?.[0]||"A"}${settings.userLastName?.[0]||""}`.toUpperCase();
@@ -1372,7 +1372,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
                   <span style={{ fontSize:12, color:"var(--text3)", marginLeft:4 }}>{viewingAdmin ? "â²" : "â¼"}</span>
                 </div>
 
-                {/* ââ Expanded self-edit panel ââ */}
+                {/* ── Expanded self-edit panel ── */}
                 {viewingAdmin && adminForm && (
                   <div style={{ borderTop:"1px solid var(--border)", display:"flex", flexWrap:"wrap" }}>
 
@@ -1638,7 +1638,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
                         {/* Unassigned picker */}
                         {(() => {
                           const unassigned = projects.filter(p=>!(adminForm.assignedProjects||[]).includes(p.id));
-                          if (unassigned.length === 0) return <div style={{ fontSize:12, color:"var(--text3)", fontStyle:"italic" }}>{projects.length===0 ? "No projects yet." : "All jobsites tagged â"}</div>;
+                          if (unassigned.length === 0) return <div style={{ fontSize:12, color:"var(--text3)", fontStyle:"italic" }}>{projects.length===0 ? "No projects yet." : "All jobsites tagged ✓"}</div>;
                           return (
                             <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
                               {unassigned.map(p=>(
@@ -1695,7 +1695,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
             return (
               <div key={u.id} style={{ background:"var(--surface)",border:`1px solid ${isViewing ? "var(--accent)" : "var(--border)"}`,borderRadius:"var(--radius)",marginBottom:8,opacity:u.status==="inactive"?0.7:1,transition:"border-color .15s,box-shadow .15s",boxShadow:isViewing?"0 0 0 3px var(--accent-glow)":"none",overflow:"hidden" }}>
 
-                {/* ââ Clickable summary row ââ */}
+                {/* ── Clickable summary row ── */}
                 <div style={{ display:"flex",alignItems:"center",gap:14,padding:"13px 16px",cursor:"pointer" }}
                   onClick={()=>setViewingUser(isViewing ? null : u.id)}>
                   <div style={{ width:40,height:40,borderRadius:"50%",background:meta.color,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:14,color:"white",flexShrink:0 }}>
@@ -1719,19 +1719,19 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
                   </div>
                 </div>
 
-                {/* ââ Expanded profile panel ââ */}
+                {/* ── Expanded profile panel ── */}
                 {isViewing && (() => {
                   const statusColor = u.status==="active" ? "#3dba7e" : u.status==="pending" ? "#e8c53a" : "#e85a3a";
                   const statusLabel = u.status==="active" ? "Active" : u.status==="pending" ? "Pending Invite" : "Deactivated";
                   return (
                     <div style={{ borderTop:"1px solid var(--border)" }}>
 
-                      {/* ââ Accent bar ââ */}
+                      {/* ── Accent bar ── */}
                       <div style={{ height:3,background:`linear-gradient(90deg,${meta.color},${meta.color}55,transparent)` }} />
 
                       <div style={{ display:"flex",gap:0 }}>
 
-                        {/* ââ LEFT: profile sidebar ââ */}
+                        {/* ── LEFT: profile sidebar ── */}
                         <div style={{ width:200,flexShrink:0,padding:"20px 16px 20px 20px",borderRight:"1px solid var(--border)",background:"var(--surface)",display:"flex",flexDirection:"column",gap:16 }}>
 
                           {/* Avatar */}
@@ -1797,7 +1797,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
                           </div>
                         </div>
 
-                        {/* ââ RIGHT: detail sections ââ */}
+                        {/* ── RIGHT: detail sections ── */}
                         <div style={{ flex:1,minWidth:0,background:"var(--surface2)" }}>
 
                           {/* Contact */}
@@ -1911,7 +1911,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
                                   if (unassigned.length === 0 && assignedProjs.length === 0)
                                     return <div style={{ fontSize:12,color:"var(--text3)",fontStyle:"italic" }}>No projects in the system yet.</div>;
                                   if (unassigned.length === 0)
-                                    return <div style={{ fontSize:12,color:"var(--text3)",fontStyle:"italic" }}>All jobsites assigned â</div>;
+                                    return <div style={{ fontSize:12,color:"var(--text3)",fontStyle:"italic" }}>All jobsites assigned ✓</div>;
                                   return (
                                     <div>
                                       <div style={{ fontSize:11,color:"var(--text3)",fontWeight:600,marginBottom:7 }}>
@@ -1940,13 +1940,13 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
                             )}
                           </div>
 
-                          {/* Notes â editable inline for all users */}
+                          {/* Notes — editable inline for all users */}
                           <div style={{ padding:"0 20px 18px" }}>
                             <div style={{ fontSize:10,fontWeight:800,textTransform:"uppercase",letterSpacing:".08em",color:"var(--text3)",marginBottom:8,display:"flex",alignItems:"center",gap:7 }}>
                               <Icon d={ic.text} size={11} stroke="var(--text3)" /> Notes
                             </div>
                             <textarea className="form-input" rows={3} style={{ resize:"vertical",width:"100%",boxSizing:"border-box" }}
-                              placeholder="Internal notes about this team memberâ¦"
+                              placeholder="Internal notes about this team member…"
                               defaultValue={u.notes||""}
                               onBlur={e=>{ if(e.target.value !== (u.notes||"")) saveUser({...u, notes:e.target.value}); }}
                             />
@@ -1966,11 +1966,11 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
         </div>
       )}
 
-      {/* ââ BILLING ââ */}
+      {/* ── BILLING ── */}
       {tab==="billing" && (
         <div className="fade-in">
 
-          {/* ââ Billing cycle toggle ââ */}
+          {/* ── Billing cycle toggle ── */}
           <div style={{ display:"flex",alignItems:"center",justifyContent:"center",marginBottom:20 }}>
             <div style={{ display:"inline-flex",alignItems:"center",gap:0,background:"var(--surface2)",borderRadius:40,border:"1px solid var(--border)",padding:3 }}>
               <button onClick={()=>onSettingsChange({...settings,billingCycle:"monthly"})}
@@ -1994,7 +1994,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
             </div>
           </div>
 
-          {/* ââ Current Plan card ââ */}
+          {/* ── Current Plan card ── */}
           <div className="card" style={{ marginBottom:16 }}>
             <div className="card-header" style={{ display:"flex",alignItems:"center",justifyContent:"space-between" }}>
               <span style={{ fontWeight:700 }}>Current Plan</span>
@@ -2100,7 +2100,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
             </div>
           </div>
 
-          {/* ââ Pricing Breakdown ââ */}
+          {/* ── Pricing Breakdown ── */}
           <div className="card" style={{ marginBottom:16 }}>
             <div className="card-header"><span style={{ fontWeight:700 }}>Pricing Breakdown</span></div>
             <div className="card-body">
@@ -2111,7 +2111,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
                 <div className="price-row" style={{ display:"grid",gridTemplateColumns:"1fr 110px 110px",padding:"10px 14px",borderBottom:"1px solid var(--border)",alignItems:"center",fontSize:13,gap:8 }}>
                   <span style={{ display:"flex",alignItems:"center",gap:6 }}>
                     {isPro && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#a855f7" strokeWidth="2"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>}
-                    {PLAN_NAMES[currentPlan]} â Admin seat
+                    {PLAN_NAMES[currentPlan]} — Admin seat
                   </span>
                   <span style={{ color:"var(--text2)" }}>${adminSeat}/mo</span>
                   <span style={{ textAlign:"right",fontWeight:600 }}>${adminSeat}.00</span>
@@ -2126,7 +2126,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
                     <span style={{ textAlign:"right",fontWeight:600 }}>{u.status==="inactive"?"$0.00":`$${userSeat}.00`}</span>
                   </div>
                 ))}
-                {/* Proration line â shown when plan changed mid-cycle this billing period */}
+                {/* Proration line — shown when plan changed mid-cycle this billing period */}
                 {settings?.planChangeDate && (() => {
                   const changeDate = new Date(settings.planChangeDate);
                   const info = getBillingCycleInfo(settings?.signupDate, cycle);
@@ -2139,7 +2139,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
                       <span style={{ color:"var(--text2)",fontStyle:"italic" }}>
                         Mid-cycle adjustment ({changeDate.toLocaleDateString("en-US",{month:"short",day:"numeric"})}) · {p.daysLeft} days prorated
                       </span>
-                      <span style={{ color:"var(--text2)" }}>â</span>
+                      <span style={{ color:"var(--text2)" }}>—</span>
                       <span style={{ textAlign:"right",fontWeight:600,color: p.netCharge > 0 ? "var(--accent)" : "#3dba7e" }}>
                         {p.netCharge > 0 ? `+$${p.netCharge}` : `-$${Math.abs(p.netCharge)}`}
                       </span>
@@ -2158,7 +2158,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
             </div>
           </div>
 
-          {/* ââ Payment Method ââ */}
+          {/* ── Payment Method ── */}
           <div className="card">
             <div className="card-header"><span style={{ fontWeight:700 }}>Payment Method</span></div>
             <div className="card-body">
@@ -2170,11 +2170,11 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
                 </div>
                 <button className="btn btn-secondary btn-sm" onClick={()=>setShowCardModal(true)}>Update Card</button>
               </div>
-              <button className="btn btn-ghost btn-sm" style={{ color:"var(--text2)",fontSize:12 }} onClick={()=>setShowBillingHistory(true)}>View billing history â</button>
+              <button className="btn btn-ghost btn-sm" style={{ color:"var(--text2)",fontSize:12 }} onClick={()=>setShowBillingHistory(true)}>View billing history →</button>
             </div>
           </div>
 
-          {/* ââ Pending downgrade banner ââ */}
+          {/* ── Pending downgrade banner ── */}
           {settings?.pendingPlan && settings.pendingPlan !== currentPlan && (
             <div style={{ display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:"rgba(232,90,58,.08)",border:"1px solid rgba(232,90,58,.3)",borderRadius:10,marginBottom:16 }}>
               <Icon d={ic.alert} size={16} stroke="#e85a3a" />
@@ -2319,7 +2319,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
         </div>
       )}
 
-      {/* ââ PERMISSIONS ââ */}
+      {/* ── PERMISSIONS ── */}
       {tab==="perms" && (
         <div className="fade-in">
           <div style={{ fontSize:12.5,color:"var(--text2)",marginBottom:18,lineHeight:1.7,padding:"12px 16px",background:"var(--surface2)",borderRadius:"var(--radius)",border:"1px solid var(--border)" }}>
@@ -2417,7 +2417,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
         </div>
       )}
 
-      {/* ââ MODALS ââ */}
+      {/* ── MODALS ── */}
       {(addingUser || editingUser) && (
         <UserModal
           user={editingUser||null}

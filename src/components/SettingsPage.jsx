@@ -7,7 +7,7 @@ const REPORT_EMAIL_FEATURE_VISIBLE = false; // feature flag â email reports
 
 export function AddItemInput({ label, onAdd }) {
   const [val, setVal] = useState("");
-  const placeholder = `Add new ${label.toLowerCase().replace(/ options$/,"").replace(/ types$/,"").replace(/ type$/,"")} optionâ¦`;
+  const placeholder = `Add new ${label.toLowerCase().replace(/ options$/,"").replace(/ types$/,"").replace(/ type$/,"")} option…`;
   const commit = () => { if (val.trim()) { onAdd(val); setVal(""); } };
   return (
     <div style={{ display:"flex",gap:8 }}>
@@ -80,7 +80,7 @@ export function StatusListEditor({ items: rawItems, onChange }) {
                 <Icon d="M6 9l6 6 6-6" size={11}/>
               </button>
             </div>
-            {/* Colour dot â locked for system statuses */}
+            {/* Colour dot — locked for system statuses */}
             <div style={{ position:"relative",flexShrink:0 }}>
               <div style={{ width:14,height:14,borderRadius:"50%",background:TAG_CLS_COLORS[s.cls]||"#6b7280",
                 cursor:isSystem?"default":"pointer",border:"2px solid var(--border)",
@@ -93,7 +93,7 @@ export function StatusListEditor({ items: rawItems, onChange }) {
                   updateItem(idx, { cls: next });
                 }} />
             </div>
-            {/* Label â locked for system statuses */}
+            {/* Label — locked for system statuses */}
             {isSystem
               ? <span style={{ flex:1,fontSize:13,color:"var(--text)",display:"flex",alignItems:"center",gap:6 }}>
                   {s.label}
@@ -105,7 +105,7 @@ export function StatusListEditor({ items: rawItems, onChange }) {
             }
             {/* Preview badge */}
             <span className={`tag tag-${s.cls}`} style={{ flexShrink:0,fontSize:11 }}>{s.label}</span>
-            {/* Remove â hidden for system statuses */}
+            {/* Remove — hidden for system statuses */}
             {isSystem
               ? <div style={{ width:28,height:28,flexShrink:0 }} /> 
               : <button className="btn btn-ghost btn-sm btn-icon" style={{ width:28,height:28,color:"#e85a3a",flexShrink:0 }}
@@ -119,7 +119,7 @@ export function StatusListEditor({ items: rawItems, onChange }) {
       </div>
       {/* Add new status */}
       <div style={{ display:"flex",gap:8,alignItems:"center" }}>
-        <input className="form-input" style={{ flex:1 }} placeholder="New status labelâ¦"
+        <input className="form-input" style={{ flex:1 }} placeholder="New status label…"
           value={newLabel} onChange={e=>setNewLabel(e.target.value)}
           onKeyDown={e=>{ if(e.key==="Enter") addItem(); }} />
         <div style={{ display:"flex",gap:4,flexShrink:0 }}>
@@ -165,7 +165,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
     setExporting(true);
     setExportDone(false);
     try {
-      // Bundle all account data â only this org's data (already in local state, RLS-enforced on load)
+      // Bundle all account data — only this org's data (already in local state, RLS-enforced on load)
       const exportPayload = {
         exported_at: new Date().toISOString(),
         account: {
@@ -361,7 +361,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
         ))}
       </div>
 
-      {/* ââ COMPANY ââ */}
+      {/* ── COMPANY ── */}
       {tab === "company" && (
         <div className="fade-in">
           {/* Logo upload */}
@@ -426,7 +426,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
         </div>
       )}
 
-      {/* ââ APPEARANCE ââ */}
+      {/* ── APPEARANCE ── */}
       {tab === "appearance" && (
         <div className="fade-in">
           {/* Mode */}
@@ -506,12 +506,12 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
             </div>
           </div>
 
-          {/* Camera Roll â mobile only */}
+          {/* Camera Roll — mobile only */}
           {false && null}
         </div>
       )}
 
-      {/* ââ ACCOUNT ââ */}
+      {/* ── ACCOUNT ── */}
       {tab === "account" && (
         <div className="fade-in">
           {/* Profile */}
@@ -601,18 +601,18 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                       background: r.ok ? "#3dba7e22" : "var(--surface2)",
                       color: r.ok ? "#3dba7e" : "var(--text3)",
                       border: `1px solid ${r.ok ? "#3dba7e44" : "var(--border)"}` }}>
-                      {r.ok ? "â" : "â"} {r.label}
+                      {r.ok ? "✓" : "â"} {r.label}
                     </span>
                   ))}
                 </div>
               )}
               {pwError   && <div style={{ fontSize:12.5,color:"#c0392b",marginBottom:10,padding:"8px 12px",background:"#c0392b15",borderRadius:"var(--radius-sm)",border:"1px solid #c0392b44" }}>{pwError}</div>}
-              {pwSuccess && <div style={{ fontSize:12.5,color:"#3dba7e",marginBottom:10,padding:"8px 12px",background:"#3dba7e15",borderRadius:"var(--radius-sm)",border:"1px solid #3dba7e44" }}>â Password updated successfully.</div>}
+              {pwSuccess && <div style={{ fontSize:12.5,color:"#3dba7e",marginBottom:10,padding:"8px 12px",background:"#3dba7e15",borderRadius:"var(--radius-sm)",border:"1px solid #3dba7e44" }}>✓ Password updated successfully.</div>}
               <button className="btn btn-secondary btn-sm" onClick={handleUpdatePassword}><Icon d={ic.check} size={13} /> Update Password</button>
             </div>
           </div>
 
-          {/* Danger zone â admin only, desktop only */}
+          {/* Danger zone — admin only, desktop only */}
           {form.userRole === "admin" && !isMobile && (
             <div style={{ marginTop:32,paddingTop:24,borderTop:"1px solid var(--border)",display:"flex",justifyContent:"flex-end",gap:10,alignItems:"center" }}>
               {/* Export Data */}
@@ -658,13 +658,13 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                     <li>GPS coordinates and timestamps</li>
                   </ul>
                   <div style={{ marginTop:10,fontSize:12,color:"var(--text3)" }}>
-                    â ï¸ Photos are included as base64 â the file may be large depending on how many you have.
+                    â ï¸ Photos are included as base64 — the file may be large depending on how many you have.
                   </div>
                 </div>
 
                 {exportDone && (
                   <div style={{ background:"rgba(61,186,126,.1)",border:"1px solid rgba(61,186,126,.3)",borderRadius:"var(--radius-sm)",padding:"10px 14px",marginBottom:16,fontSize:13,color:"#3dba7e",fontWeight:600 }}>
-                    â Export downloaded successfully!
+                    ✓ Export downloaded successfully!
                   </div>
                 )}
 
@@ -676,7 +676,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                     onClick={handleExportData}
                     style={{ display:"flex",alignItems:"center",gap:6 }}>
                     <Icon d={ic.download} size={13} />
-                    {exporting ? "Preparing exportâ¦" : "Download My Data"}
+                    {exporting ? "Preparing export…" : "Download My Data"}
                   </button>
                 </div>
               </div>
@@ -714,7 +714,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                   </label>
                   <input
                     className="form-input"
-                    placeholder="Type DELETE hereâ¦"
+                    placeholder="Type DELETE here…"
                     value={deleteConfirmText}
                     onChange={e => setDeleteConfirmText(e.target.value)}
                     style={{ borderColor: deleteConfirmText === "DELETE" ? "#c0392b" : undefined }}
@@ -738,7 +738,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
         </div>
       )}
 
-      {/* ââ REPORT DEFAULTS ââ */}
+      {/* ── REPORT DEFAULTS ── */}
       {tab === "reports" && (
         <div className="fade-in">
           {/* Header */}
@@ -815,14 +815,14 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
               <div className="form-row">
                 <div className="form-group"><label className="form-label">Include GPS Coordinates</label>
                   <select className="form-input form-select" value={form.reportShowGps} onChange={e => set("reportShowGps", e.target.value)}>
-                    <option value="yes">Yes â show on each photo</option>
+                    <option value="yes">Yes — show on each photo</option>
                     <option value="summary">Summary page only</option>
                     <option value="no">No</option>
                   </select>
                 </div>
                 <div className="form-group"><label className="form-label">Include Timestamps</label>
                   <select className="form-input form-select" value={form.reportShowTimestamp} onChange={e => set("reportShowTimestamp", e.target.value)}>
-                    <option value="yes">Yes â on each photo</option>
+                    <option value="yes">Yes — on each photo</option>
                     <option value="no">No</option>
                   </select>
                 </div>
@@ -849,7 +849,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
               </div>
               <div className="form-group">
                 <label className="form-label">Subject Line</label>
-                <input className="form-input" value={form.emailSubject||""} onChange={e=>set("emailSubject",e.target.value)} placeholder="Report from {{company}} â {{project}}" />
+                <input className="form-input" value={form.emailSubject||""} onChange={e=>set("emailSubject",e.target.value)} placeholder="Report from {{company}} — {{project}}" />
               </div>
               <div className="form-group">
                 <label className="form-label">Email Body</label>
@@ -893,7 +893,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                       </div>
                     </div>
                   </div>
-                  {/* Social icons preview â small clickable circles */}
+                  {/* Social icons preview — small clickable circles */}
                   {form.sigSocialsEnabled && (() => {
                     const SOCIALS = [
                       { key:"fb",  en:form.sigFacebookEnabled,  url:form.sigFacebookUrl,  icon:"M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z",                                                      color:"#1877f2", label:"Facebook"  },
@@ -914,7 +914,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                       </div>
                     );
                   })()}
-                  {/* Review button â clickable link */}
+                  {/* Review button — clickable link */}
                   {form.sigReviewEnabled && form.sigReviewUrl && (
                     <div style={{ marginTop:10,paddingTop:10,borderTop:"1px solid #eee" }}>
                       <a href={form.sigReviewUrl} target="_blank" rel="noopener noreferrer"
@@ -961,7 +961,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                 </div>
               </div>
               <div className="form-group">
-                <label className="form-label">Custom HTML <span style={{ fontWeight:400,color:"var(--text3)" }}>(optional â added below signature)</span></label>
+                <label className="form-label">Custom HTML <span style={{ fontWeight:400,color:"var(--text3)" }}>(optional — added below signature)</span></label>
                 <textarea className="form-input form-textarea" style={{ minHeight:72,fontSize:12,fontFamily:"monospace" }}
                   value={form.emailSignatureCustomHtml||""} onChange={e=>set("emailSignatureCustomHtml",e.target.value)}
                   placeholder={'<p style="color:#999">Licensed & Insured · CO License #12345</p>'} />
@@ -1050,7 +1050,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
         </div>
       )}
 
-      {/* ââ PREFS (Settings) ââ */}
+      {/* ── PREFS (Settings) ── */}
       {tab === "prefs" && (
         <div className="fade-in">
           {/* Notifications */}
@@ -1080,7 +1080,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
             <div className="card-header"><span style={{ fontWeight:700 }}>ð· Camera</span></div>
             <div className="card-body" style={{ display:"flex",flexDirection:"column",gap:0 }}>
 
-              {/* Save to Camera Roll â mobile only */}
+              {/* Save to Camera Roll — mobile only */}
               {isMobile && (
                 <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,cursor:"pointer",paddingBottom:14,marginBottom:14,borderBottom:"1px solid var(--border)" }}
                   onClick={() => set("saveToCameraRoll", !form.saveToCameraRoll)}>
@@ -1101,7 +1101,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                 <div style={{ display:"flex",gap:8 }}>
                   {[
                     { id:"low",      label:"Low",      desc:"720p · 50% JPEG",   icon:"ð" },
-                    { id:"moderate", label:"Moderate", desc:"1080p · 85% JPEG",  icon:"â¡" },
+                    { id:"moderate", label:"Moderate", desc:"1080p · 85% JPEG",  icon:"⚡" },
                     { id:"high",     label:"High",     desc:"4K · 97% JPEG",     icon:"ð" },
                   ].map(q => (
                     <div key={q.id} onClick={() => set("photoQuality", q.id)}
@@ -1109,7 +1109,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                       <div style={{ fontSize:20,marginBottom:6 }}>{q.icon}</div>
                       <div style={{ fontWeight:700,fontSize:13,marginBottom:2,color:form.photoQuality===q.id?"var(--accent)":"var(--text)" }}>{q.label}</div>
                       <div style={{ fontSize:11,color:"var(--text3)" }}>{q.desc}</div>
-                      {form.photoQuality===q.id && <div style={{ marginTop:6,fontSize:11,color:"var(--accent)",fontWeight:600 }}>â Active</div>}
+                      {form.photoQuality===q.id && <div style={{ marginTop:6,fontSize:11,color:"var(--accent)",fontWeight:600 }}>✓ Active</div>}
                     </div>
                   ))}
                 </div>
@@ -1121,7 +1121,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                 <div style={{ display:"flex",gap:8 }}>
                   {[
                     { id:"low",      label:"Low",      desc:"1 Mbps",   icon:"ð" },
-                    { id:"moderate", label:"Moderate", desc:"2.5 Mbps", icon:"â¡" },
+                    { id:"moderate", label:"Moderate", desc:"2.5 Mbps", icon:"⚡" },
                     { id:"high",     label:"High",     desc:"5 Mbps",   icon:"ð" },
                   ].map(q => (
                     <div key={q.id} onClick={() => set("videoQuality", q.id)}
@@ -1129,7 +1129,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                       <div style={{ fontSize:20,marginBottom:6 }}>{q.icon}</div>
                       <div style={{ fontWeight:700,fontSize:13,marginBottom:2,color:form.videoQuality===q.id?"var(--accent)":"var(--text)" }}>{q.label}</div>
                       <div style={{ fontSize:11,color:"var(--text3)" }}>{q.desc}</div>
-                      {form.videoQuality===q.id && <div style={{ marginTop:6,fontSize:11,color:"var(--accent)",fontWeight:600 }}>â Active</div>}
+                      {form.videoQuality===q.id && <div style={{ marginTop:6,fontSize:11,color:"var(--accent)",fontWeight:600 }}>✓ Active</div>}
                     </div>
                   ))}
                 </div>
@@ -1160,7 +1160,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                 >
                   <div style={{ textAlign:"left" }}>
                     <div style={{ fontWeight:700,fontSize:13,color:form.saveToCameraRoll ? "var(--accent)" : "var(--text)" }}>
-                      {form.saveToCameraRoll ? "On â save to app and device" : "Off â save to app only"}
+                      {form.saveToCameraRoll ? "On — save to app and device" : "Off — save to app only"}
                     </div>
                     <div style={{ fontSize:11.5,color:"var(--text3)",marginTop:3 }}>
                       Uses the browser/device download flow during capture review.
@@ -1234,7 +1234,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                   ].map(([val,label]) => <option key={val} value={val}>{label}</option>)}
                 </select>
                 <div style={{ fontSize:11.5,color:"var(--text3)",marginTop:5 }}>
-                  Current time: {new Date().toLocaleTimeString("en-US", { timeZone: form.timezone||"America/Denver", hour:"2-digit", minute:"2-digit", hour12: form.timeFormat!=="24hr" })} â {form.timezone||"America/Denver"}
+                  Current time: {new Date().toLocaleTimeString("en-US", { timeZone: form.timezone||"America/Denver", hour:"2-digit", minute:"2-digit", hour12: form.timeFormat!=="24hr" })} — {form.timezone||"America/Denver"}
                 </div>
               </div>
 
@@ -1269,7 +1269,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                       style={{ flex:1,border:`2px solid ${form.timeFormat===t.id?"var(--accent)":"var(--border)"}`,borderRadius:"var(--radius-sm)",padding:"12px 16px",cursor:"pointer",background:form.timeFormat===t.id?"var(--accent-glow)":"var(--surface2)",transition:"all .15s",textAlign:"center" }}>
                       <div style={{ fontWeight:700,fontSize:13.5,color:form.timeFormat===t.id?"var(--accent)":"var(--text)",marginBottom:3 }}>{t.label}</div>
                       <div style={{ fontSize:12,color:"var(--text3)" }}>{t.example}</div>
-                      {form.timeFormat===t.id && <div style={{ fontSize:11,color:"var(--accent)",fontWeight:600,marginTop:4 }}>â Active</div>}
+                      {form.timeFormat===t.id && <div style={{ fontSize:11,color:"var(--accent)",fontWeight:600,marginTop:4 }}>✓ Active</div>}
                     </div>
                   ))}
                 </div>
@@ -1288,7 +1288,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                       <div style={{ fontSize:22,marginBottom:5 }}>{u.icon}</div>
                       <div style={{ fontWeight:700,fontSize:13.5,color:form.units===u.id?"var(--accent)":"var(--text)",marginBottom:3 }}>{u.label}</div>
                       <div style={{ fontSize:12,color:"var(--text3)" }}>{u.example}</div>
-                      {form.units===u.id && <div style={{ fontSize:11,color:"var(--accent)",fontWeight:600,marginTop:4 }}>â Active</div>}
+                      {form.units===u.id && <div style={{ fontSize:11,color:"var(--accent)",fontWeight:600,marginTop:4 }}>✓ Active</div>}
                     </div>
                   ))}
                 </div>
@@ -1302,7 +1302,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                     { id:"recent",   label:"Most Recent",          desc:"Last modified or updated first" },
                     { id:"newest",   label:"Newest to Oldest",     desc:"By creation date, newest first" },
                     { id:"oldest",   label:"Oldest to Newest",     desc:"By creation date, oldest first" },
-                    { id:"alpha",    label:"Name A â Z",           desc:"Alphabetical by project name"   },
+                    { id:"alpha",    label:"Name A → Z",           desc:"Alphabetical by project name"   },
                   ].map(s => (
                     <div key={s.id} onClick={() => set("projectSort", s.id)}
                       style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 14px",border:`2px solid ${form.projectSort===s.id?"var(--accent)":"var(--border)"}`,borderRadius:"var(--radius-sm)",cursor:"pointer",background:form.projectSort===s.id?"var(--accent-glow)":"var(--surface2)",transition:"all .15s" }}>
@@ -1370,7 +1370,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
         </div>
       )}
 
-      {/* ââ PROJECT SETTINGS ââ */}
+      {/* ── PROJECT SETTINGS ── */}
       {tab === "projects" && (
         <div className="fade-in">
           {[
@@ -1391,7 +1391,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
               key: "causeOfLossOptions",
               label: "Cause of Loss / Issue",
               desc: "Options shown in the Cause of Loss dropdown.",
-              defaults: ["Water â Pipe Burst","Water â Flooding","Water â Sewage Backup","Water â Roof Leak","Fire â Structure","Fire â Smoke/Soot","Wind / Storm Damage","Mold / Microbial","Impact / Collision","Vandalism / Break-In","Earthquake","Hail","Electrical","Other"],
+              defaults: ["Water — Pipe Burst","Water — Flooding","Water — Sewage Backup","Water — Roof Leak","Fire — Structure","Fire — Smoke/Soot","Wind / Storm Damage","Mold / Microbial","Impact / Collision","Vandalism / Break-In","Earthquake","Hail","Electrical","Other"],
             },
             {
               key: "coverageTypeOptions",
