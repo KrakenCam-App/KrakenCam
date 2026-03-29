@@ -1,4 +1,4 @@
-// ── Core helpers ─────────────────────────────────────────────────────────────
+// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Core helpers ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 const uid = () => Math.random().toString(36).slice(2, 10);
 const isValidUuid = id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
@@ -6,7 +6,7 @@ const isValidUuid = id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9
 const _sentChatDbIds = new Set();
 export { _sentChatDbIds };
 
-// ── EXIF / image orientation ──────────────────────────────────────────────────
+// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ EXIF / image orientation ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 
 /**
  * Read EXIF orientation tag from a Blob/File (JPEG only).
@@ -21,7 +21,7 @@ async function getExifOrientation(blob) {
     while (offset < view.byteLength - 4) {
       const marker = view.getUint16(offset);
       const len    = view.getUint16(offset + 2);
-      if (marker === 0xFFE1) { // APP1 — EXIF
+      if (marker === 0xFFE1) { // APP1 ÃÂ¢ÃÂÃÂ EXIF
         const exifHeader = view.getUint32(offset + 4);
         if (exifHeader !== 0x45786966) return 1; // "Exif"
         const tiffOffset = offset + 10;
@@ -68,7 +68,7 @@ function drawImageWithOrientation(canvas, img, orientation) {
   ctx.restore();
 }
 
-// ── Date / time formatting ────────────────────────────────────────────────────
+// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Date / time formatting ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 const today = () => new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 
 // Settings-aware date/time formatters
@@ -108,7 +108,7 @@ const formatDateTimeLabel = (iso, settings) => {
   })}`;
 };
 
-// ── Sketch scale helpers ──────────────────────────────────────────────────────
+// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Sketch scale helpers ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 const SKETCH_SCALE_OPTIONS = [
   "1 sq = 6 in",
   "1 sq = 1 ft",
@@ -142,23 +142,23 @@ function buildSketchTitleBlockData(project, settings, scale, floorLabel) {
     companyName: settings?.companyName || "Your Company",
     userName,
     projectName: project?.title || project?.name || "Untitled Project",
-    projectNumber: project?.projectNumber || "—",
-    projectType: project?.projectType || "—",
-    projectAddress: projectAddress || "—",
-    siteCompany: project?.companyName || project?.contractorName || "—",
-    clientName: project?.clientName || "—",
-    floorLabel: floorLabel || "—",
+    projectNumber: project?.projectNumber || "ÃÂ¢ÃÂÃÂ",
+    projectType: project?.projectType || "ÃÂ¢ÃÂÃÂ",
+    projectAddress: projectAddress || "ÃÂ¢ÃÂÃÂ",
+    siteCompany: project?.companyName || project?.contractorName || "ÃÂ¢ÃÂÃÂ",
+    clientName: project?.clientName || "ÃÂ¢ÃÂÃÂ",
+    floorLabel: floorLabel || "ÃÂ¢ÃÂÃÂ",
     scale: normalizeSketchScale(scale),
     draftDate,
   };
 }
 
-// ── Report block height estimator ─────────────────────────────────────────────
+// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Report block height estimator ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 function estimateBlockHeight(block, gridClass) {
   if (block.type === "divider") return 46;
   if (block.type === "text") {
     const lines = Math.max(1, Math.ceil((block.content||"").length / 85));
-    return 24 + lines * 21.25; // 12.5px font × 1.7 lineHeight ≈ 21.25px/line + padding
+    return 24 + lines * 21.25; // 12.5px font ÃÂÃÂ 1.7 lineHeight ÃÂ¢ÃÂÃÂ 21.25px/line + padding
   }
   if (block.type === "photos") {
     const photos = (block.photos||[]).length;
@@ -191,14 +191,14 @@ function estimateBlockHeight(block, gridClass) {
   return 60;
 }
 
-// ── Signature builder ─────────────────────────────────────────────────────────
+// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Signature builder ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 function buildSignature(s) {
   const name    = s.emailSignatureName    || `${s.userFirstName||""} ${s.userLastName||""}`.trim();
   const title   = s.emailSignatureTitle   || s.userTitle   || "";
   const company = s.emailSignatureCompany || s.companyName || "";
   const phone   = s.emailSignaturePhone   || s.phone       || "";
   const email   = s.emailSignatureEmail   || s.email       || "";
-  const lines   = ["──────────────────────", name, title, company, phone&&`📞 ${phone}`, email&&`✉ ${email}`].filter(Boolean);
+  const lines   = ["ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ", name, title, company, phone&&`ÃÂ°ÃÂÃÂÃÂ ${phone}`, email&&`ÃÂ¢ÃÂÃÂ ${email}`].filter(Boolean);
 
   const SOCIALS = [
     { key:"Facebook",  enabled: s.sigFacebookEnabled,  url: s.sigFacebookUrl,  label:"Facebook"  },
@@ -209,15 +209,15 @@ function buildSignature(s) {
   ].filter(x => x.enabled && x.url);
 
   if (s.sigSocialsEnabled && SOCIALS.length) {
-    lines.push("", SOCIALS.map(x => `[${x.label}](${x.url})`).join("  ·  "));
+    lines.push("", SOCIALS.map(x => `[${x.label}](${x.url})`).join("  ÃÂÃÂ·  "));
   }
   if (s.sigReviewEnabled && s.sigReviewUrl) {
-    lines.push("", `⭐ ${s.sigReviewLabel||"Leave us a Review"}: ${s.sigReviewUrl}`);
+    lines.push("", `ÃÂ¢ÃÂ­ÃÂ ${s.sigReviewLabel||"Leave us a Review"}: ${s.sigReviewUrl}`);
   }
   return lines.join("\n");
 }
 
-// ── Embed code builder ────────────────────────────────────────────────────────
+// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Embed code builder ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 function buildEmbedCode(pair, bPhoto, aPhoto, maxWidth, companyLogo, krakenLogo) {
   if (!bPhoto || !bPhoto.dataUrl || !aPhoto || !aPhoto.dataUrl) return "";
   var id   = "ba_" + Math.random().toString(36).slice(2, 8);
@@ -227,7 +227,7 @@ function buildEmbedCode(pair, bPhoto, aPhoto, maxWidth, companyLogo, krakenLogo)
   var aSrc = aPhoto.dataUrl;
   var logo = krakenLogo || '';
   var D = [
-    "<!-- Before & After Slider: " + name + " — KrakenCam -->",
+    "<!-- Before & After Slider: " + name + " ÃÂ¢ÃÂÃÂ KrakenCam -->",
     ['<div id="',id,'" style="position:relative;width:100%;max-width:',mw,'px;',
      'aspect-ratio:4/3;overflow:hidden;cursor:ew-resize;',
      'user-select:none;-webkit-user-select:none;border-radius:8px;touch-action:none;">'].join(""),
@@ -282,6 +282,259 @@ function buildEmbedCode(pair, bPhoto, aPhoto, maxWidth, companyLogo, krakenLogo)
   return D.join("\n");
 }
 
+const formatDurationLabel = (ms = 0) => {
+  const totalSec = Math.max(0, Math.round(ms / 1000));
+  const mins = Math.floor(totalSec / 60);
+  const secs = totalSec % 60;
+  return `${mins}:${String(secs).padStart(2, "0")}`;
+};
+const NOTIFICATION_PREF_ITEMS = [
+  { key:"notifAssignments", label:"Assignments", desc:"Jobsite, task, and calendar assignments sent to you" },
+  { key:"notifMentions", label:"Mentions", desc:"When someone tags you in a task or chat" },
+  { key:"notifTasks", label:"Task activity", desc:"Task updates and work items that need your attention" },
+  { key:"notifCalendar", label:"Calendar & dispatch", desc:"Schedule updates, dispatch changes, and event assignments" },
+  { key:"notifChecklists", label:"Checklist activity", desc:"Checklist completions and inspection workflow updates" },
+  { key:"notifFiles", label:"Files & documents", desc:"Project files uploaded, shared, or ready to review" },
+  { key:"notifReports", label:"Reports", desc:"Report exports, approvals, and send-ready updates" },
+  { key:"notifPhotos", label:"Photos & media", desc:"Photo, video, and field media activity" },
+  { key:"notifCerts", label:"Certification alerts", desc:"Expired or expiring certifications for your team" },
+  { key:"notifTeam", label:"Team & permissions", desc:"User invites, removals, role changes, and permission updates" },
+  { key:"notifAdminAlerts", label:"Admin & manager alerts", desc:"Operational alerts that should surface to managers and admins" },
+  { key:"notifUpdates", label:"App updates & news", desc:"Product updates and new feature announcements" },
+];
+const NOTIFICATION_PREF_DEFAULTS = {
+  notifAssignments: true,
+  notifMentions: true,
+  notifTasks: true,
+  notifCalendar: true,
+  notifChecklists: true,
+  notifFiles: true,
+  notifReports: true,
+  notifPhotos: true,
+  notifCerts: true,
+  notifTeam: true,
+  notifAdminAlerts: true,
+  notifUpdates: false,
+};
+const getNotificationSettingKey = (type = "") => ({
+  assignment: "notifAssignments",
+  mention: "notifMentions",
+  task: "notifTasks",
+  "task-comment": "notifTasks",
+  calendar: "notifCalendar",
+  checklist: "notifChecklists",
+  file: "notifFiles",
+  report: "notifReports",
+  photo: "notifPhotos",
+  video: "notifPhotos",
+  "voice-note": "notifPhotos",
+  "cert-alert": "notifCerts",
+  team: "notifTeam",
+  admin: "notifAdminAlerts",
+  system: "notifUpdates",
+}[type] || "notifUpdates");
+const getNotificationAudienceMeta = (settings = {}, teamUsers = []) => {
+  const role = settings?.userRole || "admin";
+  const directId = settings?.currentUserId || (role === "admin" ? "__admin__" : null);
+  const matchedUser = directId && directId !== "__admin__"
+    ? teamUsers.find(u => u.id === directId)
+    : teamUsers.find(u =>
+        u.email &&
+        settings?.userEmail &&
+        String(u.email).toLowerCase() === String(settings.userEmail).toLowerCase()
+      );
+  const userId = directId || matchedUser?.id || "__admin__";
+  return { role, userId, email: settings?.userEmail || matchedUser?.email || "" };
+};
+const shouldShowNotificationForCurrentUser = (notification, settings = {}, teamUsers = []) => {
+  const { role, userId, email } = getNotificationAudienceMeta(settings, teamUsers);
+  const roleTargets = notification?.recipientRoles || notification?.audienceRoles || [];
+  const userTargets = notification?.recipientUserIds || [];
+  const emailTargets = notification?.recipientEmails || [];
+  if (roleTargets.length && !roleTargets.includes(role)) return false;
+  if (userTargets.length && !userTargets.includes(userId)) return false;
+  if (emailTargets.length && (!email || !emailTargets.map(v => String(v).toLowerCase()).includes(String(email).toLowerCase()))) return false;
+  return true;
+};
+const isNotificationEnabledForCurrentUser = (notification, settings = {}, teamUsers = []) => {
+  if (!shouldShowNotificationForCurrentUser(notification, settings, teamUsers)) return true;
+  const key = getNotificationSettingKey(notification?.type);
+  return settings?.[key] !== false;
+};
+const normalizeNotification = (notification = {}) => ({
+  id: notification.id || uid(),
+  type: notification.type || "system",
+  date: notification.date || today(),
+  timestamp: notification.timestamp || new Date().toISOString(),
+  read: !!notification.read,
+  ...notification,
+});const ensureClientPortal = (project = {}, settings = {}) => ({
+  ...DEFAULT_CLIENT_PORTAL,
+  ...(project?.clientPortal || {}),
+  slug: project?.clientPortal?.slug || project?.portalSlug || `${project?.id || "project"}-${String(project?.title || "portal").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 28) || uid()}`,
+  reviewLabel: project?.clientPortal?.reviewLabel || settings?.sigReviewLabel || DEFAULT_CLIENT_PORTAL.reviewLabel,
+  reviewUrl: project?.clientPortal?.reviewUrl || settings?.sigReviewUrl || "",
+  reviewEnabled: project?.clientPortal?.reviewEnabled ?? false,
+  passwordEnabled: project?.clientPortal?.passwordEnabled ?? false,
+  password: project?.clientPortal?.password || "",
+  clientNotes: project?.clientPortal?.clientNotes || [],
+  teamMessages: project?.clientPortal?.teamMessages || [],
+});
+const isPortalApprovedItem = (item = {}) => item?.clientPortalVisible === true;
+const filterPortalApprovedItems = (items = []) => (items || []).filter(isPortalApprovedItem);
+const withPortalFilteredProject = (project = {}) => ({
+  ...project,
+  photos: filterPortalApprovedItems(project.photos),
+  videos: filterPortalApprovedItems(project.videos),
+  sketches: filterPortalApprovedItems(project.sketches),
+  reports: filterPortalApprovedItems(project.reports),
+  files: filterPortalApprovedItems(project.files),
+});
+const getPortalItemDateValue = (item = {}) => {
+  const raw = item.updatedAt || item.createdAt || item.addedAt || item.timestamp || item.dateInspection || item.date || "";
+  const parsed = raw ? new Date(raw) : null;
+  return parsed && !Number.isNaN(parsed.getTime()) ? parsed.getTime() : 0;
+};
+const formatPortalRelativeLabel = (raw) => {
+  if (!raw) return "Recently updated";
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return String(raw);
+  const diff = Date.now() - date.getTime();
+  const days = Math.floor(diff / 86400000);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days} days ago`;
+  return date.toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" });
+};
+const buildPortalActivity = (project = {}) => {
+  const items = [];
+  (project.reports || []).forEach(r => items.push({ id:`report-${r.id}`, type:"report", title:r.title || r.type || "Report updated", when:r.createdAt || r.updatedAt || r.date, detail:r.recipient ? `Prepared for ${r.recipient}` : "Report added to the portal" }));
+  (project.photos || []).forEach(p => items.push({ id:`photo-${p.id}`, type:"photo", title:p.name || "Photo added", when:p.createdAt || p.date, detail:p.room ? `Photo uploaded for ${p.room}` : "New project photo uploaded" }));
+  (project.videos || []).forEach(v => items.push({ id:`video-${v.id}`, type:"video", title:v.name || "Video added", when:v.createdAt || v.date, detail:v.room ? `Video uploaded for ${v.room}` : "New project video uploaded" }));
+  (project.files || []).forEach(f => items.push({ id:`file-${f.id}`, type:"file", title:f.name || "File added", when:f.addedAt || f.createdAt || f.date, detail:f.category ? `${f.category} file shared` : "File shared in portal" }));
+  (project.clientPortal?.clientNotes || []).forEach(n => items.push({ id:`client-note-${n.id}`, type:"note", title:"Client note received", when:n.createdAt, detail:n.author || "Portal visitor" }));
+  (project.clientPortal?.teamMessages || []).forEach(n => items.push({ id:`portal-team-${n.id}`, type:"portal-message", title:"New message from our team", when:n.createdAt, detail:n.author || "Project team" }));
+  return items.sort((a, b) => new Date(b.when || 0) - new Date(a.when || 0)).slice(0, 8);
+};
+const formatFileSizeLabel = (bytes = 0) => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+const getFileExtension = (name = "") => {
+  const parts = String(name).split(".");
+  return parts.length > 1 ? parts.pop().toLowerCase() : "";
+};
+const isPreviewableFile = (file = {}) => {
+  const type = file.type || "";
+  const ext = getFileExtension(file.name);
+  return type.startsWith("image/") || type === "application/pdf" || type.startsWith("text/") || ["txt","csv","json","md"].includes(ext);
+};
+const inferProjectFileKind = (file = {}) => {
+  const type = file.type || "";
+  const ext = getFileExtension(file.name);
+  if (type.startsWith("image/")) return "Image";
+  if (type.startsWith("audio/")) return "Audio";
+  if (type.startsWith("video/")) return "Video";
+  if (type === "application/pdf") return "PDF";
+  if ([
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  ].includes(type) || ["doc","docx","ppt","pptx"].includes(ext)) return "Document";
+  if ([
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "text/csv",
+  ].includes(type) || ["xls","xlsx","csv"].includes(ext)) return "Spreadsheet";
+  if (type.startsWith("text/") || ["txt","json","md"].includes(ext)) return "Text";
+  return "Other";
+};
+const normaliseProjectFile = (file = {}) => ({
+  ...file,
+  category: (file.category || "General").trim() || "General",
+  tags: Array.isArray(file.tags) ? file.tags.filter(Boolean) : [],
+  kind: file.kind || inferProjectFileKind(file),
+});
+const parseTagInput = (value = "") => Array.from(new Set(
+  value.split(",").map(t => t.trim()).filter(Boolean)
+));
+const decodeDataUrlText = (dataUrl = "") => {
+  try {
+    const [, payload = ""] = String(dataUrl).split(",");
+    return decodeURIComponent(escape(atob(payload)));
+  } catch {
+    return "Preview is unavailable for this file.";
+  }
+};
+const ROOM_ICONS = {
+  "Living Room": ["M3 12h18","M6 12V9a2 2 0 012-2h8a2 2 0 012 2v3","M5 12v5","M19 12v5","M8 17v-3","M16 17v-3"],
+  "Kitchen": ["M4 4h16v16H4z","M9 4v16","M4 11h16","M14 8h3","M14 14h3"],
+  "Master Bedroom": ["M3 10h18","M5 10V7h6a2 2 0 012 2v1","M13 10V8h4a2 2 0 012 2v0","M5 10v7","M19 10v7"],
+  "Bathroom": ["M7 3h10","M8 7h8","M8 7v5a4 4 0 008 0V7","M9 21h6"],
+  "Garage": ["M3 11l9-7 9 7","M5 10v10h14V10","M8 14h8","M8 17h8"],
+  "Basement": ["M4 6h16v12H4z","M4 10h16","M8 14h2","M14 14h2","M12 18v3"],
+  "Exterior": ["M12 3v18","M5 10l7-7 7 7","M5 21h14"],
+  "Attic": ["M3 11l9-7 9 7","M7 10v9h10v-9","M10 19v-4h4v4"],
+  "Office": ["M4 7h16v12H4z","M8 7V5h8v2","M12 13h.01","M9 17h6"],
+  "Dining Room": ["M12 4v8","M8 4v8","M16 4v8","M6 12h12","M8 12v8","M16 12v8"],
+  "Utility Room": ["M12 8v8","M8 12h8","M5 5h14v14H5z"],
+  "Hallway": ["M5 3h14v18H5z","M12 3v18","M9 12h.01"],
+  "Bedroom": ["M3 11h18","M5 11V8h5a2 2 0 012 2v1","M12 11h7v8","M5 11v8"],
+  "Crawlspace": ["M4 17c2-4 4-6 8-6s6 2 8 6","M7 9h10","M12 6h.01"],
+  "Mechanical Room": ["M12 8v8","M8 12h8","M5 12a7 7 0 0114 0","M12 5V3","M12 21v-2"],
+  "Entrance": ["M5 3h14v18H5z","M10 21v-6h4v6","M8 10h.01"],
+  "Roof": ["M3 12l9-7 9 7","M6 11h12","M8 15h8"],
+  "Closet": ["M6 4h12v16H6z","M10 4v16","M14 9h.01","M14 15h.01"],
+  "Shop": ["M14 4l6 6-8 8H6V12z","M13 5l6 6","M4 20h16"],
+  "Warehouse": ["M3 8l9-5 9 5v11H3z","M7 11h2v3H7z","M11 11h2v3h-2z","M15 11h2v3h-2z"],
+  "Other": ["M4 4h16v16H4z","M9 9h6v6H9z"],
+};
+const ROOM_COLORS = ["#4a90d9","#3dba7e","#8b7cf8","#e8c53a","#e8703a","#e85a3a","#3ab8e8","#f0954e"];const getRoomIcon = (roomName = "Other") => ROOM_ICONS[roomName] || ROOM_ICONS.Other;
+
+const STATUS_META = {
+  active:    { label:"Active",    cls:"green"  },
+  onhold:    { label:"On Hold",   cls:"orange" },
+  completed: { label:"Completed", cls:"blue"   },
+  archived:  { label:"Archived",  cls:"purple" },
+};
+// Normalise projectStatuses: handle both old string[] and new {id,label,cls}[] format
+const normaliseStatuses = (arr) => {
+  if (!arr?.length) return null;
+  if (typeof arr[0] === "string") {
+    // Old format ÃÂ¢ÃÂÃÂ convert strings to objects using STATUS_META for labels/colours
+    return arr.map(id => ({ id, label: STATUS_META[id]?.label || id, cls: STATUS_META[id]?.cls || "blue" }));
+  }
+  return arr;
+};
+const getStatusMeta = (statusId, settings) => {
+  const statuses = normaliseStatuses(settings?.projectStatuses);
+  const custom = (statuses||[]).find(s => s.id === statusId);
+  if (custom) return { label: custom.label, cls: custom.cls || "blue" };
+  return STATUS_META[statusId] || { label: statusId || "Active", cls: "green" };
+};
+const STATUS_CLS_OPTIONS = ["green","blue","orange","purple","red","gray"];
+
+
+// getCertStatus Ã¢ÂÂ cert expiry checker, shared across AccountPage/PhotosTab/TasksPage
+const getCertStatus = (dateExpires) => {
+  if (!dateExpires) return "no-expiry";
+  const now   = new Date(); now.setHours(0,0,0,0);
+  const exp   = new Date(dateExpires + "T00:00:00");
+  const days  = Math.ceil((exp - now) / 86400000);
+  if (days < 0)  return "expired";
+  if (days <= 30) return "expiring-soon";
+  if (days <= 90) return "expiring-warning";
+  return "valid";
+};
+
+// ROLE_META â shared role display metadata (admin/manager/user)
+const ROLE_META = {
+  admin:   { label:"Admin",   color:"#e86c3a", desc:"Full system control"                            },
+  manager: { label:"Manager", color:"#8b7cf8", desc:"Create projects, view reports, manage users"    },
+  user:    { label:"User",    color:"#3dba7e", desc:"Upload photos, fill reports, complete checklists"},
+};
 export {
   uid, isValidUuid,
   getExifOrientation, drawImageWithOrientation,
@@ -290,4 +543,18 @@ export {
   estimateBlockHeight,
   buildSignature,
   buildEmbedCode,
+  // App utility helpers (moved from jobsite-reporter.jsx)
+  formatDurationLabel,
+  NOTIFICATION_PREF_ITEMS, NOTIFICATION_PREF_DEFAULTS,
+  getNotificationSettingKey, getNotificationAudienceMeta,
+  shouldShowNotificationForCurrentUser, isNotificationEnabledForCurrentUser,
+  normalizeNotification,
+  isPortalApprovedItem, filterPortalApprovedItems, withPortalFilteredProject,
+  getPortalItemDateValue, formatPortalRelativeLabel, buildPortalActivity,
+  formatFileSizeLabel, getFileExtension, isPreviewableFile, inferProjectFileKind,
+  normaliseProjectFile, parseTagInput, decodeDataUrlText,
+  ROOM_ICONS, ROOM_COLORS, getRoomIcon, STATUS_META, normaliseStatuses, getStatusMeta,
+  STATUS_CLS_OPTIONS,
+  getCertStatus,
+  ROLE_META,
 };

@@ -1,4 +1,4 @@
-// ── Plan limits ──────────────────────────────────────────────────────────────
+// ââ Plan limits ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 const PLAN_AI_LIMITS   = { base: 5, pro: 75, command: 1000 }; // weekly Krakens per account
 const PLAN_CHAT_LIMITS     = { base: 4, pro: 15, command: 50  }; // max chat groups per account
 const PLAN_CALENDAR_USERS  = { base: 10, pro: 25, command: Infinity }; // max users visible on calendar
@@ -6,11 +6,11 @@ const PLAN_VIDEO_LIMIT_SECS = { base: 90, pro: 360, command: 720 }; // max video
 const PLAN_CALENDAR_RECUR  = { base: false, pro: true, command: true }; // can use recurring events
 const PLAN_CALENDAR_DISPATCH = { base: false, pro: false, command: true }; // dispatch board view
 
-// ── AI/generation week window helpers ────────────────────────────────────────
+// ââ AI/generation week window helpers ââââââââââââââââââââââââââââââââââââââââ
 const getWeekWindowStart = () => {
   const now = new Date();
-  const day = now.getDay(); // 0=Sun … 6=Sat
-  // Window resets Saturday at 23:59 — so window START is Sunday 00:00 after last Saturday reset
+  const day = now.getDay(); // 0=Sun â¦ 6=Sat
+  // Window resets Saturday at 23:59 â so window START is Sunday 00:00 after last Saturday reset
   // Days since last Sunday: day (since Sunday=0)
   const daysSinceSunday = day;
   const start = new Date(now);
@@ -22,7 +22,7 @@ const getWeekWindowStart = () => {
 // Returns ISO date string of next Saturday 23:59 reset
 const getNextResetDate = () => {
   const now = new Date();
-  const day = now.getDay(); // 0=Sun…6=Sat
+  const day = now.getDay(); // 0=Sunâ¦6=Sat
   const daysUntilSat = day === 6 ? 7 : 6 - day;
   const reset = new Date(now);
   reset.setDate(reset.getDate() + daysUntilSat);
@@ -30,7 +30,7 @@ const getNextResetDate = () => {
   return reset;
 };
 
-// ── Permission system ─────────────────────────────────────────────────────────
+// ââ Permission system âââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 const PERMISSION_LEVELS = ["none","view","edit"];
 
 const FEATURE_PERMS = [
@@ -146,7 +146,7 @@ const setRolePermissionLevel = (settings = {}, role, featureId, value) => ({
   },
 });
 
-// ── User/cert skeletons ───────────────────────────────────────────────────────
+// ââ User/cert skeletons âââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 const EMPTY_USER = {
   id:"", firstName:"", lastName:"", email:"", phone:"", mobile:"",
   title:"", department:"", employeeId:"", startDate:"",
@@ -159,12 +159,12 @@ const EMPTY_CERT = {
   id:"", name:"", certCode:"", certifyingBody:"", dateCertified:"", dateExpires:"", image:null,
 };
 
-// ── Project defaults ──────────────────────────────────────────────────────────
+// ââ Project defaults ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 const DEFAULT_CLIENT_PORTAL = {
   enabled: false,
   slug: "",
   welcomeTitle: "",
-  welcomeMessage: "Welcome to your project portal. We’ll keep this page updated with progress, files, and the latest project media so you always know what’s happening.",
+  welcomeMessage: "Welcome to your project portal. Weâll keep this page updated with progress, files, and the latest project media so you always know whatâs happening.",
   shareProgress: true,
   sharePhotos: true,
   shareVideos: true,
@@ -183,7 +183,7 @@ const DEFAULT_CLIENT_PORTAL = {
 
 const DEFAULT_ROOMS = ["Living Room","Kitchen","Master Bedroom","Bathroom","Garage","Basement","Exterior"];
 
-// ── Report templates ─────────────────────────────────────────────────────────
+// ââ Report templates âââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 const TEMPLATES = [
   { id:1, name:"Insurance Claim Report",     desc:"Property damage insurance claims. Includes liability and damage assessment fields.", type:"Insurance",  color:"#4a90d9" },
   { id:2, name:"Contractor Quote Package",   desc:"Send to contractors for bid requests with scope of work and material specs.",        type:"Contractor", color:"#3dba7e" },
@@ -193,7 +193,7 @@ const TEMPLATES = [
   { id:6, name:"Fire Damage Documentation",  desc:"Detailed fire and smoke damage assessment for restoration companies.",              type:"Damage",     color:"#e8703a" },
 ];
 
-// ── Default checklist templates ───────────────────────────────────────────────
+// ââ Default checklist templates âââââââââââââââââââââââââââââââââââââââââââââââ
 const DEFAULT_CL_TEMPLATES = [
   {
     id:"tmpl_general", name:"General Site Inspection", desc:"Standard walkthrough for any jobsite visit",
@@ -232,7 +232,7 @@ const DEFAULT_CL_TEMPLATES = [
   },
 ];
 
-// ── Task columns ─────────────────────────────────────────────────────────────
+// ââ Task columns âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 const DEFAULT_COLUMNS = [
   { id:"backlog",     label:"Backlog",      color:"#6b7280" },
   { id:"todo",        label:"To Do",        color:"#3ab8e8" },
