@@ -474,7 +474,7 @@ export function ChatPanel({ chats, onChatsChange, teamUsers, settings, currentUs
                 </button>
               )}
               {chats.length >= chatLimit && (
-                <span style={{ fontSize:10.5, color:"#e8c53a", fontWeight:600 }}>â  Group limit reached</span>
+                <span style={{ fontSize:10.5, color:"#e8c53a", fontWeight:600 }}>⚠ Group limit reached</span>
               )}
             </div>
 
@@ -531,7 +531,7 @@ export function ChatPanel({ chats, onChatsChange, teamUsers, settings, currentUs
             {/* Messages */}
             <div style={{ flex:1, overflowY:"auto", padding:"12px 14px", display:"flex", flexDirection:"column", gap:8 }}>
               {(activeChat.messages||[]).length === 0 && (
-                <div style={{ textAlign:"center", color:"var(--text3)", fontSize:12.5, padding:"32px 0" }}>No messages yet. Say hello! ð</div>
+                <div style={{ textAlign:"center", color:"var(--text3)", fontSize:12.5, padding:"32px 0" }}>No messages yet. Say hello! 👋</div>
               )}
               {(activeChat.messages||[]).map((msg, i) => {
                 const isMe = msg.authorId === currentUserId;

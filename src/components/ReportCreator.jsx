@@ -4,12 +4,12 @@ import { Icon, ic } from "../utils/icons.jsx";
 import { PLAN_AI_LIMITS, canAccessFeature, getWeekWindowStart, getNextResetDate } from "../utils/constants.js";
 import {
   uid, formatDate, formatTime, formatDateTimeLabel,
-  estimateBlockHeight, today,
+  estimateBlockHeight, paginateBlocks, today,
   formatFileSizeLabel, inferProjectFileKind
 } from "../utils/helpers.js";
 
 // ── Report Pages (paginated preview) ──────────────────────────────────────────
-// Estimates block heights and splits them into 8.5Ã11 pages (816Ã1056px at 96dpi).
+// Estimates block heights and splits them into 8.5×11 pages (816×1056px at 96dpi).
 // Header/footer on each page consume fixed space; remaining body space is filled
 // block by block. A block that is too tall to fit starts a new page.
 
@@ -28,7 +28,7 @@ export function PageFooter({ accentColor, settings, reportDate, reportTime, page
       <div style={{ padding:"10px 36px",borderTop:`2px solid ${accentColor}`,display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fafafa",flexShrink:0 }}>
         <div style={{ display:"flex",alignItems:"center",gap:8 }}>
           <span style={{ fontSize:10,color:"#888" }}>{dateStr}</span>
-          {timeStr && <span style={{ fontSize:10,color:"#aaa" }}>Â· {timeStr}</span>}
+          {timeStr && <span style={{ fontSize:10,color:"#aaa" }}>· {timeStr}</span>}
         </div>
         <span style={{ fontSize:10,color:accentColor,fontWeight:600 }}>{settings?.reportFooterCenter||"Confidential"}</span>
         <div style={{ textAlign:"right" }}>
@@ -43,7 +43,47 @@ export function PageFooter({ accentColor, settings, reportDate, reportTime, page
   );
 }
 
-export function BlockRenderer({ block, showGps, showTimestamp, showRooms, showTags, gridClass, settings }) {
+export function BlockRenderer({ block, showGps, showTimestamp, showRooms, showTags, gridClass, settings, allBlocks = [] }) {
+  // ── TABLE OF CONTENTS block ──────────────────────────────────────────────────
+  if (block.type === "toc") {
+    const dividers = allBlocks.filter(b => b.type === "divider");
+    const pageMap  = paginateBlocks(allBlocks, gridClass);
+    return (
+      <div style={{ padding:"18px 36px 22px" }}>
+        {/* TOC heading */}
+        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
+          <span style={{ fontSize:11, fontWeight:800, textTransform:"uppercase", letterSpacing:".1em", color:"#888" }}>
+            Table of Contents
+          </span>
+          <div style={{ flex:1, height:1, background:"#e8e8e8" }} />
+        </div>
+        {/* Rows */}
+        {dividers.length === 0 ? (
+          <div style={{ fontSize:12, color:"#bbb", fontStyle:"italic" }}>
+            No sections yet — add Section Divider blocks to populate this.
+          </div>
+        ) : (
+          <div style={{ display:"flex", flexDirection:"column" }}>
+            {dividers.map((d, i) => (
+              <div key={d.id} style={{
+                display:"flex", alignItems:"baseline", gap:0,
+                padding:"5px 0",
+                borderBottom: i < dividers.length - 1 ? "1px solid #f4f4f4" : "none",
+              }}>
+                <span style={{ fontSize:12.5, color:"#222", fontWeight:500, flexShrink:0, maxWidth:"75%", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                  {d.label || "Section"}
+                </span>
+                <span style={{ flex:1, borderBottom:"2px dotted #d0d0d0", margin:"0 8px", position:"relative", top:"-3px", minWidth:16 }} />
+                <span style={{ fontSize:12, fontWeight:600, color:"#555", flexShrink:0 }}>
+                  {pageMap[d.id] ?? "—"}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
   if (block.type === "divider") return (
     <div style={{ padding:"14px 36px 8px" }}>
       <div style={{
@@ -116,7 +156,7 @@ export function BlockRenderer({ block, showGps, showTimestamp, showRooms, showTa
               <div style={{ position:"relative" }}>
                 {ph.dataUrl ? <img src={ph.dataUrl} alt={ph.name} style={{ width:"100%",display:"block",aspectRatio:"4/3",objectFit:"cover" }} /> : <div style={{ aspectRatio:"4/3",background:"#eee" }} />}
                 {showTimestamp && ph.date && (
-                  <div style={{ position:"absolute",bottom:4,left:4,background:"rgba(0,0,0,.55)",color:"white",fontSize:7,padding:"2px 5px",borderRadius:3,fontFamily:"monospace",letterSpacing:".02em",pointerEvents:"none" }}>ð {ph.date}</div>
+                  <div style={{ position:"absolute",bottom:4,left:4,background:"rgba(0,0,0,.55)",color:"white",fontSize:7,padding:"2px 5px",borderRadius:3,fontFamily:"monospace",letterSpacing:".02em",pointerEvents:"none" }}>🕐 {ph.date}</div>
                 )}
               </div>
               <div style={{ padding:"4px 6px",fontSize:9.5,color:"#555",background:"#fafafa",borderTop:"1px solid #eee" }}>
@@ -129,8 +169,8 @@ export function BlockRenderer({ block, showGps, showTimestamp, showRooms, showTa
                   </div>
                 )}
                 <div style={{ display:"flex",flexWrap:"wrap",gap:6,fontSize:8.5,color:"#aaa",marginTop:1 }}>
-                  {showRooms && ph.room && <span>ð {ph.room}{ph.floor ? ` Â· ${ph.floor}` : ""}</span>}
-                  {showGps && ph.gps && <span>ð {ph.gps.lat}, {ph.gps.lng}</span>}
+                  {showRooms && ph.room && <span>📍 {ph.room}{ph.floor ? ` · ${ph.floor}` : ""}</span>}
+                  {showGps && ph.gps && <span>🌐 {ph.gps.lat}, {ph.gps.lng}</span>}
                 </div>
               </div>
             </div>
@@ -159,7 +199,7 @@ export function BlockRenderer({ block, showGps, showTimestamp, showRooms, showTa
                 <div style={{ fontSize:10,color:"#888",whiteSpace:"nowrap" }}>{formatFileSizeLabel(file.size || 0)}</div>
               </div>
               <div style={{ fontSize:9.5,color:"#999",marginTop:6 }}>
-                {(file.uploadedByName || "Unknown")}{file.uploadedAt ? ` â¢ ${formatDateTimeLabel(file.uploadedAt, settings)}` : ""}
+                {(file.uploadedByName || "Unknown")}{file.uploadedAt ? ` • ${formatDateTimeLabel(file.uploadedAt, settings)}` : ""}
               </div>
             </div>
           ))}
@@ -185,7 +225,7 @@ export function BlockRenderer({ block, showGps, showTimestamp, showRooms, showTa
                 <div style={{ position:"relative" }}>
                   <img src={block.photos[0].dataUrl} alt="" style={{ width:"100%",aspectRatio:"4/3",objectFit:"cover",display:"block" }} />
                   {showTimestamp && block.photos[0].date && (
-                    <div style={{ position:"absolute",bottom:4,left:4,background:"rgba(0,0,0,.55)",color:"white",fontSize:7,padding:"2px 5px",borderRadius:3,fontFamily:"monospace",letterSpacing:".02em",pointerEvents:"none" }}>ð {block.photos[0].date}</div>
+                    <div style={{ position:"absolute",bottom:4,left:4,background:"rgba(0,0,0,.55)",color:"white",fontSize:7,padding:"2px 5px",borderRadius:3,fontFamily:"monospace",letterSpacing:".02em",pointerEvents:"none" }}>🕐 {block.photos[0].date}</div>
                   )}
                 </div>
                 <div style={{ padding:"4px 6px",fontSize:9.5,color:"#555",background:"#fafafa" }}>
@@ -198,7 +238,7 @@ export function BlockRenderer({ block, showGps, showTimestamp, showRooms, showTa
                     </div>
                   )}
                   {showRooms && block.photos[0].room && (
-                    <span style={{ color:"#aaa",fontSize:8.5 }}>ð {block.photos[0].room}{block.photos[0].floor ? ` Â· ${block.photos[0].floor}` : ""}</span>
+                    <span style={{ color:"#aaa",fontSize:8.5 }}>📍 {block.photos[0].room}{block.photos[0].floor ? ` · ${block.photos[0].floor}` : ""}</span>
                   )}
                 </div>
               </div>
@@ -275,9 +315,9 @@ export function BlockRenderer({ block, showGps, showTimestamp, showRooms, showTa
 }
 
 // ── Scaled preview wrapper — measures its container and zooms pages to fit ──
-export function ScaledReportPreview(props) {
+export function ScaledReportPreview({ zoomMult = 1, ...props }) {
   const wrapRef = useRef(null);
-  const [scale, setScale] = useState(1);
+  const [autoScale, setAutoScale] = useState(1);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -287,13 +327,15 @@ export function ScaledReportPreview(props) {
       const PAGE_WIDTH = 816;
       const padding = 32; // 16px each side
       const s = Math.min(1, (available - padding) / PAGE_WIDTH);
-      setScale(parseFloat(s.toFixed(3)));
+      setAutoScale(parseFloat(s.toFixed(3)));
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el.parentElement || document.body);
     return () => ro.disconnect();
   }, []);
+
+  const scale = parseFloat((autoScale * zoomMult).toFixed(3));
 
   return (
     <div ref={wrapRef} style={{ display:"flex", flexDirection:"column", alignItems:"center" }}>
@@ -312,7 +354,7 @@ export function ScaledReportPreview(props) {
   );
 }
 
-export function ReportPages({ title, reportType, reportDate, reportTime, accentColor, project, coverPhoto, blocks, settings, showCoverInfo, showGps, showTimestamp, showRooms, showTags, gridClass, forPrint = false }) {
+export function ReportPages({ title, reportType, reportDate, reportTime, accentColor, project, coverPhoto, blocks, settings, showCoverInfo, showGps, showTimestamp, showRooms, showTags, gridClass, forPrint = false, showSections = { dates:true, contractor:true, insurance:true, site:true } }) {
   const today = reportDate ? formatDate(reportDate, settings) : formatDate(new Date().toISOString().slice(0,10), settings);
 
   // ── Page 1: cover + property info (always fills exactly one page) ──
@@ -328,12 +370,12 @@ export function ReportPages({ title, reportType, reportDate, reportTime, accentC
             }
             <div>
               <div style={{ fontWeight:700,fontSize:15,color:"#111" }}>{settings?.companyName||"Your Company"}</div>
-              <div style={{ fontSize:10.5,color:"#777" }}>{settings?.phone}{settings?.email?` Â· ${settings.email}`:""}</div>
+              <div style={{ fontSize:10.5,color:"#777" }}>{settings?.phone}{settings?.email?` · ${settings.email}`:""}</div>
             </div>
           </div>
           <div style={{ textAlign:"right" }}>
             <div style={{ fontWeight:700,fontSize:14,color:"#111" }}>{settings?.reportHeaderTitle||"Property Report"}</div>
-            <div style={{ fontSize:10.5,color:"#777" }}>{reportType} Â· {today}</div>
+            <div style={{ fontSize:10.5,color:"#777" }}>{reportType} · {today}</div>
           </div>
         </div>
       </div>
@@ -350,8 +392,8 @@ export function ReportPages({ title, reportType, reportDate, reportTime, accentC
           <div style={{ position:"absolute",bottom:0,left:0,right:0,padding:"20px 36px",background:"linear-gradient(to top,rgba(0,0,0,.85),transparent)",zIndex:2 }}>
             <div style={{ fontSize:20,fontWeight:700,color:"white",marginBottom:4,lineHeight:1.2 }}>{title}</div>
             <div style={{ fontSize:11.5,color:"rgba(255,255,255,.75)",display:"flex",gap:12,flexWrap:"wrap" }}>
-              {project.address && <span>ð {[project.address,project.city,project.state].filter(Boolean).join(", ")}</span>}
-              {project.clientName && <span>ð¤ {project.clientName}</span>}
+              {project.address && <span>📍 {[project.address,project.city,project.state].filter(Boolean).join(", ")}</span>}
+              {project.clientName && <span>👤 {project.clientName}</span>}
             </div>
           </div>
         )}
@@ -392,22 +434,26 @@ export function ReportPages({ title, reportType, reportDate, reportTime, accentC
               <InfoRow label="Cause of Loss"    value={project.causeOfLoss} />
 
               {/* Dates */}
-              {hasDates && <SectionHead label="Key Dates" />}
-              <InfoRow label="Date of Inspection"   value={formatDate(project.dateInspection, settings)} />
-              <InfoRow label="Time of Inspection"   value={formatTime(project.timeInspection, settings)} />
-              <InfoRow label="Date Work Performed"  value={formatDate(project.dateWorkPerformed, settings)} />
-              <InfoRow label="Time Work Performed"  value={formatTime(project.timeWorkPerformed, settings)} />
-              {project.dateOfLoss && <InfoRow label="Date of Loss" value={project.dateOfLoss} />}
-              <InfoRow label="Report Date" value={reportDate ? formatDate(reportDate, settings) : today} />
+              {hasDates && showSections.dates && <SectionHead label="Key Dates" />}
+              {showSections.dates && <>
+                <InfoRow label="Date of Inspection"   value={formatDate(project.dateInspection, settings)} />
+                <InfoRow label="Time of Inspection"   value={formatTime(project.timeInspection, settings)} />
+                <InfoRow label="Date Work Performed"  value={formatDate(project.dateWorkPerformed, settings)} />
+                <InfoRow label="Time Work Performed"  value={formatTime(project.timeWorkPerformed, settings)} />
+                {project.dateOfLoss && <InfoRow label="Date of Loss" value={project.dateOfLoss} />}
+                <InfoRow label="Report Date" value={reportDate ? formatDate(reportDate, settings) : today} />
+              </>}
 
               {/* Contractor */}
-              {project.contractorName && <SectionHead label="Contractor / Inspector" />}
-              <InfoRow label="Contractor / Inspector" value={project.contractorName} />
-              <InfoRow label="Contractor Phone"       value={project.contractorPhone} />
+              {project.contractorName && showSections.contractor && <SectionHead label="Contractor / Inspector" />}
+              {showSections.contractor && <>
+                <InfoRow label="Contractor / Inspector" value={project.contractorName} />
+                <InfoRow label="Contractor Phone"       value={project.contractorPhone} />
+              </>}
 
               {/* Insurance */}
-              {hasInsurance && <SectionHead label="Insurance Information" />}
-              {hasInsurance && <>
+              {hasInsurance && showSections.insurance && <SectionHead label="Insurance Information" />}
+              {hasInsurance && showSections.insurance && <>
                 <InfoRow label="Carrier"       value={project.insuranceCarrier} />
                 <InfoRow label="Policy #"      value={project.insurancePolicyNum} />
                 <InfoRow label="Claim #"       value={project.claimNumber} />
@@ -419,11 +465,11 @@ export function ReportPages({ title, reportType, reportDate, reportTime, accentC
               </>}
 
               {/* Site Conditions */}
-              {hasSiteConditions && <SectionHead label="Site Conditions" />}
-              {project.powerStatus  && <InfoRow label="Power"  value={project.powerStatus==="on"?"On":project.powerStatus==="off"?"Off":"N/A"} />}
-              {project.waterStatus  && <InfoRow label="Water"  value={project.waterStatus==="on"?"On":project.waterStatus==="off"?"Off":"N/A"} />}
-              {project.accessLimitations && <InfoRow label="Access Limitations" value={project.accessLimitations} />}
-              {project.ppeItems?.length > 0 && (
+              {hasSiteConditions && showSections.site && <SectionHead label="Site Conditions" />}
+              {showSections.site && project.powerStatus  && <InfoRow label="Power"  value={project.powerStatus==="on"?"On":project.powerStatus==="off"?"Off":"N/A"} />}
+              {showSections.site && project.waterStatus  && <InfoRow label="Water"  value={project.waterStatus==="on"?"On":project.waterStatus==="off"?"Off":"N/A"} />}
+              {showSections.site && project.accessLimitations && <InfoRow label="Access Limitations" value={project.accessLimitations} />}
+              {showSections.site && project.ppeItems?.length > 0 && (
                 <div style={{ gridColumn:"1/-1" }}>
                   <div style={{ fontSize:8.5,fontWeight:700,textTransform:"uppercase",letterSpacing:".07em",color:"#999",marginBottom:4 }}>PPE Required</div>
                   <div style={{ display:"flex",flexWrap:"wrap",gap:4 }}>
@@ -451,7 +497,7 @@ export function ReportPages({ title, reportType, reportDate, reportTime, accentC
   let used = 0;
 
   for (const block of blocks) {
-    const h = estimateBlockHeight(block, gridClass);
+    const h = estimateBlockHeight(block, gridClass, blocks);
     if (used + h > PAGE_BODY_H && current.length > 0) {
       pages.push(current);
       current = [block];
@@ -482,7 +528,7 @@ export function ReportPages({ title, reportType, reportDate, reportTime, accentC
           {/* Continuation header */}
           <div style={{ padding:"14px 36px 10px",borderBottom:`2px solid ${accentColor}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0,height:HEADER_H,boxSizing:"border-box" }}>
             <div style={{ fontWeight:700,fontSize:13,color:"#333" }}>{title}</div>
-            <div style={{ fontSize:10.5,color:"#999" }}>{reportType} Â· {today}</div>
+            <div style={{ fontSize:10.5,color:"#999" }}>{reportType} · {today}</div>
           </div>
           {/* Blocks */}
           <div style={{ flex:1,paddingTop:4 }}>
@@ -490,7 +536,7 @@ export function ReportPages({ title, reportType, reportDate, reportTime, accentC
               <BlockRenderer key={block.id} block={block.type==="beforeafter" ? (() => {
                 const pair = (project.beforeAfterPairs||[]).find(p=>p.id===block.baPairId);
                 return { ...block, _bPhoto: pair ? (project.photos||[]).find(p=>p.id===pair.beforeId) : null, _aPhoto: pair ? (project.photos||[]).find(p=>p.id===pair.afterId) : null };
-              })() : block} showGps={showGps} showTimestamp={showTimestamp} showRooms={showRooms} showTags={showTags} gridClass={gridClass} settings={settings} />
+              })() : block} showGps={showGps} showTimestamp={showTimestamp} showRooms={showRooms} showTags={showTags} gridClass={gridClass} settings={settings} allBlocks={blocks} />
             ))}
           </div>
           {/* Footer */}
@@ -570,13 +616,13 @@ export function SignatureDrawModal({ onSave, onClose }) {
     <div className="modal-overlay" onClick={e => e.target===e.currentTarget && onClose()}>
       <div className="modal fade-in" style={{ maxWidth:520 }}>
         <div className="modal-header">
-          <div className="modal-title">â Add Signature</div>
+          <div className="modal-title">✍ Add Signature</div>
           <button className="btn btn-ghost btn-icon" style={{ width:44,height:44 }} onClick={onClose}><Icon d={ic.close} size={22} /></button>
         </div>
 
         {/* Mode tabs */}
         <div style={{ display:"flex", borderBottom:"1px solid var(--border)", padding:"0 24px" }}>
-          {[["draw","â Draw by Hand"],["upload","ð Upload Image"]].map(([id,label]) => (
+          {[["draw","✏ Draw by Hand"],["upload","📁 Upload Image"]].map(([id,label]) => (
             <button key={id} className="btn btn-ghost btn-sm"
               style={{ borderBottom:`2px solid ${mode===id?"var(--accent)":"transparent"}`,borderRadius:0,paddingBottom:10,color:mode===id?"var(--accent)":"var(--text2)",fontWeight:mode===id?700:500 }}
               onClick={()=>{ setMode(id); setUploadSrc(null); }}>
@@ -638,6 +684,7 @@ export function SignatureDrawModal({ onSave, onClose }) {
 }
 
 const BLOCK_TYPES = [
+  { id:"toc",         label:"Table of Contents", icon:"M4 6h16 M4 10h10 M4 14h16 M4 18h10", singleton:true },
   { id:"text",        label:"Text Block",        icon:ic.text      },
   { id:"table",       label:"Table",             icon:"M3 3h18v18H3V3z M3 9h18 M3 15h18 M9 3v18 M15 3v18" },
   { id:"photos",      label:"Photo Grid",        icon:ic.image     },
@@ -651,7 +698,7 @@ const BLOCK_TYPES = [
 
 // Scrollable block-type picker that fits in a fixed bar without overflowing
 const PAGE_SIZE = 4; // how many block buttons are visible at once
-export function BlockInsertBar({ onAdd, prefix, extraLeft, extraRight }) {
+export function BlockInsertBar({ onAdd, prefix, extraLeft, extraRight, existingTypes = [] }) {
   const [offset, setOffset] = React.useState(0);
   const total   = BLOCK_TYPES.length;
   const canPrev = offset > 0;
@@ -669,13 +716,18 @@ export function BlockInsertBar({ onAdd, prefix, extraLeft, extraRight }) {
       </button>
       {/* Visible block buttons */}
       <div style={{ display:"flex",alignItems:"center",gap:3,flex:1,overflow:"hidden" }}>
-        {visible.map(bt=>(
-          <button key={bt.id} className="btn btn-ghost btn-sm" title={`Add ${bt.label}`}
-            style={{ gap:4,fontSize:11,padding:"2px 7px",whiteSpace:"nowrap",flexShrink:0 }}
-            onClick={e=>{e.stopPropagation();onAdd(bt.id);}}>
-            <Icon d={bt.icon} size={12}/>{bt.label}
-          </button>
-        ))}
+        {visible.map(bt=>{
+          const disabled = bt.singleton && existingTypes.includes(bt.id);
+          return (
+            <button key={bt.id} className="btn btn-ghost btn-sm"
+              title={disabled ? `${bt.label} already added` : `Add ${bt.label}`}
+              disabled={disabled}
+              style={{ gap:4,fontSize:11,padding:"2px 7px",whiteSpace:"nowrap",flexShrink:0,opacity:disabled?.4:1 }}
+              onClick={e=>{e.stopPropagation();if(!disabled)onAdd(bt.id);}}>
+              <Icon d={bt.icon} size={12}/>{bt.label}
+            </button>
+          );
+        })}
       </div>
       {/* Next arrow */}
       <button className="btn btn-ghost btn-sm btn-icon" title="More" disabled={!canNext}
@@ -709,6 +761,7 @@ export function AiWriterModal({ block, project, settings, onAccept, onClose, onU
     block.type==="table"     ? "Data Table" :
     block.type==="textphoto" ? "Text + Photo" :
     block.type==="divider"   ? "Section Divider" :
+    block.type==="toc"       ? "Table of Contents" :
     block.type==="signature" ? "Signature Block" : "Block"
   );
 
@@ -853,12 +906,66 @@ Write ONLY the report text content. No preamble, no "here is the text", no markd
   );
 }
 
+// ── Billing helpers (duplicated from AccountPage for self-contained use) ──────
+const _RC_PRICING = {
+  monthly: {
+    base:    { admin: 39, user: 29 },
+    pro:     { admin: 59, user: 29 },
+    command: { admin: 79, user: 29 },
+  },
+  annual: {
+    base:    { admin: 33, user: 26 },
+    pro:     { admin: 50, user: 26 },
+    command: { admin: 67, user: 26 },
+  },
+};
+// Use _RC_PRICING as PRICING alias in this file
+const PRICING = _RC_PRICING;
+
+const _getBillingCycleInfo = (signupDate, billingCycle) => {
+  const anchor = new Date(signupDate || "2025-03-11");
+  if (isNaN(anchor.getTime())) return { daysUsed:0, daysTotal:30, daysLeft:30, cycleStart:new Date(), cycleEnd:new Date(Date.now()+30*86400000) };
+  const anchorDay = anchor.getDate();
+  const today = new Date();
+  if (billingCycle === "annual") {
+    let cycleStart = new Date(today.getFullYear(), anchor.getMonth(), anchorDay);
+    if (cycleStart > today) cycleStart.setFullYear(cycleStart.getFullYear() - 1);
+    const cycleEnd = new Date(cycleStart); cycleEnd.setFullYear(cycleEnd.getFullYear() + 1);
+    const daysTotal = Math.round((cycleEnd - cycleStart) / 86400000);
+    const daysUsed  = Math.round((today - cycleStart) / 86400000);
+    return { daysUsed, daysTotal, daysLeft: daysTotal - daysUsed, cycleStart, cycleEnd };
+  } else {
+    let cycleStart = new Date(today.getFullYear(), today.getMonth(), anchorDay);
+    if (cycleStart > today) { cycleStart.setMonth(cycleStart.getMonth() - 1); }
+    const cycleEnd = new Date(cycleStart); cycleEnd.setMonth(cycleEnd.getMonth() + 1);
+    const daysTotal = Math.round((cycleEnd - cycleStart) / 86400000);
+    const daysUsed  = Math.round((today - cycleStart) / 86400000);
+    return { daysUsed, daysTotal, daysLeft: daysTotal - daysUsed, cycleStart, cycleEnd };
+  }
+};
+
+const calcProration = (settings, users, fromPlan, toPlan) => {
+  const cycle = settings?.billingCycle || "monthly";
+  const info   = _getBillingCycleInfo(settings?.signupDate, cycle);
+  const activeUserCount = (users || []).filter(u => u.status !== "inactive").length;
+  const fromPricing = PRICING[cycle]?.[fromPlan] || PRICING.monthly.base;
+  const toPricing   = PRICING[cycle]?.[toPlan]   || PRICING.monthly.base;
+  const fromTotal = fromPricing.admin + activeUserCount * fromPricing.user;
+  const toTotal   = toPricing.admin   + activeUserCount * toPricing.user;
+  const dailyFrom   = fromTotal / info.daysTotal;
+  const dailyTo     = toTotal   / info.daysTotal;
+  const unusedCredit = parseFloat((dailyFrom * info.daysLeft).toFixed(2));
+  const newCharge    = parseFloat((dailyTo   * info.daysLeft).toFixed(2));
+  const netCharge    = parseFloat((newCharge - unusedCredit).toFixed(2));
+  return { unusedCredit, newCharge, netCharge, daysLeft: info.daysLeft, daysTotal: info.daysTotal, cycleEnd: info.cycleEnd, fromTotal, toTotal };
+};
+
 // ── AI Writer Upgrade Modal ──────────────────────────────────────────────────
 export function AiWriterUpgradeModal({ onUpgrade, onClose, isAdmin, settings, users }) {
   const [confirming, setConfirming] = React.useState(false);
 
   // Proration — only computed when admin hits "Upgrade"
-  const p = isAdmin ? calcProration(settings, users || [], "base", "pro") : null;
+  const p = isAdmin ? calcProration(settings, users || [], settings?.plan || "base", "command") : null;
 
   return (
     <div style={{ position:"fixed",inset:0,zIndex:600,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.55)" }}
@@ -871,14 +978,14 @@ export function AiWriterUpgradeModal({ onUpgrade, onClose, isAdmin, settings, us
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
           </div>
           <div style={{ fontSize:19,fontWeight:800,color:"white",marginBottom:5 }}>
-            {confirming ? "Confirm Upgrade" : "â¦ Intelligence II / â¬¡ Command III Feature"}
+            {confirming ? "Confirm Upgrade" : "⬡ Command III Feature"}
           </div>
           <div style={{ fontSize:13,color:"rgba(255,255,255,.82)",lineHeight:1.5 }}>
             {confirming
-              ? "Review the charges below — AI Write unlocks the moment you confirm."
+              ? "Review the charges below — 1-Click AI Report unlocks the moment you confirm."
               : isAdmin
-                ? "AI Report Writer is included in Intelligence II and Command III — upgrade to unlock it for your whole team"
-                : "Ask your account admin to upgrade the plan to unlock this feature"}
+                ? "1-Click AI Report is exclusive to Command III — upgrade to unlock it for your whole team"
+                : "Ask your account admin to upgrade to Command III to unlock this feature"}
           </div>
         </div>
 
@@ -910,19 +1017,19 @@ export function AiWriterUpgradeModal({ onUpgrade, onClose, isAdmin, settings, us
                 <>
                   <div style={{ padding:"12px 16px",background:"var(--surface2)",borderRadius:10,border:"1px solid var(--border)",marginBottom:14,display:"flex",alignItems:"center",justifyContent:"space-between" }}>
                     <div>
-                      <div style={{ fontWeight:700,fontSize:13.5 }}>â¦ Intelligence II / â¬¡ Command III</div>
-                      <div style={{ fontSize:11.5,color:"var(--text2)" }}>Admin seat Â· +${PRICING.monthly.pro.user}/user/mo</div>
+                      <div style={{ fontWeight:700,fontSize:13.5 }}>⬡ Command III</div>
+                      <div style={{ fontSize:11.5,color:"var(--text2)" }}>Admin seat · +${PRICING.monthly.command.user}/user/mo</div>
                     </div>
                     <div style={{ textAlign:"right" }}>
-                      <div style={{ fontSize:22,fontWeight:900,color:"#a855f7" }}>${PRICING.monthly.pro.admin}<span style={{ fontSize:12,fontWeight:400,color:"var(--text2)" }}>/mo</span></div>
+                      <div style={{ fontSize:22,fontWeight:900,color:"#2b7fe8" }}>${PRICING.monthly.command.admin}<span style={{ fontSize:12,fontWeight:400,color:"var(--text2)" }}>/mo</span></div>
                     </div>
                   </div>
                   <div style={{ display:"flex",gap:8 }}>
                     <button className="btn btn-secondary btn-sm" style={{ flex:1 }} onClick={onClose}>Maybe later</button>
-                    <button className="btn btn-primary btn-sm" style={{ flex:2,background:"linear-gradient(135deg,#7c3aed,#a855f7)",border:"none",fontWeight:700,gap:6 }}
+                    <button className="btn btn-primary btn-sm" style={{ flex:2,background:"linear-gradient(135deg,#2b7fe8,#1a5fc8)",border:"none",fontWeight:700,gap:6 }}
                       onClick={()=>setConfirming(true)}>
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
-                      Upgrade to Intelligence II
+                      Upgrade to Command III
                     </button>
                   </div>
                 </>
@@ -936,7 +1043,7 @@ export function AiWriterUpgradeModal({ onUpgrade, onClose, isAdmin, settings, us
                       <div>
                         <div style={{ fontWeight:700,fontSize:13,marginBottom:3 }}>Admin upgrade required</div>
                         <div style={{ fontSize:12,color:"var(--text2)",lineHeight:1.6 }}>
-                          Your account is on Capture I. Ask your admin to upgrade to Intelligence II or Command III in <strong>Account → Billing</strong>. AI Write will unlock immediately.
+                          1-Click AI Report is a <strong>Command III</strong> exclusive feature. Ask your admin to upgrade in <strong>Account → Billing</strong> — it will unlock immediately for your whole team.
                         </div>
                       </div>
                     </div>
@@ -952,11 +1059,11 @@ export function AiWriterUpgradeModal({ onUpgrade, onClose, isAdmin, settings, us
             <>
               <div style={{ background:"var(--surface2)",borderRadius:9,overflow:"hidden",border:"1px solid var(--border)",marginBottom:14,fontSize:12.5 }}>
                 <div style={{ display:"grid",gridTemplateColumns:"1fr auto",padding:"9px 13px",borderBottom:"1px solid var(--border)",color:"var(--text2)" }}>
-                  <span>Capture I unused credit ({p.daysLeft} of {p.daysTotal} days left)</span>
-                  <span style={{ color:"#3dba7e",fontWeight:700 }}>â${p.unusedCredit}</span>
+                  <span>Current plan unused credit ({p.daysLeft} of {p.daysTotal} days left)</span>
+                  <span style={{ color:"#3dba7e",fontWeight:700 }}>−${p.unusedCredit}</span>
                 </div>
                 <div style={{ display:"grid",gridTemplateColumns:"1fr auto",padding:"9px 13px",borderBottom:"1px solid var(--border)",color:"var(--text2)" }}>
-                  <span>Intelligence II prorated charge ({p.daysLeft} days)</span>
+                  <span>Command III prorated charge ({p.daysLeft} days)</span>
                   <span style={{ fontWeight:600 }}>+${p.newCharge}</span>
                 </div>
                 <div style={{ display:"grid",gridTemplateColumns:"1fr auto",padding:"11px 13px",fontWeight:800,fontSize:13.5 }}>
@@ -967,11 +1074,11 @@ export function AiWriterUpgradeModal({ onUpgrade, onClose, isAdmin, settings, us
                 </div>
               </div>
               <div style={{ fontSize:11.5,color:"var(--text3)",marginBottom:14,lineHeight:1.6 }}>
-                From <strong>{p.cycleEnd.toLocaleDateString("en-US",{month:"short",day:"numeric"})}</strong> onwards: <strong>${p.toTotal}/mo</strong> Â· AI Write unlocks immediately for all team members.
+                From <strong>{p.cycleEnd.toLocaleDateString("en-US",{month:"short",day:"numeric"})}</strong> onwards: <strong>${p.toTotal}/mo</strong> · 1-Click AI Report unlocks immediately for all team members.
               </div>
               <div style={{ display:"flex",gap:8 }}>
-                <button className="btn btn-secondary btn-sm" style={{ flex:1 }} onClick={()=>setConfirming(false)}>â Back</button>
-                <button className="btn btn-primary btn-sm" style={{ flex:2,background:"linear-gradient(135deg,#7c3aed,#a855f7)",border:"none",fontWeight:700,gap:6 }}
+                <button className="btn btn-secondary btn-sm" style={{ flex:1 }} onClick={()=>setConfirming(false)}>← Back</button>
+                <button className="btn btn-primary btn-sm" style={{ flex:2,background:"linear-gradient(135deg,#2b7fe8,#1a5fc8)",border:"none",fontWeight:700,gap:6 }}
                   onClick={onUpgrade}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
                   Confirm — Pay ${Math.max(0, p.netCharge)} now
@@ -1008,9 +1115,9 @@ function parseAiOutputToBlocks(rawText) {
 
 function AiOneClickModal({ project, settings, onGenerate, onClose, onUsageIncrement }) {
   const REPORT_TYPES = [
-    { id:"findings",   label:"Findings Report",    krakens:2, desc:"3â6 paragraphs on identified issues, deficiencies, risks, and recommended actions." },
-    { id:"progress",   label:"Progress Report",    krakens:2, desc:"3â6 paragraphs: work completed, current conditions, concerns, and next steps." },
-    { id:"completion", label:"Completion Report",  krakens:4, desc:"6â12 paragraph professional close-out: scope, actions, final condition, recommendations, conclusion." },
+    { id:"findings",   label:"Findings Report",    krakens:2, desc:"6–10 thorough paragraphs on identified issues, deficiencies, risks, affected areas, and recommended actions." },
+    { id:"progress",   label:"Progress Report",    krakens:2, desc:"6–10 thorough paragraphs: work completed, current conditions, ongoing concerns, timelines, and next steps." },
+    { id:"completion", label:"Completion Report",  krakens:4, desc:"10–18 paragraph professional close-out: scope, actions, progression, final condition, recommendations, and conclusion." },
     { id:"custom",     label:"Custom Report",      krakens:6, desc:"Choose your sections and describe exactly what you need." },
   ];
   const CUSTOM_SECTIONS = ["Executive Summary","Scope of Work","Findings & Deficiencies","Cause of Loss","Moisture Readings","Equipment Used","Work Completed","Site Conditions","Photo Documentation","Safety Observations","Timeline","Recommendations","Next Steps","Sign-Off","Conclusion"];
@@ -1028,9 +1135,9 @@ function AiOneClickModal({ project, settings, onGenerate, onClose, onUsageIncrem
   const remaining = Math.max(0, limit - used);
   const canAfford = k => remaining >= k;
   const PROMPTS = {
-    findings:   "Write a Findings Report for this project. Produce 3-6 professional paragraphs identifying key issues, deficiencies, and risks. Highlight affected areas and recommended actions. Plain text, no markdown or bullets.",
-    progress:   "Write a Progress Report for this active project. Produce 3-6 professional paragraphs covering: work completed, current site conditions, ongoing concerns, and next steps. Suitable for clients, adjusters, and property managers. Plain text, no markdown.",
-    completion: "Write a Completion Report for this finished project. Produce 6-12 professional paragraphs covering scope of work, actions taken, project progression, final site condition, recommendations, and conclusion. Format with each major section title on its own line followed by its paragraph. Professional language suitable for clients, insurers, and records.",
+    findings:   "Write a thorough, comprehensive Findings Report for this project. Produce 6-10 professional paragraphs identifying key issues, deficiencies, and risks in detail. For each issue, describe the affected area, the nature and extent of the problem, potential causes, and specific recommended actions or remediation steps. Be thorough and specific — include observations about structural elements, moisture, damage patterns, safety concerns, and any secondary or ancillary findings. Conclude with an overall risk summary and prioritized action plan. Plain text, no markdown or bullets.",
+    progress:   "Write a thorough, comprehensive Progress Report for this active project. Produce 6-10 professional paragraphs covering: a detailed account of all work completed to date, current site conditions with specific observations, equipment and materials utilized, any challenges encountered and how they were addressed, ongoing concerns or open items, projected timeline and milestones, coordination notes with relevant parties (adjusters, property managers, subcontractors), and clear next steps. Be specific and detailed — suitable for clients, adjusters, and property managers who need a full picture of the project status. Plain text, no markdown.",
+    completion: "Write a thorough, comprehensive Completion Report for this finished project. Produce 10-18 professional paragraphs covering: an executive summary of the project, the full scope of work performed, a detailed account of all actions taken and methods used, project progression from start to finish, any challenges encountered and how they were resolved, final site condition with specific observations, equipment and materials used, moisture readings or test results if applicable, any remaining recommendations or follow-up actions, warranty or guarantee information if relevant, and a professional conclusion. Format with each major section title on its own line followed by its paragraph(s). Professional language suitable for clients, insurers, and permanent project records.",
     custom:     null,
   };
   const buildPrompt = () => {
@@ -1168,6 +1275,9 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
   const [showCoverInfo, setShowCoverInfo] = useState(true);
   const [showTags,      setShowTags]      = useState(true);
   const [previewOpen,   setPreviewOpen]   = useState(false);
+  const [canvasZoom,    setCanvasZoom]    = useState(1.0);
+  const [previewZoom,   setPreviewZoom]   = useState(1.0);
+  const [showSections,  setShowSections]  = useState({ dates:true, contractor:true, insurance:true, site:true });
   const [showSigModal,  setShowSigModal]  = useState(false);
   const [signatureTargetId, setSignatureTargetId] = useState(null);
 
@@ -1193,6 +1303,15 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
   const printLayerRef = useRef(null);
   const aiEnabled = (PLAN_AI_LIMITS[settings?.plan || "base"] || 0) > 0;
   const canExportReports = canAccessFeature(settings, "exports", "view");
+
+  // ── Kraken (AI usage) tracking for button badges ──────────────────────────
+  const _aiPlan      = settings?.plan || "base";
+  const _aiLimit     = PLAN_AI_LIMITS[_aiPlan] || 0;
+  const _aiWinStart  = settings?.aiGenerationsWindowStart ? new Date(settings.aiGenerationsWindowStart) : null;
+  const _aiCurWin    = getWeekWindowStart();
+  const _aiValid     = _aiWinStart && _aiWinStart >= _aiCurWin;
+  const _aiUsed      = _aiValid ? (settings?.aiGenerationsUsed || 0) : 0;
+  const aiRemaining  = Math.max(0, _aiLimit - _aiUsed);
 
   const accentColor = settings?.accent || "#2b7fe8";
 
@@ -1401,7 +1520,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
 
       {/* Top bar */}
       <div className="rc-topbar">
-        <button className="btn btn-ghost btn-sm" onClick={onClose}>â Back</button>
+        <button className="btn btn-ghost btn-sm" onClick={onClose}>← Back</button>
         <div style={{ width:1,height:20,background:"var(--border)" }} />
         <input value={title} onChange={e=>setTitle(e.target.value)} style={{ background:"transparent",border:"none",outline:"none",fontSize:14,fontWeight:700,color:"var(--text)",flex:1,minWidth:0 }} />
         <div style={{ display:"flex",gap:8,alignItems:"center",marginLeft:"auto" }}>
@@ -1409,14 +1528,15 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
             {["draft","review","sent","final"].map(s=><option key={s} value={s}>{s.charAt(0).toUpperCase()+s.slice(1)}</option>)}
           </select>
           <button className="btn btn-secondary btn-sm" onClick={()=>setPreviewOpen(true)}><Icon d={ic.eye} size={13} /> Preview</button>
-          {settings?.plan === "command" && (
-            <button className="btn btn-sm" onClick={() => aiEnabled ? setShowAiOneClick(true) : setShowAiUpgrade(true)}
-              title="AI 1-Click Report Generator — Command Plan exclusive"
-              style={{ background:"linear-gradient(135deg,#7c3aed,#a855f7)",color:"white",border:"none",display:"flex",alignItems:"center",gap:5,padding:"5px 12px",borderRadius:7,fontWeight:700,fontSize:13,cursor:"pointer" }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
-              1 Click
-            </button>
-          )}
+          <button className="btn btn-sm" onClick={() => settings?.plan === "command" ? setShowAiOneClick(true) : setShowAiUpgrade(true)}
+            title="AI 1-Click Report Generator — Command III feature"
+            style={{ background:"linear-gradient(135deg,#7c3aed,#a855f7)",color:"white",border:"none",display:"flex",alignItems:"center",gap:5,padding:"5px 12px",borderRadius:7,fontWeight:700,fontSize:13,cursor:"pointer",whiteSpace:"nowrap" }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
+            1 Click
+            <span style={{ fontSize:10,fontWeight:600,opacity:.85,background:"rgba(0,0,0,.22)",borderRadius:4,padding:"1px 5px",marginLeft:2 }}>
+              2–6 ⬡{settings?.plan === "command" ? ` · ${aiRemaining} left` : ""}
+            </span>
+          </button>
           <button className="btn btn-secondary btn-sm" onClick={handlePrintOrExport} disabled={!canExportReports}><Icon d={ic.download} size={13} /> Export PDF</button>
           <button className="btn btn-secondary btn-sm btn-icon" title="Print" onClick={handlePrintOrExport} disabled={!canExportReports}><Icon d={ic.printer} size={13} /></button>
           <button className="btn btn-primary btn-sm" onClick={handleSaveReport}><Icon d={ic.check} size={13} /> Save Report</button>
@@ -1447,7 +1567,28 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
           <option value="">— None / Custom —</option>
           {(templates||[]).map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
-        <div style={{ marginLeft:"auto",display:"flex",gap:8 }}>
+        <div style={{ width:1,height:18,background:"var(--border)",margin:"0 4px" }} />
+        <span style={{ fontSize:11.5,fontWeight:600,color:"var(--text3)",whiteSpace:"nowrap" }}>COVER:</span>
+        {[
+          { label:"Dates",       key:"dates"       },
+          { label:"Contractor",  key:"contractor"  },
+          { label:"Insurance",   key:"insurance"   },
+          { label:"Site",        key:"site"        },
+        ].map(t => (
+          <div key={t.key} className={`rc-toggle ${showSections[t.key]?"on":""}`}
+            onClick={()=>setShowSections(prev=>({...prev,[t.key]:!prev[t.key]}))}>
+            <div style={{ width:14,height:14,borderRadius:3,background:showSections[t.key]?"var(--accent)":"var(--surface3)",border:`1.5px solid ${showSections[t.key]?"var(--accent)":"var(--border)"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
+              {showSections[t.key] && <Icon d={ic.check} size={9} stroke="white" strokeWidth={3} />}
+            </div>
+            {t.label}
+          </div>
+        ))}
+        <div style={{ marginLeft:"auto",display:"flex",gap:4,alignItems:"center" }}>
+          <span style={{ fontSize:11,fontWeight:600,color:"var(--text3)",whiteSpace:"nowrap",marginRight:2 }}>ZOOM:</span>
+          <button className="btn btn-ghost btn-sm btn-icon" style={{ padding:"0 6px",minWidth:24,fontSize:15,lineHeight:1 }} title="Zoom out" onClick={()=>setCanvasZoom(z=>parseFloat(Math.max(0.25,z-0.25).toFixed(2)))}>−</button>
+          <span style={{ fontSize:11,fontWeight:700,color:"var(--text2)",minWidth:36,textAlign:"center" }}>{Math.round(canvasZoom*100)}%</span>
+          <button className="btn btn-ghost btn-sm btn-icon" style={{ padding:"0 6px",minWidth:24,fontSize:15,lineHeight:1 }} title="Zoom in"  onClick={()=>setCanvasZoom(z=>parseFloat(Math.min(3,z+0.25).toFixed(2)))}>+</button>
+          {canvasZoom !== 1 && <button className="btn btn-ghost btn-sm" style={{ fontSize:10,padding:"2px 7px",color:"var(--text3)" }} onClick={()=>setCanvasZoom(1)}>Reset</button>}
         </div>
       </div>
 
@@ -1455,7 +1596,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
       <div className="rc-body">
 
         {/* ── Document canvas ── */}
-        <div className="rc-canvas" onClick={()=>setSelectedBlock(null)}>
+        <div className="rc-canvas" style={{ zoom: canvasZoom }} onClick={()=>setSelectedBlock(null)}>
 
           {/* Cover photo */}
           <div className="rc-section-wrap">
@@ -1471,12 +1612,12 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                     }
                     <div>
                       <div style={{ fontWeight:700,fontSize:15,color:"#111" }}>{settings?.companyName||"Your Company"}</div>
-                      <div style={{ fontSize:10.5,color:"#777" }}>{settings?.phone}{settings?.email?` Â· ${settings.email}`:""}</div>
+                      <div style={{ fontSize:10.5,color:"#777" }}>{settings?.phone}{settings?.email?` · ${settings.email}`:""}</div>
                     </div>
                   </div>
                   <div style={{ textAlign:"right" }}>
                     <div style={{ fontWeight:700,fontSize:14,color:"#111" }}>{settings?.reportHeaderTitle||"Property Report"}</div>
-                    <div style={{ fontSize:10.5,color:"#777" }}>{reportType} Â· {reportDate ? formatDate(reportDate, settings) : formatDate(new Date().toISOString().slice(0,10), settings)}</div>
+                    <div style={{ fontSize:10.5,color:"#777" }}>{reportType} · {reportDate ? formatDate(reportDate, settings) : formatDate(new Date().toISOString().slice(0,10), settings)}</div>
                     {settings?.reportHeaderNote && <div style={{ fontSize:9.5,color:"#aaa",marginTop:2 }}>{settings.reportHeaderNote}</div>}
                   </div>
                 </div>
@@ -1497,9 +1638,9 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                   <div className="rp-cover-overlay">
                     <div style={{ fontSize:22,fontWeight:700,color:"white",marginBottom:6,lineHeight:1.2 }}>{title}</div>
                     <div style={{ fontSize:12,color:"rgba(255,255,255,.75)",display:"flex",gap:12,flexWrap:"wrap" }}>
-                      {project.address && <span>ð {[project.address,project.city,project.state].filter(Boolean).join(", ")}</span>}
-                      {project.clientName && <span>ð¤ {project.clientName}</span>}
-                      {project.type && <span>ð· {project.type}</span>}
+                      {project.address && <span>📍 {[project.address,project.city,project.state].filter(Boolean).join(", ")}</span>}
+                      {project.clientName && <span>👤 {project.clientName}</span>}
+                      {project.type && <span>🏷 {project.type}</span>}
                     </div>
                   </div>
                 )}
@@ -1531,7 +1672,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
               </div>
 
               {/* Key Dates */}
-              {(project.dateInspection||project.dateWorkPerformed||project.dateOfLoss) && (
+              {showSections.dates && (project.dateInspection||project.dateWorkPerformed||project.dateOfLoss) && (
                 <div className="rp-section">
                   <div className="rp-section-title" style={{ "--sec-color":accentColor }}>Key Dates</div>
                   <div className="rp-info-grid">
@@ -1553,7 +1694,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
               )}
 
               {/* Contractor */}
-              {project.contractorName && (
+              {showSections.contractor && project.contractorName && (
                 <div className="rp-section">
                   <div className="rp-section-title" style={{ "--sec-color":accentColor }}>Contractor / Inspector</div>
                   <div className="rp-info-grid">
@@ -1571,7 +1712,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
               )}
 
               {/* Insurance */}
-              {project.insuranceEnabled && (project.insuranceCarrier||project.insurancePolicyNum||project.claimNumber||project.adjusterName) && (
+              {showSections.insurance && project.insuranceEnabled && (project.insuranceCarrier||project.insurancePolicyNum||project.claimNumber||project.adjusterName) && (
                 <div className="rp-section">
                   <div className="rp-section-title" style={{ "--sec-color":accentColor }}>Insurance Information</div>
                   <div className="rp-info-grid">
@@ -1596,7 +1737,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
               )}
 
               {/* Site Conditions */}
-              {(project.powerStatus||project.waterStatus||project.accessLimitations||project.ppeItems?.length>0) && (
+              {showSections.site && (project.powerStatus||project.waterStatus||project.accessLimitations||project.ppeItems?.length>0) && (
                 <div className="rp-section">
                   <div className="rp-section-title" style={{ "--sec-color":accentColor }}>Site Conditions</div>
                   <div className="rp-info-grid">
@@ -1632,6 +1773,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
 
           {/* Add block at top */}
           <BlockInsertBar prefix="Add at top:"
+            existingTypes={blocks.map(b=>b.type)}
             onAdd={id=>{const nb={id:uid(),type:id,content:id==="text"?"":undefined,photos:id==="photos"||id==="textphoto"?[]:undefined,files:id==="files"?[]:undefined,label:id==="divider"?"Section":id==="signature"?"Authorized Signature":undefined,sideText:id==="textphoto"?"":undefined,signatureImg:id==="signature"?null:undefined,signerName:id==="signature"?(settings?.userFirstName||"")+" "+(settings?.userLastName||""):undefined,signerTitle:id==="signature"?(settings?.userTitle||""):undefined,sigDate:id==="signature"?formatDate(new Date().toISOString().slice(0,10),settings):undefined,signerCertCodes:id==="signature"?defaultSignerCertCodes:undefined,caption:id==="photos"||id==="sketch"||id==="files"?"":undefined,dataUrl:id==="sketch"?null:undefined,sketchTitle:id==="sketch"?"Sketch / Map":undefined};setBlocks(prev=>[nb,...prev]);setEditingBlock(nb.id);}}
           />
 
@@ -1639,6 +1781,40 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
           {blocks.map((block, idx) => (
             <div key={block.id} className="rc-section-wrap">
               <div className="rp" style={{ minHeight:"auto",borderBottom:"1px solid #eee",marginBottom:0 }}>
+
+                {/* TABLE OF CONTENTS block */}
+                {block.type==="toc" && (() => {
+                  const dividers  = blocks.filter(b => b.type === "divider");
+                  const pageMap   = paginateBlocks(blocks, gridClass);
+                  return (
+                    <div className="rp-section" style={{ paddingTop:14, paddingBottom:14, background:"#fafbff", border:"1.5px dashed #c8d4f0", borderRadius:6, margin:"8px 12px" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10, padding:"0 8px" }}>
+                        <span style={{ fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:".1em", color:"#7a8fc0" }}>Table of Contents</span>
+                        <div style={{ flex:1, height:1, background:"#d0daf0" }} />
+                        <span style={{ fontSize:10, color:"#a0b0d0", fontStyle:"italic" }}>auto-updates from section dividers</span>
+                      </div>
+                      {dividers.length === 0 ? (
+                        <div style={{ padding:"8px", fontSize:12, color:"#b0bdd8", fontStyle:"italic", textAlign:"center" }}>
+                          No sections yet — add Section Divider blocks and they'll appear here automatically.
+                        </div>
+                      ) : (
+                        <div style={{ display:"flex", flexDirection:"column", padding:"0 8px" }}>
+                          {dividers.map((d, i) => (
+                            <div key={d.id} style={{ display:"flex", alignItems:"baseline", gap:0, padding:"4px 0", borderBottom: i < dividers.length-1 ? "1px solid #e8ecf8" : "none" }}>
+                              <span style={{ fontSize:12.5, color:"#333", fontWeight:500, flex:"0 0 auto", maxWidth:"72%", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                                {d.label || "Section"}
+                              </span>
+                              <span style={{ flex:1, borderBottom:"2px dotted #c8d4f0", margin:"0 8px", position:"relative", top:"-3px" }} />
+                              <span style={{ fontSize:12, fontWeight:600, color:"#5a72b0", flexShrink:0 }}>
+                                {pageMap[d.id] ?? "—"}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* DIVIDER block */}
                 {block.type==="divider" && (
@@ -1692,12 +1868,15 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                       {!block.content && editingBlock!==block.id && (
                         <div style={{ position:"absolute",top:10,left:10,color:"#aaa",fontSize:(block.textStyle?.fontSize||12.5)+"px",pointerEvents:"none",fontStyle:"italic" }}>Click to type text…</div>
                       )}
-                      <button title="â¨ Write with AI" onClick={e=>{e.stopPropagation(); aiEnabled ? setAiWriterBlock(block.id) : setShowAiUpgrade(true);}}
+                      <button title="✨ Write with AI" onClick={e=>{e.stopPropagation(); aiEnabled ? setAiWriterBlock(block.id) : setShowAiUpgrade(true);}}
                         style={{ position:"absolute",top:6,right:6,height:32,padding:"0 10px",borderRadius:7,border:"none",background:"linear-gradient(135deg,#2b7fe8,#1a5fc8)",display:"flex",alignItems:"center",justifyContent:"center",gap:5,cursor:"pointer",boxShadow:"0 2px 8px rgba(43,127,232,.45)",transition:"transform .1s,box-shadow .1s",whiteSpace:"nowrap" }}
                         onMouseEnter={e=>{e.currentTarget.style.transform="scale(1.05)";e.currentTarget.style.boxShadow="0 3px 12px rgba(43,127,232,.6)";}}
                         onMouseLeave={e=>{e.currentTarget.style.transform="scale(1)";e.currentTarget.style.boxShadow="0 2px 8px rgba(43,127,232,.45)";}}>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
                         <span style={{ fontSize:11,fontWeight:700,color:"white" }}>AI Write</span>
+                        <span style={{ fontSize:10,fontWeight:600,opacity:.85,background:"rgba(0,0,0,.22)",borderRadius:4,padding:"1px 5px" }}>
+                          1 ⬡{aiEnabled ? ` · ${aiRemaining} left` : ""}
+                        </span>
                       </button>
                     </div>
                   </div>
@@ -1714,7 +1893,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                               <div style={{ position:"relative" }}>
                                 {ph.dataUrl ? <img src={ph.dataUrl} alt={ph.name} /> : <div style={{ aspectRatio:"4/3",background:"#e8e8e8",display:"flex",alignItems:"center",justifyContent:"center",color:"#ccc" }}><Icon d={ic.image} size={28} stroke="#ccc" /></div>}
                                 {showTimestamp && ph.date && (
-                                  <div style={{ position:"absolute",bottom:4,left:4,background:"rgba(0,0,0,.55)",color:"white",fontSize:7.5,padding:"2px 5px",borderRadius:3,fontFamily:"monospace",letterSpacing:".02em",pointerEvents:"none" }}>ð {ph.date}</div>
+                                  <div style={{ position:"absolute",bottom:4,left:4,background:"rgba(0,0,0,.55)",color:"white",fontSize:7.5,padding:"2px 5px",borderRadius:3,fontFamily:"monospace",letterSpacing:".02em",pointerEvents:"none" }}>🕐 {ph.date}</div>
                                 )}
                               </div>
                               <div className="rp-photo-caption">
@@ -1727,8 +1906,8 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                                   </div>
                                 )}
                                 <div className="rp-photo-meta">
-                                  {showRooms && ph.room && <span>ð {ph.room}{ph.floor ? ` Â· ${ph.floor}` : ""}</span>}
-                                  {showGps && ph.gps && <span>ð {ph.gps.lat}, {ph.gps.lng}</span>}
+                                  {showRooms && ph.room && <span>📍 {ph.room}{ph.floor ? ` · ${ph.floor}` : ""}</span>}
+                                  {showGps && ph.gps && <span>🌐 {ph.gps.lat}, {ph.gps.lng}</span>}
                                 </div>
                               </div>
                             </div>
@@ -1844,9 +2023,9 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                                   </div>
                                 )}
                                 <div className="rp-photo-meta">
-                                  {showRooms && block.photos[0].room && <span>ð {block.photos[0].room}{block.photos[0].floor ? ` Â· ${block.photos[0].floor}` : ""}</span>}
-                                  {showGps && block.photos[0].gps && <span>ð {block.photos[0].gps.lat}</span>}
-                                  {showTimestamp && block.photos[0].date && <span>ð {block.photos[0].date}{block.photos[0].time ? ` ${block.photos[0].time}` : ""}</span>}
+                                  {showRooms && block.photos[0].room && <span>📍 {block.photos[0].room}{block.photos[0].floor ? ` · ${block.photos[0].floor}` : ""}</span>}
+                                  {showGps && block.photos[0].gps && <span>🌐 {block.photos[0].gps.lat}</span>}
+                                  {showTimestamp && block.photos[0].date && <span>🕐 {block.photos[0].date}{block.photos[0].time ? ` ${block.photos[0].time}` : ""}</span>}
                                 </div>
                               </div>
                             </div>
@@ -1882,7 +2061,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                       <div style={{ display:"flex", gap:8, marginTop:4 }}>
                         <button className="btn btn-secondary btn-sm" style={{ fontSize:11 }}
                           onClick={e => { e.stopPropagation(); setSignatureTargetId(block.id); setShowSigModal(true); }}>
-                          â {block.signatureImg ? "Replace" : "Add Signature"}
+                          ✍ {block.signatureImg ? "Replace" : "Add Signature"}
                         </button>
                         {block.signatureImg && (
                           <button className="btn btn-ghost btn-sm" style={{ fontSize:11, color:"var(--text3)" }}
@@ -1940,7 +2119,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                           onChange={e=>updateBlock(block.id,{baPairId:e.target.value||null})}
                           onClick={e=>e.stopPropagation()}>
                           <option value="">— Choose a Before &amp; After pair —</option>
-                          {baPairs.map(p=><option key={p.id} value={p.id}>{p.name}{p.room?` Â· ${p.room}`:""}</option>)}
+                          {baPairs.map(p=><option key={p.id} value={p.id}>{p.name}{p.room?` · ${p.room}`:""}</option>)}
                         </select>
                       </div>
                       {pair && bPhoto && aPhoto ? (
@@ -2159,7 +2338,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                                       {/* Delete col */}
                                       {colWidths.length > 1 && (
                                         <button onClick={()=>deleteCol(ci)} title="Delete column"
-                                          style={{padding:"1px 3px",border:"none",borderRadius:3,background:"transparent",cursor:"pointer",color:"#e85a3a",fontSize:12,lineHeight:1}}>Ã</button>
+                                          style={{padding:"1px 3px",border:"none",borderRadius:3,background:"transparent",cursor:"pointer",color:"#e85a3a",fontSize:12,lineHeight:1}}>×</button>
                                       )}
                                     </div>
                                   </th>
@@ -2220,7 +2399,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                                     <td style={{padding:"0 2px",border:"1px solid var(--border)",background:"var(--surface2)",textAlign:"center",verticalAlign:"middle",width:24}}>
                                       {rows.length > 1 && (
                                         <button onClick={()=>deleteRow(ri)} title="Delete row"
-                                          style={{border:"none",background:"transparent",cursor:"pointer",color:"#e85a3a",fontSize:14,lineHeight:1,padding:"0 2px"}}>Ã</button>
+                                          style={{border:"none",background:"transparent",cursor:"pointer",color:"#e85a3a",fontSize:14,lineHeight:1,padding:"0 2px"}}>×</button>
                                       )}
                                     </td>
                                   )}
@@ -2244,6 +2423,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
               {/* Inline block action bar */}
               <BlockInsertBar
                 onAdd={id=>{addBlock(id,block.id);}}
+                existingTypes={blocks.map(b=>b.type)}
                 extraLeft={<>
                   <button className="btn btn-ghost btn-sm btn-icon" title="Move Up" onClick={e=>{e.stopPropagation();moveBlock(block.id,-1);}} style={{ opacity:idx===0?.3:1,padding:"2px 5px",flexShrink:0 }}><Icon d="M12 19V5 M5 12l7-7 7 7" size={13} /></button>
                   <button className="btn btn-ghost btn-sm btn-icon" title="Move Down" onClick={e=>{e.stopPropagation();moveBlock(block.id,1);}} style={{ opacity:idx===blocks.length-1?.3:1,padding:"2px 5px",flexShrink:0 }}><Icon d="M12 5v14 M19 12l-7 7-7-7" size={13} /></button>
@@ -2364,7 +2544,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
               <div className="rp-footer" style={{ borderTopColor:accentColor }}>
                 <div style={{ display:"flex",alignItems:"center",gap:8 }}>
                   <span style={{ fontSize:10,color:"#888" }}>{formatDate(reportDate || new Date().toISOString().slice(0,10), settings)}</span>
-                  {reportTime && <span style={{ fontSize:10,color:"#aaa" }}>Â· {formatTime(reportTime, settings)}</span>}
+                  {reportTime && <span style={{ fontSize:10,color:"#aaa" }}>· {formatTime(reportTime, settings)}</span>}
                 </div>
                 <span style={{ color:accentColor,fontWeight:600 }}>{settings?.reportFooterCenter || "Confidential"}</span>
                 <div style={{ textAlign:"right" }}>
@@ -2450,7 +2630,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
           project={project} coverPhoto={coverPhoto} blocks={blocks}
           settings={settings} showCoverInfo={showCoverInfo}
           showGps={showGps} showTimestamp={showTimestamp} showRooms={showRooms} showTags={showTags}
-          gridClass={gridClass} forPrint={true}
+          gridClass={gridClass} forPrint={true} showSections={showSections}
         />
       </div>
 
@@ -2463,7 +2643,14 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
           {/* Preview top bar */}
           <div style={{ height:52,background:"#0d1017",borderBottom:"1px solid #2a2f3e",display:"flex",alignItems:"center",padding:"0 16px",gap:10,flexShrink:0,flexWrap:"wrap" }}>
             <div style={{ fontWeight:700,fontSize:14,color:"white",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>Print Preview — {title}</div>
-            <div style={{ fontSize:11,color:"#888",background:"#1a1e28",padding:"3px 10px",borderRadius:20,border:"1px solid #2a2f3e",flexShrink:0 }}>8.5â³ Ã 11â³</div>
+            <div style={{ fontSize:11,color:"#888",background:"#1a1e28",padding:"3px 10px",borderRadius:20,border:"1px solid #2a2f3e",flexShrink:0 }}>8.5″ × 11″</div>
+            {/* Preview zoom controls */}
+            <div style={{ display:"flex",gap:3,alignItems:"center",background:"#1a1e28",border:"1px solid #2a2f3e",borderRadius:8,padding:"3px 8px",flexShrink:0 }}>
+              <button style={{ background:"none",border:"none",color:"#ccc",cursor:"pointer",fontSize:16,lineHeight:1,padding:"0 3px",borderRadius:4 }} title="Zoom out" onClick={()=>setPreviewZoom(z=>parseFloat(Math.max(0.25,z-0.25).toFixed(2)))}>−</button>
+              <span style={{ fontSize:11,fontWeight:700,color:"#aaa",minWidth:36,textAlign:"center" }}>{Math.round(previewZoom*100)}%</span>
+              <button style={{ background:"none",border:"none",color:"#ccc",cursor:"pointer",fontSize:16,lineHeight:1,padding:"0 3px",borderRadius:4 }} title="Zoom in"  onClick={()=>setPreviewZoom(z=>parseFloat(Math.min(3,z+0.25).toFixed(2)))}>+</button>
+              {previewZoom !== 1 && <button style={{ background:"none",border:"none",color:"#888",cursor:"pointer",fontSize:10,padding:"0 4px",borderRadius:4 }} onClick={()=>setPreviewZoom(1)}>⌂</button>}
+            </div>
             <button className="btn btn-secondary btn-sm" onClick={()=>_doPrint()} style={{ flexShrink:0 }} disabled={!canExportReports}><Icon d={ic.download} size={13} /> Export PDF</button>
             <button className="btn btn-secondary btn-sm btn-icon" title="Print" onClick={()=>_doPrint()} style={{ flexShrink:0 }} disabled={!canExportReports}><Icon d={ic.printer} size={13} /></button>
             <button className="btn btn-ghost btn-sm" style={{ color:"white",flexShrink:0 }} onClick={()=>setPreviewOpen(false)}>
@@ -2475,11 +2662,12 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
           <div style={{ flex:1,overflow:"auto",background:"#111318",padding:"32px 16px",boxSizing:"border-box" }}>
             {/* ScaledPages: uses CSS zoom so the layout box shrinks with the visual */}
             <ScaledReportPreview
+              zoomMult={previewZoom}
               title={title} reportType={reportType} reportDate={reportDate} reportTime={reportTime} accentColor={accentColor}
               project={project} coverPhoto={coverPhoto} blocks={blocks}
               settings={settings} showCoverInfo={showCoverInfo}
               showGps={showGps} showTimestamp={showTimestamp} showRooms={showRooms} showTags={showTags}
-              gridClass={gridClass}
+              gridClass={gridClass} showSections={showSections}
             />
           </div>
         </div>
@@ -2513,7 +2701,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                           style={{ borderRadius:8,overflow:"hidden",cursor:"pointer",border:`2px solid ${isSel?"var(--accent)":"var(--border)"}`,position:"relative",transition:"border-color .15s" }}>
                           {ph.dataUrl ? <img src={ph.dataUrl} style={{ width:"100%",aspectRatio:"4/3",objectFit:"cover",display:"block" }} /> : <div style={{ aspectRatio:"4/3",background:"var(--surface2)",display:"flex",alignItems:"center",justifyContent:"center" }}><Icon d={ic.image} size={24} stroke="var(--text3)" /></div>}
                           {isSel && <div style={{ position:"absolute",top:5,right:5,width:20,height:20,borderRadius:"50%",background:"var(--accent)",display:"flex",alignItems:"center",justifyContent:"center" }}><Icon d={ic.check} size={11} stroke="white" strokeWidth={3} /></div>}
-                          <div style={{ padding:"5px 7px",fontSize:10,color:"var(--text2)",background:"var(--surface)",borderTop:"1px solid var(--border)" }}>{ph.room} Â· {ph.name?.slice(0,22)}</div>
+                          <div style={{ padding:"5px 7px",fontSize:10,color:"var(--text2)",background:"var(--surface)",borderTop:"1px solid var(--border)" }}>{ph.room} · {ph.name?.slice(0,22)}</div>
                         </div>
                       );
                     })}
@@ -2554,11 +2742,13 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
           onClose={() => setShowAiOneClick(false)}
           onUsageIncrement={(krakens) => {
             if (!onSettingsChange) return;
-            const curWin2 = getWeekWindowStart();
-            const wStart2 = settings?.aiGenerationsWindowStart ? new Date(settings.aiGenerationsWindowStart) : null;
-            const valid2 = wStart2 && wStart2 >= curWin2;
-            const used2  = valid2 ? (settings?.aiGenerationsUsed || 0) : 0;
-            onSettingsChange(prev => ({ ...prev, aiGenerationsUsed: used2 + krakens, aiGenerationsWindowStart: valid2 ? prev.aiGenerationsWindowStart : curWin2.toISOString() }));
+            onSettingsChange(prev => {
+              const curWin = getWeekWindowStart();
+              const wStart = prev.aiGenerationsWindowStart ? new Date(prev.aiGenerationsWindowStart) : null;
+              const valid  = wStart && wStart >= curWin;
+              const used   = valid ? (prev.aiGenerationsUsed || 0) : 0;
+              return { ...prev, aiGenerationsUsed: used + krakens, aiGenerationsWindowStart: valid ? prev.aiGenerationsWindowStart : curWin.toISOString() };
+            });
           }}
         />
       )}
@@ -2573,15 +2763,13 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
           onClose={()=>setAiWriterBlock(null)}
           onUsageIncrement={() => {
             if (!onSettingsChange) return;
-            const curWin  = getWeekWindowStart();
-            const wStart  = settings?.aiGenerationsWindowStart ? new Date(settings.aiGenerationsWindowStart) : null;
-            const valid   = wStart && wStart >= curWin;
-            const used    = valid ? (settings?.aiGenerationsUsed || 0) : 0;
-            onSettingsChange(prev => ({
-              ...prev,
-              aiGenerationsUsed: used + 1,
-              aiGenerationsWindowStart: valid ? prev.aiGenerationsWindowStart : curWin.toISOString(),
-            }));
+            onSettingsChange(prev => {
+              const curWin = getWeekWindowStart();
+              const wStart = prev.aiGenerationsWindowStart ? new Date(prev.aiGenerationsWindowStart) : null;
+              const valid  = wStart && wStart >= curWin;
+              const used   = valid ? (prev.aiGenerationsUsed || 0) : 0;
+              return { ...prev, aiGenerationsUsed: used + 1, aiGenerationsWindowStart: valid ? prev.aiGenerationsWindowStart : curWin.toISOString() };
+            });
           }}
         />
       )}

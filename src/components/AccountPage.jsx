@@ -88,7 +88,7 @@ const PLAN_NAMES = { base: "Capture I", pro: "Intelligence II", command: "Comman
 
 // Returns the start of the current week's generation window (Saturday 23:59 reset)
 // Returns ISO date string of next Saturday 23:59 reset
-// Returns "expired" | "expiring-soon" (â¤30d) | "expiring-warning" (â¤90d) | "valid" | "no-expiry"
+// Returns "expired" | "expiring-soon" (≤30d) | "expiring-warning" (≤90d) | "valid" | "no-expiry"
 
 const CERT_STATUS_META = {
   "expired":          { label:"Expired",       bg:"#e85a3a22", color:"#e85a3a", border:"#e85a3a55" },
@@ -372,7 +372,7 @@ export function UserModal({ user, projects, settings = {}, currentUserRole = "ad
                               </span>
                             </div>
                             <div style={{ fontSize:12,color:"var(--text2)",marginBottom:3 }}>
-                              {cert.certifyingBody && <span style={{ marginRight:10 }}>ð¢ {cert.certifyingBody}</span>}
+                              {cert.certifyingBody && <span style={{ marginRight:10 }}>🏢 {cert.certifyingBody}</span>}
                               {cert.dateCertified && <span style={{ marginRight:10 }}>Issued: {new Date(cert.dateCertified+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>}
                             </div>
                             {cert.dateExpires && (
@@ -574,7 +574,7 @@ export function UserModal({ user, projects, settings = {}, currentUserRole = "ad
                             background: r.ok ? "#3dba7e22" : "var(--surface2)",
                             color: r.ok ? "#3dba7e" : "var(--text3)",
                             border: `1px solid ${r.ok ? "#3dba7e44" : "var(--border)"}` }}>
-                            {r.ok ? "✓" : "â"} {r.label}
+                            {r.ok ? "✓" : "✗"} {r.label}
                           </span>
                         ))}
                       </div>
@@ -734,7 +734,7 @@ export function UpdateCardModal({ current, onSave, onClose }) {
             <div style={{ position:"absolute",bottom:-30,right:30,width:80,height:80,borderRadius:"50%",background:"rgba(255,255,255,.04)" }}/>
             <div style={{ fontSize:11,letterSpacing:".12em",opacity:.7,marginBottom:10,fontWeight:600 }}>PAYMENT METHOD</div>
             <div style={{ fontSize:15,fontWeight:700,letterSpacing:".18em",marginBottom:14,fontFamily:"monospace" }}>
-              {num ? num.padEnd(19,"·").slice(0,19) : "â¢â¢â¢â¢ â¢â¢â¢â¢ â¢â¢â¢â¢ â¢â¢â¢â¢"}
+              {num ? num.padEnd(19,"·").slice(0,19) : "•••• •••• •••• ••••"}
             </div>
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-end" }}>
               <div>
@@ -767,7 +767,7 @@ export function UpdateCardModal({ current, onSave, onClose }) {
             </div>
             <div>
               <div className="form-label">CVC</div>
-              <input className="form-input" placeholder="â¢â¢â¢" value={cvc} type="password"
+              <input className="form-input" placeholder="•••" value={cvc} type="password"
                 onChange={e=>setCvc(e.target.value.replace(/\D/g,"").slice(0,4))}
                 style={{ borderColor:errors.cvc?"#e85a3a":"" }}/>
               {errors.cvc && <div style={{ fontSize:11.5,color:"#e85a3a",marginTop:4 }}>{errors.cvc}</div>}
@@ -844,7 +844,7 @@ export function InviteUserButton({ canEdit }) {
         disabled={!canEdit}
         title="Invite a user to join your organization"
       >
-        âï¸ Invite
+        ✉️ Invite
       </button>
     );
   }
@@ -998,7 +998,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
         onNotify({
           id: uid(),
           author: "Certification Alert",
-          authorInitials: "â ",
+          authorInitials: "⚠",
           authorColor: meta.color,
           action: status==="expired" ? "certification expired" : "certification expiring",
           context: cert.name,
@@ -1104,7 +1104,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
           authorColor: "var(--accent)",
           action: "updated team member",
           context: userName || normalizedUser.email || "User Account",
-          preview: `Role: ${normalizedUser.role || "user"}${normalizedUser.status ? ` â¢ Status: ${normalizedUser.status}` : ""}`,
+          preview: `Role: ${normalizedUser.role || "user"}${normalizedUser.status ? ` • Status: ${normalizedUser.status}` : ""}`,
           date: today(),
           read: false,
           type: "team",
@@ -1227,7 +1227,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
                   AI Generation Krakens — {PLAN_NAMES[currentPlan]}
                 </div>
                 <div style={{ fontSize:12,fontWeight:800,color:aiRemaining===0?"#e85a3a":isCommand?"#2b7fe8":isPro?"#a855f7":"#3dba7e" }}>
-                  {aiRemaining === 0 ? "â  Limit reached" : `${aiRemaining} remaining`}
+                  {aiRemaining === 0 ? "⚠ Limit reached" : `${aiRemaining} remaining`}
                   <span style={{ fontWeight:400,color:"var(--text3)",fontSize:11 }}> / {aiLimit} this week</span>
                 </div>
               </div>
@@ -1363,13 +1363,13 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
                     <div style={{ fontWeight:700, fontSize:14, display:"flex", alignItems:"center", gap:8 }}>
                       {settings.userFirstName} {settings.userLastName}
                       <span style={{ fontSize:11, color:"var(--text3)", fontWeight:400 }}>(you)</span>
-                      {certAlertCount > 0 && <span style={{ fontSize:10, fontWeight:800, padding:"1px 6px", borderRadius:8, background:"#e85a3a22", color:"#e85a3a", border:"1px solid #e85a3a44" }}>â  {certAlertCount} cert{certAlertCount!==1?"s":""}</span>}
+                      {certAlertCount > 0 && <span style={{ fontSize:10, fontWeight:800, padding:"1px 6px", borderRadius:8, background:"#e85a3a22", color:"#e85a3a", border:"1px solid #e85a3a44" }}>⚠ {certAlertCount} cert{certAlertCount!==1?"s":""}</span>}
                     </div>
                     <div style={{ fontSize:12, color:"var(--text2)" }}>{settings.userEmail} · {settings.userTitle||"Administrator"}</div>
                   </div>
                   <RoleBadge role={settings.userRole || "admin"} />
                   <StatusDot status="active" />
-                  <span style={{ fontSize:12, color:"var(--text3)", marginLeft:4 }}>{viewingAdmin ? "â²" : "â¼"}</span>
+                  <span style={{ fontSize:12, color:"var(--text3)", marginLeft:4 }}>{viewingAdmin ? "▲" : "▼"}</span>
                 </div>
 
                 {/* ── Expanded self-edit panel ── */}
@@ -1483,7 +1483,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
                         {/* Alert banner */}
                         {adminForm.certifications.some(c=>["expired","expiring-soon"].includes(getCertStatus(c.dateExpires))) && (
                           <div style={{ padding:"8px 12px", background:"#e85a3a18", border:"1px solid #e85a3a44", borderRadius:7, fontSize:12, color:"#e85a3a", marginBottom:12 }}>
-                            â  One or more certifications need attention.
+                            ⚠ One or more certifications need attention.
                           </div>
                         )}
 
@@ -2002,7 +2002,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
                 background: isCommand ? "linear-gradient(135deg,#2b7fe822,#1a5fc822)" : isPro ? "linear-gradient(135deg,#7c3aed22,#a855f722)" : "var(--surface2)",
                 color: isCommand ? "#2b7fe8" : isPro ? "#a855f7" : "var(--text3)",
                 border: `1px solid ${isCommand ? "#2b7fe850" : isPro ? "#a855f750" : "var(--border)"}` }}>
-                {isCommand ? "â¬¡ Command III" : isPro ? "â¦ Intelligence II" : "Capture I"} · {cycle==="annual" ? "Annual" : "Monthly"}
+                {isCommand ? "⬡ Command III" : isPro ? "✦ Intelligence II" : "Capture I"} · {cycle==="annual" ? "Annual" : "Monthly"}
               </span>
             </div>
             <div className="card-body">
@@ -2032,7 +2032,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
                 {/* Intelligence II */}
                 <div style={{ padding:16,background:currentPlan==="pro"?"linear-gradient(135deg,#7c3aed0d,#a855f70d)":"var(--surface2)",borderRadius:"var(--radius)",border:currentPlan==="pro"?"2px solid #a855f7":"1px solid var(--border)",position:"relative" }}>
                   {currentPlan==="pro" && <div style={{ position:"absolute",top:-10,left:16,fontSize:10,fontWeight:800,padding:"2px 10px",borderRadius:10,background:"linear-gradient(135deg,#7c3aed,#a855f7)",color:"white",textTransform:"uppercase",letterSpacing:".06em" }}>Current</div>}
-                  <div style={{ fontSize:12,fontWeight:700,color:"#a855f7",marginBottom:6 }}>â¦ Intelligence II</div>
+                  <div style={{ fontSize:12,fontWeight:700,color:"#a855f7",marginBottom:6 }}>✦ Intelligence II</div>
                   <div style={{ display:"flex",alignItems:"baseline",gap:4,marginBottom:2 }}>
                     <span style={{ fontSize:24,fontWeight:900,color:"var(--text)",lineHeight:1 }}>${PRICING[cycle].pro.admin}</span>
                     <span style={{ fontSize:11,color:"var(--text2)" }}>/mo</span>
@@ -2058,7 +2058,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
                 {/* Command III */}
                 <div style={{ padding:16,background:currentPlan==="command"?"linear-gradient(135deg,#2b7fe80d,#1a5fc80d)":"var(--surface2)",borderRadius:"var(--radius)",border:currentPlan==="command"?"2px solid #2b7fe8":"1px solid var(--border)",position:"relative" }}>
                   {currentPlan==="command" && <div style={{ position:"absolute",top:-10,left:16,fontSize:10,fontWeight:800,padding:"2px 10px",borderRadius:10,background:"linear-gradient(135deg,#2b7fe8,#1a5fc8)",color:"white",textTransform:"uppercase",letterSpacing:".06em" }}>Current</div>}
-                  <div style={{ fontSize:12,fontWeight:700,color:"#2b7fe8",marginBottom:6 }}>â¬¡ Command III</div>
+                  <div style={{ fontSize:12,fontWeight:700,color:"#2b7fe8",marginBottom:6 }}>⬡ Command III</div>
                   <div style={{ display:"flex",alignItems:"baseline",gap:4,marginBottom:2 }}>
                     <span style={{ fontSize:24,fontWeight:900,color:"var(--text)",lineHeight:1 }}>${PRICING[cycle].command.admin}</span>
                     <span style={{ fontSize:11,color:"var(--text2)" }}>/mo</span>
@@ -2283,7 +2283,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
                       </div>
                       <div style={{ display:"grid",gridTemplateColumns:"1fr auto",padding:"10px 12px",fontWeight:800,fontSize:13 }}>
                         <span>Monthly savings</span>
-                        <span style={{ color:"#3dba7e" }}>â${p.fromTotal - p.toTotal}/mo</span>
+                        <span style={{ color:"#3dba7e" }}>−${p.fromTotal - p.toTotal}/mo</span>
                       </div>
                     </div>
                     <div style={{ fontSize:11.5,color:"var(--text3)",marginBottom:14 }}>No refund for the current period. Your data will not be affected.</div>

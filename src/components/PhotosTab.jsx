@@ -9,7 +9,7 @@ import { TEMPLATES } from "../utils/constants.js";
 import { AIProjectOverview } from "./SketchEditor.jsx";
 import { getAuthHeaders } from "../lib/supabase.js";
 
-// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Camera Component ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+// ── Camera Component ───────────────────────────────────────────────────────────
 function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRef, addUploadedPhotos, settings, teamUsers = [], chats = [], onSendPhotoToChat }) {
   const photos    = project.photos    || [];
   const rooms     = project.rooms     || [];
@@ -23,6 +23,8 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
   const [newTagInput,   setNewTagInput]   = useState("");
   const [settingsPhoto, setSettingsPhoto] = useState(null);
   const [viewerPhoto,   setViewerPhoto]   = useState(null);
+  const [editingNameId, setEditingNameId] = useState(null);
+  const [editingNameVal, setEditingNameVal] = useState("");
   const [sharePhoto,    setSharePhoto]    = useState(null);
   const [shareMode,     setShareMode]     = useState("dm");
   const [shareTargetId, setShareTargetId] = useState("");
@@ -182,7 +184,7 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
           </>) : (<>
             {photos.length > 0 && (
               <button className="btn btn-secondary btn-sm" onClick={() => setSelectMode(true)}>
-                ÃÂ¢ÃÂÃÂ Select
+                ☑ Select
               </button>
             )}
             {canBeforeAfter ? (
@@ -201,10 +203,10 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
       </div>
       <input ref={fileRef} type="file" multiple accept="image/*" style={{ display:"none" }} onChange={e => addUploadedPhotos(e.target.files)} />
 
-      {/* Floor filter ÃÂ¢ÃÂÃÂ only shown when photos have floor data */}
+      {/* Floor filter — only shown when photos have floor data */}
       {floors.length > 0 && (
         <div style={{ display:"flex",alignItems:"center",flexWrap:"wrap",gap:7,marginBottom:10,padding:"8px 14px",background:"var(--surface2)",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)" }}>
-          <span style={{ fontSize:11,fontWeight:700,color:"var(--text3)",textTransform:"uppercase",letterSpacing:".05em",whiteSpace:"nowrap" }}>ÃÂ°ÃÂÃÂÃÂ¢ Floor:</span>
+          <span style={{ fontSize:11,fontWeight:700,color:"var(--text3)",textTransform:"uppercase",letterSpacing:".05em",whiteSpace:"nowrap" }}>🏢 Floor:</span>
           {["all", ...floors].map(f => (
             <span key={f} onClick={() => setFilterFloor(f)}
               style={{ fontSize:12,padding:"3px 10px",borderRadius:20,cursor:"pointer",fontWeight:600,userSelect:"none",
@@ -215,14 +217,14 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
             </span>
           ))}
           {filterFloor !== "all" && (
-            <button className="btn btn-ghost btn-sm" style={{ marginLeft:"auto",fontSize:11.5,color:"var(--text3)" }} onClick={() => setFilterFloor("all")}>ÃÂÃÂ Clear</button>
+            <button className="btn btn-ghost btn-sm" style={{ marginLeft:"auto",fontSize:11.5,color:"var(--text3)" }} onClick={() => setFilterFloor("all")}>× Clear</button>
           )}
         </div>
       )}
 
       {/* Tags management row */}
       <div style={{ display:"flex",alignItems:"center",flexWrap:"wrap",gap:7,marginBottom:14,padding:"10px 14px",background:"var(--surface2)",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)" }}>
-        <span style={{ fontSize:11,fontWeight:700,color:"var(--text3)",textTransform:"uppercase",letterSpacing:".05em",whiteSpace:"nowrap" }}>ÃÂ°ÃÂÃÂÃÂ Tags:</span>
+        <span style={{ fontSize:11,fontWeight:700,color:"var(--text3)",textTransform:"uppercase",letterSpacing:".05em",whiteSpace:"nowrap" }}>📁 Tags:</span>
         {photoTags.map(tag => (
           <div key={tag} style={{ display:"flex",alignItems:"center",gap:4 }}>
             {editingTag===tag ? (
@@ -239,13 +241,13 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
                 {tag}
               </span>
             )}
-            <button onClick={() => setEditingTag(tag)} title="Rename" style={{ background:"none",border:"none",cursor:"pointer",color:"var(--text3)",padding:"2px 3px",fontSize:11,lineHeight:1 }}>ÃÂ¢ÃÂÃÂ</button>
-            <button onClick={() => deleteTag(tag)} title="Delete" style={{ background:"none",border:"none",cursor:"pointer",color:"var(--text3)",padding:"2px 3px",fontSize:11,lineHeight:1 }}>ÃÂÃÂ</button>
+            <button onClick={() => setEditingTag(tag)} title="Rename" style={{ background:"none",border:"none",cursor:"pointer",color:"var(--text3)",padding:"2px 3px",fontSize:11,lineHeight:1 }}>✏</button>
+            <button onClick={() => deleteTag(tag)} title="Delete" style={{ background:"none",border:"none",cursor:"pointer",color:"var(--text3)",padding:"2px 3px",fontSize:11,lineHeight:1 }}>×</button>
           </div>
         ))}
         {addingTag ? (
           <input autoFocus className="form-input" style={{ width:110,padding:"2px 8px",fontSize:12,height:26 }}
-            placeholder="Tag nameÃÂ¢ÃÂÃÂ¦" value={newTagInput} onChange={e => setNewTagInput(e.target.value)}
+            placeholder="Tag name…" value={newTagInput} onChange={e => setNewTagInput(e.target.value)}
             onBlur={addTag}
             onKeyDown={e => { if (e.key==="Enter") addTag(); if (e.key==="Escape") { setAddingTag(false); setNewTagInput(""); }}} />
         ) : (
@@ -254,7 +256,7 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
           </button>
         )}
         {filterTag !== "all" && (
-          <button className="btn btn-ghost btn-sm" style={{ marginLeft:"auto",fontSize:11.5,color:"var(--text3)" }} onClick={() => setFilterTag("all")}>ÃÂÃÂ Clear</button>
+          <button className="btn btn-ghost btn-sm" style={{ marginLeft:"auto",fontSize:11.5,color:"var(--text3)" }} onClick={() => setFilterTag("all")}>× Clear</button>
         )}
       </div>
 
@@ -341,10 +343,26 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
               </div>
 
               <div className="photo-card-info">
-                <div className="photo-card-name">{photo.name}</div>
+                {editingNameId === photo.id ? (
+                  <input
+                    className="photo-card-name-input"
+                    style={{ width:"100%", fontSize:"inherit", fontWeight:600, border:"none", borderBottom:"1.5px solid var(--accent)", background:"transparent", color:"var(--text)", outline:"none", padding:"0 0 2px 0", marginBottom:2 }}
+                    value={editingNameVal}
+                    autoFocus
+                    onChange={e => setEditingNameVal(e.target.value)}
+                    onBlur={() => { updatePhoto(photo.id, { name: editingNameVal.trim() || photo.name }); setEditingNameId(null); }}
+                    onKeyDown={e => { if (e.key === "Enter") { updatePhoto(photo.id, { name: editingNameVal.trim() || photo.name }); setEditingNameId(null); } else if (e.key === "Escape") setEditingNameId(null); }}
+                    onClick={e => e.stopPropagation()}
+                  />
+                ) : (
+                  <div className="photo-card-name" title="Click to rename" style={{ cursor:"text" }}
+                    onClick={e => { e.stopPropagation(); setEditingNameId(photo.id); setEditingNameVal(photo.name || ""); }}>
+                    {photo.name}
+                  </div>
+                )}
                 <div style={{ fontSize:11.5,color:"var(--text2)",marginBottom:4,display:"flex",alignItems:"center",gap:4,flexWrap:"wrap" }}>
-                  {photo.room && <span><span style={{ fontSize:11 }}>ÃÂ°ÃÂÃÂÃÂ</span> {photo.room}</span>}
-                  {photo.floor && <><span style={{ color:"var(--border)" }}>ÃÂÃÂ·</span><span><span style={{ fontSize:11 }}>ÃÂ°ÃÂÃÂÃÂ¢</span> {photo.floor}</span></>}
+                  {photo.room && <span><span style={{ fontSize:11 }}>📍</span> {photo.room}</span>}
+                  {photo.floor && <><span style={{ color:"var(--border)" }}>·</span><span><span style={{ fontSize:11 }}>🏢</span> {photo.floor}</span></>}
                 </div>
                 {/* Tag chips */}
                 {(photo.tags||[]).length > 0 && (
@@ -376,7 +394,7 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
 
       <style>{`.photo-card:hover .photo-actions{opacity:1!important}`}</style>
 
-      {/* ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Photo Lightbox Viewer ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ */}
+      {/* ── Photo Lightbox Viewer ── */}
       {viewerPhoto && (() => {
         const idx = filtered.findIndex(p => p.id === viewerPhoto.id);
         const prev = idx > 0 ? filtered[idx - 1] : null;
@@ -402,16 +420,16 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
             ref={el=>el&&el.focus()}
             onClick={e=>{ if(e.target===e.currentTarget) setViewerPhoto(null); }}
           >
-            {/* Top bar ÃÂ¢ÃÂÃÂ stacks info above buttons on mobile */}
+            {/* Top bar — stacks info above buttons on mobile */}
             <div style={{ display:"flex",flexDirection:"column",gap:8,padding:"10px 16px",background:"rgba(0,0,0,.6)",flexShrink:0 }}>
               {/* Photo info row */}
               <div style={{ minWidth:0 }}>
                 <div style={{ fontWeight:700,fontSize:14,color:"white",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{photo.name||"Photo"}</div>
                 <div style={{ fontSize:11,color:"rgba(255,255,255,.5)",display:"flex",gap:10,flexWrap:"wrap",marginTop:2 }}>
-                  {photo.room && <span>ÃÂ°ÃÂÃÂÃÂ {photo.room}{photo.floor?` ÃÂÃÂ· ${photo.floor}`:""}</span>}
-                  {photo.date && <span>ÃÂ°ÃÂÃÂÃÂ {photo.date}{photo.time?` ${photo.time}`:""}</span>}
-                  {photo.gps  && <span>ÃÂ°ÃÂÃÂÃÂ {photo.gps.lat}, {photo.gps.lng}</span>}
-                  {(photo.tags||[]).length>0 && <span>ÃÂ°ÃÂÃÂÃÂ· {photo.tags.join(", ")}</span>}
+                  {photo.room && <span>📍 {photo.room}{photo.floor?` · ${photo.floor}`:""}</span>}
+                  {photo.date && <span>🗓 {photo.date}{photo.time?` ${photo.time}`:""}</span>}
+                  {photo.gps  && <span>🌐 {photo.gps.lat}, {photo.gps.lng}</span>}
+                  {(photo.tags||[]).length>0 && <span>🏷 {photo.tags.join(", ")}</span>}
                   <span style={{ color:"rgba(255,255,255,.3)" }}>{idx+1} / {filtered.length}</span>
                 </div>
               </div>
@@ -458,11 +476,11 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
               </div>
             </div>
 
-            {/* Image area ÃÂ¢ÃÂÃÂ arrows are siblings on desktop (absolute), row below on mobile */}
+            {/* Image area — arrows are siblings on desktop (absolute), row below on mobile */}
             <div className="viewer-img-wrap" style={{ flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",position:"relative",minHeight:0,overflow:"hidden" }}>
               {/* Desktop prev arrow (absolute, hidden on mobile) */}
               {prev && (
-                <button onClick={()=>setViewerPhoto(prev)} title="Previous (ÃÂ¢ÃÂÃÂ)" className="viewer-arrow-desktop"
+                <button onClick={()=>setViewerPhoto(prev)} title="Previous (←)" className="viewer-arrow-desktop"
                   style={{ position:"absolute",left:12,zIndex:10,background:"rgba(0,0,0,.55)",border:"1px solid rgba(255,255,255,.15)",color:"white",borderRadius:"50%",width:44,height:44,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"background .15s" }}
                   onMouseEnter={e=>e.currentTarget.style.background="rgba(43,127,232,.7)"}
                   onMouseLeave={e=>e.currentTarget.style.background="rgba(0,0,0,.55)"}>
@@ -495,7 +513,7 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
 
               {/* Desktop next arrow (absolute, hidden on mobile) */}
               {next && (
-                <button onClick={()=>setViewerPhoto(next)} title="Next (ÃÂ¢ÃÂÃÂ)" className="viewer-arrow-desktop"
+                <button onClick={()=>setViewerPhoto(next)} title="Next (→)" className="viewer-arrow-desktop"
                   style={{ position:"absolute",right:12,zIndex:10,background:"rgba(0,0,0,.55)",border:"1px solid rgba(255,255,255,.15)",color:"white",borderRadius:"50%",width:44,height:44,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"background .15s" }}
                   onMouseEnter={e=>e.currentTarget.style.background="rgba(43,127,232,.7)"}
                   onMouseLeave={e=>e.currentTarget.style.background="rgba(0,0,0,.55)"}>
@@ -503,7 +521,7 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
                 </button>
               )}
 
-              {/* Mobile arrow row ÃÂ¢ÃÂÃÂ shown below image on mobile only */}
+              {/* Mobile arrow row — shown below image on mobile only */}
               {filtered.length > 1 && (
                 <div className="viewer-arrow-mobile" style={{ display:"none",gap:16,marginTop:10,flexShrink:0 }}>
                   <button onClick={()=>prev&&setViewerPhoto(prev)} disabled={!prev}
@@ -539,7 +557,7 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
         );
       })()}
 
-      {/* ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Before & After Pairs ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ */}
+      {/* ── Before & After Pairs ── */}
       {canBeforeAfter && baPairs.length > 0 && (
         <div style={{ marginTop:20 }}>
           <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:10,cursor:"pointer" }}
@@ -798,7 +816,7 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
                 <div className="form-group" style={{ marginBottom:0 }}>
                   <label className="form-label">Room / Area</label>
                   <select className="form-input form-select" value={baRoom} onChange={e=>setBaRoom(e.target.value)}>
-                    <option value="">ÃÂ¢ÃÂÃÂ None ÃÂ¢ÃÂÃÂ</option>
+                    <option value="">— None —</option>
                     {rooms.map(r=><option key={r.id} value={r.name}>{r.name}</option>)}
                   </select>
                 </div>
@@ -806,7 +824,7 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
               {/* Notes */}
               <div className="form-group" style={{ marginBottom:16 }}>
                 <label className="form-label">Notes (optional)</label>
-                <input className="form-input" placeholder="e.g. Mold remediated, drywall replacedÃÂ¢ÃÂÃÂ¦" value={baNotes} onChange={e=>setBaNotes(e.target.value)} />
+                <input className="form-input" placeholder="e.g. Mold remediated, drywall replaced…" value={baNotes} onChange={e=>setBaNotes(e.target.value)} />
               </div>
 
               {/* Before / After selectors */}
@@ -875,7 +893,80 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
 }
 
 
-// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Sketch Editor ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+// ── Photo Settings Modal ───────────────────────────────────────────────────────
+function PhotoSettingsModal({ photo, rooms, photoTags, onSave, onClose }) {
+  const [name,    setName]    = useState(photo?.name    || "");
+  const [caption, setCaption] = useState(photo?.caption || "");
+  const [room,    setRoom]    = useState(photo?.room    || "");
+  const [tags,    setTags]    = useState(photo?.tags    || []);
+
+  const toggleTag = (tag) => setTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+
+  const handleSave = () => {
+    onSave({ name: name.trim() || photo?.name, caption: caption.trim(), room, tags });
+    onClose();
+  };
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal fade-in" style={{ maxWidth: 420 }}>
+        <div className="modal-header">
+          <div className="modal-title"><Icon d={ic.settings} size={15} /> Photo Settings</div>
+          <button className="btn btn-ghost btn-sm btn-icon" onClick={onClose}><Icon d={ic.close} size={16} /></button>
+        </div>
+        <div className="modal-body" style={{ display:"grid", gap:14 }}>
+          {/* Thumbnail */}
+          {photo?.dataUrl && (
+            <div style={{ width:"100%", height:120, borderRadius:"var(--radius-sm)", overflow:"hidden", background:"var(--surface2)" }}>
+              <img src={photo.dataUrl} alt={photo.name} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+            </div>
+          )}
+          {/* Name */}
+          <div className="form-group" style={{ marginBottom:0 }}>
+            <label className="form-label">Photo Name</label>
+            <input className="form-input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Front entrance" />
+          </div>
+          {/* Caption */}
+          <div className="form-group" style={{ marginBottom:0 }}>
+            <label className="form-label">Caption</label>
+            <input className="form-input" value={caption} onChange={e => setCaption(e.target.value)} placeholder="Add a caption…" />
+          </div>
+          {/* Room */}
+          <div className="form-group" style={{ marginBottom:0 }}>
+            <label className="form-label">Room</label>
+            <select className="form-input form-select" value={room} onChange={e => setRoom(e.target.value)}>
+              <option value="">— None —</option>
+              {rooms.map(r => <option key={r.name || r} value={r.name || r}>{r.name || r}</option>)}
+            </select>
+          </div>
+          {/* Tags */}
+          {photoTags.length > 0 && (
+            <div className="form-group" style={{ marginBottom:0 }}>
+              <label className="form-label">Tags</label>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginTop:4 }}>
+                {photoTags.map(tag => {
+                  const active = tags.includes(tag);
+                  return (
+                    <div key={tag} onClick={() => toggleTag(tag)}
+                      style={{ padding:"5px 14px", borderRadius:20, border:`1.5px solid ${active ? "var(--accent)" : "var(--border)"}`, background: active ? "var(--accent-glow)" : "var(--surface2)", cursor:"pointer", fontSize:12.5, fontWeight:600, color: active ? "var(--accent)" : "var(--text2)", transition:"all .15s", userSelect:"none" }}>
+                      {active ? "✓ " : ""}{tag}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary btn-sm" onClick={handleSave}>Save</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Sketch Editor ──────────────────────────────────────────────────────────────
 const SKETCH_TOOLS = [
   { id:"pan",       icon:"M18 11V6a2 2 0 00-2-2 2 2 0 00-2 2 2 2 0 00-2-2 2 2 0 00-2 2v.5 M14 10.5V4a2 2 0 00-2-2 2 2 0 00-2 2v.5 M10 10.5V6a2 2 0 00-2-2 2 2 0 00-2 2v8a6 6 0 006 6h2a6 6 0 006-6v-2.5",  label:"Pan / Move Screen" },
   { id:"select",    icon:"M3 3l7 18 3-7 7-3z",                        label:"Select Element" },
@@ -1018,7 +1109,7 @@ export function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onE
                   const isApple = /iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent);
                   const mapsUrl = isApple ? `maps://maps.apple.com/?q=${encoded}` : `https://www.google.com/maps/search/?api=1&query=${encoded}`;
                   return <a href={mapsUrl} target="_blank" rel="noopener noreferrer" style={{ color:"var(--text2)",textDecoration:"none" }} onMouseEnter={e=>e.currentTarget.style.color="var(--accent)"} onMouseLeave={e=>e.currentTarget.style.color="var(--text2)"}>{addr}</a>;
-                })() : "ÃÂ¢ÃÂÃÂ"}
+                })() : "—"}
               </div>
             </div>
             <div className="proj-hero-btns" style={{ display:"flex",gap:8,alignItems:"center",flexShrink:0 }}>
@@ -1031,18 +1122,18 @@ export function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onE
           <div className="project-info-grid" style={{ marginTop:16 }}>
             <div className="project-info-box">
               <div className="project-info-label"><Icon d={ic.user} size={11} /> Client</div>
-              <div className="project-info-value">{project.clientName || "ÃÂ¢ÃÂÃÂ"}</div>
+              <div className="project-info-value">{project.clientName || "—"}</div>
               {project.clientPhone && <div className="project-info-sub"><a href={`tel:${project.clientPhone.replace(/\D/g,"")}`} style={{ color:"var(--text2)",textDecoration:"none" }} onMouseEnter={e=>e.currentTarget.style.color="var(--accent)"} onMouseLeave={e=>e.currentTarget.style.color="var(--text2)"}>{project.clientPhone}</a></div>}
               {project.clientEmail && <div className="project-info-sub">{project.clientEmail}</div>}
             </div>
             <div className="project-info-box">
               <div className="project-info-label"><Icon d={ic.building} size={11} /> Contractor</div>
-              <div className="project-info-value">{project.contractorName || "ÃÂ¢ÃÂÃÂ"}</div>
+              <div className="project-info-value">{project.contractorName || "—"}</div>
               {project.contractorPhone && <div className="project-info-sub"><a href={`tel:${project.contractorPhone.replace(/\D/g,"")}`} style={{ color:"var(--text2)",textDecoration:"none" }} onMouseEnter={e=>e.currentTarget.style.color="var(--accent)"} onMouseLeave={e=>e.currentTarget.style.color="var(--text2)"}>{project.contractorPhone}</a></div>}
             </div>
             <div className="project-info-box">
               <div className="project-info-label"><Icon d={ic.clockIcon} size={11} /> Details</div>
-              <div className="project-info-value">{project.createdAt ? new Date(project.createdAt).toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" }) : "ÃÂ¢ÃÂÃÂ"}</div>
+              <div className="project-info-value">{project.createdAt ? new Date(project.createdAt).toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" }) : "—"}</div>
               <div className="project-info-sub">{project.type || ""}</div>
             </div>
           </div>
@@ -1053,7 +1144,7 @@ export function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onE
             </div>
           )}
 
-          {/* ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Scratch Pad ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ */}
+          {/* ── Scratch Pad ── */}
           <div style={{ marginTop:10,padding:"8px 12px",background:"var(--surface2)",borderRadius:8,border:"1px solid var(--border)" }}>
             <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:5 }}>
               <Icon d={ic.pen} size={11} stroke="var(--accent)" />
@@ -1063,13 +1154,13 @@ export function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onE
                 onClick={saveScratchPad}
                 title="Save (Ctrl+S)"
                 style={{ fontSize:11.5,height:24,padding:"0 10px",fontWeight:600,color:scratchSaved?"var(--green)":"var(--text3)",transition:"color .2s",flexShrink:0 }}>
-                {scratchSaved ? "ÃÂ¢ÃÂÃÂ Saved" : "Save"}
+                {scratchSaved ? "✓ Saved" : "Save"}
               </button>
             </div>
             <textarea
               className="form-input"
               rows={2}
-              placeholder="Quick notes, measurements, remindersÃÂ¢ÃÂÃÂ¦"
+              placeholder="Quick notes, measurements, reminders…"
               value={scratchPad}
               onChange={e => setScratchPad(e.target.value)}
               onKeyDown={e => { if (e.key==="s" && (e.metaKey||e.ctrlKey)) { e.preventDefault(); saveScratchPad(); } }}
@@ -1077,7 +1168,7 @@ export function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onE
             />
           </div>
 
-          {/* ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Assigned team members strip ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ */}
+          {/* ── Assigned team members strip ── */}
           {(() => {
             const assigned = (project.assignedUserIds||[])
               .map(id => teamUsers.find(u => u.id === id))
@@ -1145,7 +1236,7 @@ export function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onE
         </div>
       </div>
 
-      {/* Tabs ÃÂ¢ÃÂÃÂ horizontally scrollable, compact labels */}
+      {/* Tabs — horizontally scrollable, compact labels */}
       <div style={{ overflowX:"auto", WebkitOverflowScrolling:"touch", scrollbarWidth:"none", marginBottom:20, borderBottom:"1px solid var(--border)" }}>
         <div style={{ display:"flex", gap:0, minWidth:"max-content" }}>
           {TABS.map(t => {
@@ -1178,15 +1269,15 @@ export function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onE
           {/* Timeline card */}
           {(() => {
             const TL_STAGES = [
-              { id:"lead",        label:"Lead",        icon:"ÃÂ°ÃÂÃÂÃÂ" },
-              { id:"assessment",  label:"Assessment",  icon:"ÃÂ°ÃÂÃÂÃÂ" },
-              { id:"approved",    label:"Approved",    icon:"ÃÂ¢ÃÂÃÂ" },
-              { id:"planning",    label:"Planning",    icon:"ÃÂ°ÃÂÃÂÃÂÃÂ¯ÃÂ¸ÃÂ" },
-              { id:"in_progress", label:"In Progress", icon:"ÃÂ°ÃÂÃÂÃÂ¨" },
-              { id:"final_walk",  label:"Final Walk",  icon:"ÃÂ°ÃÂÃÂÃÂ¶" },
-              { id:"completion_phase", label:"Completion Phase", icon:"ÃÂ°ÃÂÃÂ§ÃÂ©" },
-              { id:"invoiced",    label:"Invoiced",    icon:"ÃÂ°ÃÂÃÂ§ÃÂ¾" },
-              { id:"completed",   label:"Completed",   icon:"ÃÂ°ÃÂÃÂÃÂ" },
+              { id:"lead",        label:"Lead",        icon:"📋" },
+              { id:"assessment",  label:"Assessment",  icon:"🔍" },
+              { id:"approved",    label:"Approved",    icon:"✅" },
+              { id:"planning",    label:"Planning",    icon:"🗂️" },
+              { id:"in_progress", label:"In Progress", icon:"🔨" },
+              { id:"final_walk",  label:"Final Walk",  icon:"🚶" },
+              { id:"completion_phase", label:"Completion Phase", icon:"🧩" },
+              { id:"invoiced",    label:"Invoiced",    icon:"🧾" },
+              { id:"completed",   label:"Completed",   icon:"🏁" },
             ];
             const aIdx = TL_STAGES.findIndex(s => s.id === project.timelineStage);
             const activeStage = TL_STAGES.find(s => s.id === project.timelineStage);
@@ -1198,7 +1289,7 @@ export function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onE
                   <span style={{ fontWeight:700 }}>Project Timeline</span>
                   {activeStage
                     ? <span style={{ fontSize:11.5, fontWeight:600, color:"var(--accent)", background:"var(--accent-glow)", padding:"3px 10px", borderRadius:20 }}>{activeStage.icon} {activeStage.label}</span>
-                    : <span style={{ fontSize:11.5, color:"var(--text3)" }}>No stage set ÃÂ¢ÃÂÃÂ click to update</span>
+                    : <span style={{ fontSize:11.5, color:"var(--text3)" }}>No stage set — click to update</span>
                   }
                 </div>
                 <div className="card-body" style={{ padding:"14px 20px 18px" }}>
@@ -1238,7 +1329,7 @@ export function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onE
                       <input
                         className="form-input"
                         style={{ fontSize:12.5 }}
-                        placeholder={`Internal note for "${activeStage?.label || "this stage"}"ÃÂ¢ÃÂÃÂ¦`}
+                        placeholder={`Internal note for "${activeStage?.label || "this stage"}"…`}
                         value={project.timelineNotes?.[project.timelineStage] || ""}
                         onChange={e => onUpdateProject({
                           ...project,
@@ -1251,7 +1342,7 @@ export function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onE
                       <input
                         className="form-input"
                         style={{ fontSize:12.5 }}
-                        placeholder={`Client portal note for "${activeStage?.label || "this stage"}"ÃÂ¢ÃÂÃÂ¦`}
+                        placeholder={`Client portal note for "${activeStage?.label || "this stage"}"…`}
                         value={project.timelineClientNotes?.[project.timelineStage] || ""}
                         onChange={e => onUpdateProject({
                           ...project,
@@ -1434,7 +1525,7 @@ export function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onE
         <ChecklistsTab project={project} onUpdateProject={onUpdateProject} />
       )}
       {tab === "activity" && (
-        <ProjectActivityFeed project={project} onUpdateProject={onUpdateProject} settings={settings} />
+        <ProjectActivityFeed project={project} onUpdateProject={onUpdateProject} settings={settings} userId={userId} />
       )}
       {editingSketch !== null && (
         <SketchEditor
@@ -1461,7 +1552,7 @@ export function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onE
               };
             }
             onUpdateProject(updatedProj);
-            // ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Fire-and-forget: persist sketch to Supabase ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+            // ── Fire-and-forget: persist sketch to Supabase ──
             if (orgId && project.id && savedSketch.dataUrl) {
               try {
                 // Convert dataUrl PNG to Blob
@@ -1487,7 +1578,7 @@ export function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onE
                   if (row?.id && !existingId) {
                     // Tag the new sketch with its DB id via onUpdateProject (has access to latest project state)
                     const supaUrl = import.meta.env.VITE_SUPABASE_URL;
-                    const latestProj = projects.find(p => p.id === project.id) || project;
+                    const latestProj = project;
                     onUpdateProject({ ...latestProj, sketches: (latestProj.sketches || []).map(s =>
                       s.id === savedSketch.id
                         ? { ...s, supabaseId: row.id, storagePath: row.storage_path,
@@ -1511,7 +1602,7 @@ export function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onE
   );
 }
 
-// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Sketches Tab ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+// ── Sketches Tab ───────────────────────────────────────────────────────────────
 function SketchesTab({ project, onUpdateProject, onNewSketch, onEditSketch }) {
   const sketches = project.sketches || [];
   const [selectMode,  setSelectMode]  = useState(false);
@@ -1563,7 +1654,7 @@ function SketchesTab({ project, onUpdateProject, onNewSketch, onEditSketch }) {
             )}
             <button className="btn btn-secondary btn-sm" onClick={() => { setSelectMode(false); setSelectedIds(new Set()); }}>Cancel</button>
           </>) : (<>
-            {sketches.length > 0 && <button className="btn btn-secondary btn-sm" onClick={() => setSelectMode(true)}>ÃÂ¢ÃÂÃÂ Select</button>}
+            {sketches.length > 0 && <button className="btn btn-secondary btn-sm" onClick={() => setSelectMode(true)}>☑ Select</button>}
             <button className="btn btn-primary btn-sm" onClick={onNewSketch}><Icon d={ic.plus} size={13} /> New Sketch</button>
           </>)}
         </div>
@@ -1596,7 +1687,7 @@ function SketchesTab({ project, onUpdateProject, onNewSketch, onEditSketch }) {
               <div style={{ fontWeight:600,fontSize:13.5,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{sk.title}</div>
               <div style={{ fontSize:11.5,color:"var(--text3)",display:"flex",gap:8 }}>
                 <span>{sk.date}</span>
-                {sk.scale && <span>ÃÂÃÂ· {sk.scale}</span>}
+                {sk.scale && <span>· {sk.scale}</span>}
               </div>
               {sk.notes && <div style={{ fontSize:11.5,color:"var(--text2)",marginTop:5,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden" }}>{sk.notes}</div>}
               {!selectMode && (
@@ -1651,11 +1742,11 @@ export function TemplatesPage({ projects, onUseTemplate, templates: templatesPro
   };
   const [editTmpl,    setEditTmpl]    = useState(null);   // null | template obj | "new"
   const [deleteTmpl,  setDeleteTmpl]  = useState(null);
-  const [useTmpl,     setUseTmpl]     = useState(null);   // template to use ÃÂ¢ÃÂÃÂ triggers project picker
+  const [useTmpl,     setUseTmpl]     = useState(null);   // template to use — triggers project picker
 
   const REPORT_TYPES = ["Insurance","Inspection","Contractor","Damage","Progress","Assessment","Quote","Other"];
 
-  // Map report type ÃÂ¢ÃÂÃÂ tag colour class
+  // Map report type → tag colour class
   const typeTag = type => {
     if (!type) return "orange";
     const t = type.toLowerCase();
@@ -1709,7 +1800,7 @@ export function TemplatesPage({ projects, onUseTemplate, templates: templatesPro
     </div>
   );
 
-  // ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Template edit/create modal ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+  // ── Template edit/create modal ──────────────────────────────────────────────
   function TemplateModal({ tmpl, onClose }) {
     const isNew = !tmpl || tmpl === "new";
     const base  = isNew ? { name:"", type:"Inspection", desc:"", color:"#4a90d9" } : tmpl;
@@ -1772,7 +1863,7 @@ export function TemplatesPage({ projects, onUseTemplate, templates: templatesPro
             </div>
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">Report Type <span style={{ fontWeight:400, color:"var(--text3)" }}>ÃÂ¢ÃÂÃÂ sets the tag</span></label>
+                <label className="form-label">Report Type <span style={{ fontWeight:400, color:"var(--text3)" }}>— sets the tag</span></label>
                 <select className="form-input form-select" value={type} onChange={e => setType(e.target.value)}>
                   {REPORT_TYPES.map(t => <option key={t}>{t}</option>)}
                 </select>
@@ -1791,7 +1882,7 @@ export function TemplatesPage({ projects, onUseTemplate, templates: templatesPro
             </div>
             <div className="form-group">
               <label className="form-label">Description</label>
-              <textarea className="form-input form-textarea" value={desc} onChange={e => setDesc(e.target.value)} placeholder="Short description of when to use this templateÃÂ¢ÃÂÃÂ¦" />
+              <textarea className="form-input form-textarea" value={desc} onChange={e => setDesc(e.target.value)} placeholder="Short description of when to use this template…" />
             </div>
 
             {/* Sections */}
@@ -1811,13 +1902,13 @@ export function TemplatesPage({ projects, onUseTemplate, templates: templatesPro
                       {isAuto && <span style={{ fontSize:11, color:"var(--text3)", background:"var(--surface2)", padding:"2px 8px", borderRadius:10, flexShrink:0, whiteSpace:"nowrap" }}>Auto-filled</span>}
                       {isText && isOn && (
                         <button onClick={() => toggleExpand(s)} style={{ background:"none", border:"1px solid var(--border)", borderRadius:6, padding:"4px 12px", fontSize:12, color:"var(--text2)", cursor:"pointer", display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
-                          {isOpen ? "ÃÂ¢ÃÂÃÂ² Hide" : "ÃÂ¢ÃÂÃÂ¼ Edit"}
+                          {isOpen ? "▲ Hide" : "▼ Edit"}
                         </button>
                       )}
                     </div>
                     {isText && isOn && isOpen && (
                       <div style={{ paddingBottom:14, display:"flex", flexDirection:"column", gap:10 }}>
-                        <textarea className="form-input form-textarea" value={secText[s]} onChange={e => setSecText(p => ({ ...p, [s]: e.target.value }))} placeholder={`Default ${s} textÃÂ¢ÃÂÃÂ¦`} style={{ minHeight:100, fontSize:13, resize:"vertical" }} />
+                        <textarea className="form-input form-textarea" value={secText[s]} onChange={e => setSecText(p => ({ ...p, [s]: e.target.value }))} placeholder={`Default ${s} text…`} style={{ minHeight:100, fontSize:13, resize:"vertical" }} />
                         {isSignOff && (
                           <div>
                             <div style={{ fontSize:12, fontWeight:600, color:"var(--text2)", marginBottom:8 }}>Company Signature</div>
@@ -1855,7 +1946,7 @@ export function TemplatesPage({ projects, onUseTemplate, templates: templatesPro
     );
   }
 
-  // ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Project picker modal for "Use" ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+  // ── Project picker modal for "Use" ─────────────────────────────────────────
   function ProjectPickerModal({ tmpl, onClose }) {
     return (
       <div className="modal-overlay" onClick={e => e.target===e.currentTarget && onClose()}>
@@ -1866,7 +1957,7 @@ export function TemplatesPage({ projects, onUseTemplate, templates: templatesPro
           </div>
           <div className="modal-body">
             <div style={{ fontSize:13, color:"var(--text2)", marginBottom:14 }}>
-              Using <strong style={{ color:"var(--text)" }}>{tmpl.name}</strong> ÃÂ¢ÃÂÃÂ select which jobsite to create the report under:
+              Using <strong style={{ color:"var(--text)" }}>{tmpl.name}</strong> — select which jobsite to create the report under:
             </div>
             {projects?.length > 0 ? (
               <div style={{ display:"flex", flexDirection:"column", gap:7 }}>

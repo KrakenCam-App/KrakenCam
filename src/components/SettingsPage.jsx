@@ -3,7 +3,9 @@ import { supabase } from "../lib/supabase";
 import { Icon, ic } from "../utils/icons.jsx";
 import { formatDate , NOTIFICATION_PREF_ITEMS, normaliseStatuses
 } from "../utils/helpers.js";
-const REPORT_EMAIL_FEATURE_VISIBLE = false; // feature flag â email reports hidden until ready
+import { PLAN_NAMES } from "../utils/constants.js";
+import { KRAKENCAM_LOGO } from "../utils/logo.js";
+const REPORT_EMAIL_FEATURE_VISIBLE = false; // feature flag – email reports hidden until ready
 
 export function AddItemInput({ label, onAdd }) {
   const [val, setVal] = useState("");
@@ -435,9 +437,9 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
             <div className="card-body">
               <div style={{ display:"flex",gap:12 }}>
                 {[
-                  { id:"dark",  label:"Dark",  desc:"Dark backgrounds, easy on the eyes in low light.", icon:"ð" },
-                  { id:"light", label:"Light", desc:"Clean white UI, great for bright environments.",   icon:"âï¸" },
-                  { id:"system",label:"System",desc:"Follows your device's OS preference automatically.",icon:"ð»", mobileHidden:true },
+                  { id:"dark",  label:"Dark",  desc:"Dark backgrounds, easy on the eyes in low light.", icon:"🌙" },
+                  { id:"light", label:"Light", desc:"Clean white UI, great for bright environments.",   icon:"☀️" },
+                  { id:"system",label:"System",desc:"Follows your device's OS preference automatically.",icon:"💻", mobileHidden:true },
                 ].filter(m => !(window.innerWidth <= 768 && m.mobileHidden)).map(m => (
                   <div key={m.id} onClick={() => { set("mode", m.id); applyMode(m.id); }}
                     style={{ flex:1,border:`2px solid ${form.mode===m.id?"var(--accent)":"var(--border)"}`,borderRadius:"var(--radius)",padding:"16px 14px",cursor:"pointer",background:form.mode===m.id?"var(--accent-glow)":"var(--surface2)",transition:"all .15s" }}>
@@ -601,7 +603,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                       background: r.ok ? "#3dba7e22" : "var(--surface2)",
                       color: r.ok ? "#3dba7e" : "var(--text3)",
                       border: `1px solid ${r.ok ? "#3dba7e44" : "var(--border)"}` }}>
-                      {r.ok ? "✓" : "â"} {r.label}
+                      {r.ok ? "✓" : "✗"} {r.label}
                     </span>
                   ))}
                 </div>
@@ -658,7 +660,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                     <li>GPS coordinates and timestamps</li>
                   </ul>
                   <div style={{ marginTop:10,fontSize:12,color:"var(--text3)" }}>
-                    â ï¸ Photos are included as base64 — the file may be large depending on how many you have.
+                    ⚠️ Photos are included as base64 — the file may be large depending on how many you have.
                   </div>
                 </div>
 
@@ -887,8 +889,8 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                         <div style={{ fontSize:12,color:"#555" }}>{form.emailSignatureCompany||form.companyName}</div>
                       )}
                       <div style={{ marginTop:6,display:"flex",flexDirection:"column",gap:2 }}>
-                        {(form.emailSignaturePhone||form.phone) && <div style={{ fontSize:11.5,color:"#666" }}>ð {form.emailSignaturePhone||form.phone}</div>}
-                        {(form.emailSignatureEmail||form.email) && <div style={{ fontSize:11.5,color:"#666" }}>â {form.emailSignatureEmail||form.email}</div>}
+                        {(form.emailSignaturePhone||form.phone) && <div style={{ fontSize:11.5,color:"#666" }}>📞 {form.emailSignaturePhone||form.phone}</div>}
+                        {(form.emailSignatureEmail||form.email) && <div style={{ fontSize:11.5,color:"#666" }}>✉ {form.emailSignatureEmail||form.email}</div>}
                         {form.website && <div style={{ fontSize:11.5,color:form.accent }}>{form.website}</div>}
                       </div>
                     </div>
@@ -919,7 +921,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                     <div style={{ marginTop:10,paddingTop:10,borderTop:"1px solid #eee" }}>
                       <a href={form.sigReviewUrl} target="_blank" rel="noopener noreferrer"
                         style={{ display:"inline-flex",alignItems:"center",gap:6,padding:"7px 16px",borderRadius:6,background:"#f59e0b",color:"white",fontSize:12.5,fontWeight:700,textDecoration:"none",cursor:"pointer" }}>
-                        â­ {form.sigReviewLabel||"Leave us a Review"}
+                        ⭐ {form.sigReviewLabel||"Leave us a Review"}
                       </a>
                     </div>
                   )}
@@ -1029,7 +1031,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Button Label</label>
-                  <input className="form-input" value={form.sigReviewLabel||""} onChange={e=>set("sigReviewLabel",e.target.value)} placeholder="Leave us a Review â­" />
+                  <input className="form-input" value={form.sigReviewLabel||""} onChange={e=>set("sigReviewLabel",e.target.value)} placeholder="Leave us a Review ⭐" />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Review Link URL</label>
@@ -1041,7 +1043,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                   <span style={{ fontSize:12,color:"var(--text3)" }}>Preview:</span>
                   <a href={form.sigReviewUrl} target="_blank" rel="noopener noreferrer"
                     style={{ display:"inline-flex",alignItems:"center",gap:6,padding:"7px 16px",borderRadius:6,background:"#f59e0b",color:"white",fontSize:12.5,fontWeight:700,textDecoration:"none",cursor:"pointer" }}>
-                    â­ {form.sigReviewLabel||"Leave us a Review"}
+                    ⭐ {form.sigReviewLabel||"Leave us a Review"}
                   </a>
                 </div>
               )}
@@ -1077,7 +1079,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
 
           {/* Camera */}
           <div className="card" style={{ marginBottom:20 }}>
-            <div className="card-header"><span style={{ fontWeight:700 }}>ð· Camera</span></div>
+            <div className="card-header"><span style={{ fontWeight:700 }}>📷 Camera</span></div>
             <div className="card-body" style={{ display:"flex",flexDirection:"column",gap:0 }}>
 
               {/* Save to Camera Roll — mobile only */}
@@ -1100,9 +1102,9 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                 <div style={{ fontSize:12,color:"var(--text2)",marginBottom:12,lineHeight:1.5 }}>Higher quality produces sharper images but larger file sizes.</div>
                 <div style={{ display:"flex",gap:8 }}>
                   {[
-                    { id:"low",      label:"Low",      desc:"720p · 50% JPEG",   icon:"ð" },
+                    { id:"low",      label:"Low",      desc:"720p · 50% JPEG",   icon:"🔋" },
                     { id:"moderate", label:"Moderate", desc:"1080p · 85% JPEG",  icon:"⚡" },
-                    { id:"high",     label:"High",     desc:"4K · 97% JPEG",     icon:"ð" },
+                    { id:"high",     label:"High",     desc:"4K · 97% JPEG",     icon:"💎" },
                   ].map(q => (
                     <div key={q.id} onClick={() => set("photoQuality", q.id)}
                       style={{ flex:1,border:`2px solid ${form.photoQuality===q.id?"var(--accent)":"var(--border)"}`,borderRadius:"var(--radius)",padding:"12px 10px",cursor:"pointer",background:form.photoQuality===q.id?"var(--accent-glow)":"var(--surface2)",transition:"all .15s",textAlign:"center" }}>
@@ -1120,9 +1122,9 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                 <div style={{ fontSize:12,color:"var(--text2)",marginBottom:12,lineHeight:1.5 }}>Higher quality produces sharper video but uses more storage and bandwidth.</div>
                 <div style={{ display:"flex",gap:8 }}>
                   {[
-                    { id:"low",      label:"Low",      desc:"1 Mbps",   icon:"ð" },
+                    { id:"low",      label:"Low",      desc:"1 Mbps",   icon:"🔋" },
                     { id:"moderate", label:"Moderate", desc:"2.5 Mbps", icon:"⚡" },
-                    { id:"high",     label:"High",     desc:"5 Mbps",   icon:"ð" },
+                    { id:"high",     label:"High",     desc:"5 Mbps",   icon:"💎" },
                   ].map(q => (
                     <div key={q.id} onClick={() => set("videoQuality", q.id)}
                       style={{ flex:1,border:`2px solid ${form.videoQuality===q.id?"var(--accent)":"var(--border)"}`,borderRadius:"var(--radius)",padding:"12px 10px",cursor:"pointer",background:form.videoQuality===q.id?"var(--accent-glow)":"var(--surface2)",transition:"all .15s",textAlign:"center" }}>
@@ -1208,15 +1210,15 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                 <label className="form-label" style={{ marginBottom:6,display:"block" }}>Timezone</label>
                 <select className="form-input form-select" value={form.timezone||"America/Denver"} onChange={e => set("timezone", e.target.value)}>
                   {[
-                    ["Pacific/Honolulu",   "Hawaii (UTCâ10)"],
-                    ["America/Anchorage",  "Alaska (UTCâ9)"],
-                    ["America/Los_Angeles","Pacific Time (UTCâ8)"],
-                    ["America/Denver",     "Mountain Time (UTCâ7)"],
-                    ["America/Chicago",    "Central Time (UTCâ6)"],
-                    ["America/New_York",   "Eastern Time (UTCâ5)"],
-                    ["America/Halifax",    "Atlantic Time (UTCâ4)"],
-                    ["America/St_Johns",   "Newfoundland (UTCâ3:30)"],
-                    ["America/Sao_Paulo",  "Brasília (UTCâ3)"],
+                    ["Pacific/Honolulu",   "Hawaii (UTC−10)"],
+                    ["America/Anchorage",  "Alaska (UTC−9)"],
+                    ["America/Los_Angeles","Pacific Time (UTC−8)"],
+                    ["America/Denver",     "Mountain Time (UTC−7)"],
+                    ["America/Chicago",    "Central Time (UTC−6)"],
+                    ["America/New_York",   "Eastern Time (UTC−5)"],
+                    ["America/Halifax",    "Atlantic Time (UTC−4)"],
+                    ["America/St_Johns",   "Newfoundland (UTC−3:30)"],
+                    ["America/Sao_Paulo",  "Brasília (UTC−3)"],
                     ["UTC",                "UTC (UTC+0)"],
                     ["Europe/London",      "London (UTC+0/+1)"],
                     ["Europe/Paris",       "Central European (UTC+1/+2)"],
@@ -1280,8 +1282,8 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                 <label className="form-label" style={{ marginBottom:8,display:"block" }}>Measurement Units</label>
                 <div style={{ display:"flex",gap:8 }}>
                   {[
-                    { id:"imperial", label:"Imperial", example:"ft, in, lbs, °F", icon:"ðºð¸" },
-                    { id:"metric",   label:"Metric",   example:"m, cm, kg, °C",   icon:"ð" },
+                    { id:"imperial", label:"Imperial", example:"ft, in, lbs, °F", icon:"🇺🇸" },
+                    { id:"metric",   label:"Metric",   example:"m, cm, kg, °C",   icon:"🌍" },
                   ].map(u => (
                     <div key={u.id} onClick={() => set("units", u.id)}
                       style={{ flex:1,border:`2px solid ${form.units===u.id?"var(--accent)":"var(--border)"}`,borderRadius:"var(--radius-sm)",padding:"12px 16px",cursor:"pointer",background:form.units===u.id?"var(--accent-glow)":"var(--surface2)",transition:"all .15s",textAlign:"center" }}>
@@ -1352,7 +1354,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                   </a>
                 </div>
                 <div style={{ fontSize:11.5,color:"var(--text3)" }}>
-                  ð§ support@krakencam.com &nbsp;·&nbsp; info@krakencam.com
+                  📧 support@krakencam.com &nbsp;·&nbsp; info@krakencam.com
                 </div>
               </div>
 

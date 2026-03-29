@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Icon, ic, RoomIcon } from "../utils/icons.jsx";
 import { PLAN_VIDEO_LIMIT_SECS } from "../utils/constants.js";
-import { uid, today , parseTagInput, ROLE_META
+import { uid, today, parseTagInput, ROLE_META, getExifOrientation, drawImageWithOrientation
 } from "../utils/helpers.js";
 
 export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
@@ -180,7 +180,7 @@ export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) 
       ctx.fillStyle = "rgba(0,0,0,0.52)";
       ctx.fillRect(10, cvs.height - 58, 480, 46);
       ctx.fillStyle = "white"; ctx.font = "bold 13px sans-serif";
-      ctx.fillText(`${project?.title || "Jobsite"} — ${selRoom}  â¢  ${new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})} ${new Date().toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",hour12:(settings?.timeFormat!=="24hr")})}`, 18, cvs.height - 37);
+      ctx.fillText(`${project?.title || "Jobsite"} — ${selRoom}  •  ${new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})} ${new Date().toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",hour12:(settings?.timeFormat!=="24hr")})}`, 18, cvs.height - 37);
       ctx.fillStyle = "rgba(255,255,255,.7)"; ctx.font = "12px sans-serif";
       ctx.fillText(gps ? `GPS: ${gps.lat}, ${gps.lng}` : "GPS: unavailable", 18, cvs.height - 17);
     };
@@ -380,16 +380,16 @@ export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) 
       <div style={{ fontSize:13,color:"var(--text2)",lineHeight:1.7,textAlign:"left",background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:10,padding:"14px 16px",width:"100%",maxWidth:360 }}>
         <div style={{ fontWeight:700,marginBottom:8,color:"var(--text)",fontSize:12.5 }}>To fix this:</div>
         <div style={{ marginBottom:6 }}>
-          <strong style={{ color:"var(--text)" }}>Brave:</strong> Click the ð¦ Shields icon → turn off <em>Device recognition blocking</em>, or click ð → Site settings → Camera → <strong>Allow</strong>
+          <strong style={{ color:"var(--text)" }}>Brave:</strong> Click the 🦁 Shields icon → turn off <em>Device recognition blocking</em>, or click 🔒 → Site settings → Camera → <strong>Allow</strong>
         </div>
         <div style={{ marginBottom:6 }}>
-          <strong style={{ color:"var(--text)" }}>Chrome / Edge:</strong> Click the ð lock icon in the address bar → <em>Site settings</em> → Camera → <strong>Allow</strong>
+          <strong style={{ color:"var(--text)" }}>Chrome / Edge:</strong> Click the 🔒 lock icon in the address bar → <em>Site settings</em> → Camera → <strong>Allow</strong>
         </div>
         <div style={{ marginBottom:6 }}>
           <strong style={{ color:"var(--text)" }}>Safari (iOS):</strong> Settings app → Safari → Camera → Allow
         </div>
         <div>
-          <strong style={{ color:"var(--text)" }}>Firefox:</strong> Click the ð lock icon → Camera permission → <strong>Allow</strong>
+          <strong style={{ color:"var(--text)" }}>Firefox:</strong> Click the 🔒 lock icon → Camera permission → <strong>Allow</strong>
         </div>
         <div style={{ marginTop:10,paddingTop:10,borderTop:"1px solid var(--border)",fontSize:11.5,color:"var(--text3)" }}>
           After changing permissions, refresh the page and try again.
@@ -463,7 +463,7 @@ export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) 
               </div>
             </div>
             <div style={{ fontSize:12,color:"rgba(255,255,255,.6)",marginBottom:10 }}>
-              ð¬ Duration: {fmtTime(recSeconds)} · {gps ? `GPS: ${gps.lat}, ${gps.lng}` : "No GPS"}
+              🎬 Duration: {fmtTime(recSeconds)} · {gps ? `GPS: ${gps.lat}, ${gps.lng}` : "No GPS"}
             </div>
             <div style={{ display:"flex",gap:10 }}>
               <button className="btn btn-secondary" style={{ flex:1 }} onClick={discardVideo}>Discard</button>
@@ -551,7 +551,7 @@ export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) 
             background:"rgba(0,0,0,0.78)",borderRadius:14,padding:"10px 18px",
             display:"flex",alignItems:"center",gap:10,whiteSpace:"nowrap",
             boxShadow:"0 4px 24px rgba(0,0,0,0.4)",backdropFilter:"blur(6px)" }}>
-            <span style={{ fontSize:20 }}>ð</span>
+            <span style={{ fontSize:20 }}>🔄</span>
             <span style={{ fontSize:13,color:"white",fontWeight:500 }}>Turn off rotation lock for landscape photos</span>
             <button onClick={() => { setShowRotateTip(false); localStorage.setItem("kc_rotate_tip_seen","1"); }}
               style={{ background:"none",border:"none",color:"rgba(255,255,255,0.6)",fontSize:18,cursor:"pointer",padding:"0 0 0 4px",lineHeight:1 }}>×</button>
@@ -583,7 +583,7 @@ export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) 
             {project && <div className="pill"><Icon d={ic.briefcase} size={11} />{project.title}</div>}
             <div className="pill"><Icon d={ic.mapPin} size={11} stroke={gps ? "#3dba7e" : "#8b9ab8"} />{gpsLabel}</div>
             <div className="pill" style={{ cursor:"pointer" }} onClick={() => setRoomMenuOpen(o => !o)}>
-              <RoomIcon name={selRoom} size={12} stroke="white" /> {selRoom} â¾
+              <RoomIcon name={selRoom} size={12} stroke="white" /> {selRoom} ▾
             </div>
           </div>
         </div>
@@ -609,7 +609,7 @@ export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) 
                 <div key={i} style={{ position:"relative",flexShrink:0 }}>
                   {s.isVideo
                     ? <div className="cam-thumb" style={{ background:"#111",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:3 }}>
-                        <span style={{ fontSize:18 }}>ð¬</span>
+                        <span style={{ fontSize:18 }}>🎬</span>
                         <span style={{ fontSize:9,color:"rgba(255,255,255,.7)" }}>{fmtTime(s.duration||0)}</span>
                       </div>
                     : <img className="cam-thumb" src={s.dataUrl} alt={s.name} title={s.name} />
@@ -627,7 +627,7 @@ export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) 
         {/* Mode toggle — Photo / Video */}
         <div style={{ display:"flex",justifyContent:"center",marginBottom:14 }}>
           <div style={{ display:"flex",background:"rgba(0,0,0,.5)",borderRadius:20,padding:3,border:"1px solid rgba(255,255,255,.15)" }}>
-            {[{v:"photo",label:"ð· Photo"},{v:"video",label:"ð¬ Video"}].map(({v,label})=>(
+            {[{v:"photo",label:"📷 Photo"},{v:"video",label:"🎬 Video"}].map(({v,label})=>(
               <button key={v} disabled={recState==="recording"}
                 onClick={()=>{ if(recState!=="recording") setMode(v); }}
                 style={{ padding:"6px 18px",borderRadius:16,fontSize:12.5,fontWeight:700,border:"none",cursor:recState==="recording"?"not-allowed":"pointer",background:mode===v?"white":"transparent",color:mode===v?"#111":"rgba(255,255,255,.7)",transition:"all .15s" }}>
@@ -736,29 +736,38 @@ export function ImageEditor({ photo, onClose, onSave }) {
     const c = canvasRef.current; if (!c) return;
     const ctx = c.getContext("2d");
     if (photo?.dataUrl) {
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.onload = async () => {
-        const MAX_W = 1920, MAX_H = 1080;
-        // Fetch the blob to read EXIF orientation (only works for http URLs, not base64)
+      const MAX_W = 1920, MAX_H = 1080;
+      const drawToCanvas = async (imgSrc) => {
         let orientation = 1;
-        if (photo.dataUrl.startsWith("http")) {
+        let blobUrl = null;
+        // For storage URLs: fetch as blob to avoid CORS canvas taint + read EXIF
+        if (imgSrc.startsWith("http")) {
           try {
-            const res = await fetch(photo.dataUrl);
+            const res = await fetch(imgSrc);
             const blob = await res.blob();
             orientation = await getExifOrientation(blob);
-          } catch {}
+            blobUrl = URL.createObjectURL(blob);
+          } catch {
+            // fallback — load directly (may taint canvas, but better than blank)
+          }
         }
-        // Draw to a temp canvas with orientation corrected
-        const orientC = document.createElement("canvas");
-        drawImageWithOrientation(orientC, img, orientation);
-        const scale = Math.min(1, MAX_W / orientC.width, MAX_H / orientC.height);
-        c.width  = Math.round(orientC.width  * scale);
-        c.height = Math.round(orientC.height * scale);
-        ctx.drawImage(orientC, 0, 0, c.width, c.height);
-        saveSnap();
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => {
+          // Draw to a temp canvas with orientation corrected
+          const orientC = document.createElement("canvas");
+          drawImageWithOrientation(orientC, img, orientation);
+          const scale = Math.min(1, MAX_W / orientC.width, MAX_H / orientC.height);
+          c.width  = Math.round(orientC.width  * scale);
+          c.height = Math.round(orientC.height * scale);
+          ctx.drawImage(orientC, 0, 0, c.width, c.height);
+          if (blobUrl) URL.revokeObjectURL(blobUrl);
+          saveSnap();
+        };
+        img.onerror = () => { if (blobUrl) URL.revokeObjectURL(blobUrl); };
+        img.src = blobUrl || imgSrc;
       };
-      img.src = photo.dataUrl;
+      drawToCanvas(photo.dataUrl);
     } else {
       ctx.fillStyle = "#1a1e28"; ctx.fillRect(0, 0, c.width, c.height);
       ctx.strokeStyle = "#2a2f42"; ctx.lineWidth = 1;
@@ -1064,7 +1073,15 @@ export function ImageEditor({ photo, onClose, onSave }) {
   };
   const handleDone = () => {
     const c = canvasRef.current;
-    if (c && onSave) onSave(renderCompositeDataUrl("image/jpeg", 0.93));
+    if (c && onSave) {
+      try {
+        onSave(renderCompositeDataUrl("image/jpeg", 0.93));
+      } catch (err) {
+        // Canvas may be CORS-tainted from a storage URL — save what we can
+        console.warn("[KrakenCam] Canvas export failed (CORS taint?):", err);
+        try { onSave(c.toDataURL("image/jpeg", 0.93)); } catch {}
+      }
+    }
     onClose();
   };
 
@@ -1086,7 +1103,7 @@ export function ImageEditor({ photo, onClose, onSave }) {
     <div className="editor-wrap fade-in">
       {/* ── Toolbar ── */}
       <div className="editor-toolbar">
-        <button className="btn btn-sm btn-ghost" onClick={onClose}>â Back</button>
+        <button className="btn btn-sm btn-ghost" onClick={onClose}>← Back</button>
         <div className="tool-sep" />
         {tools.map(t => (
           <div key={t.id} className={`tool-btn ${tool===t.id?"active":""}`} title={t.label}
@@ -1115,7 +1132,7 @@ export function ImageEditor({ photo, onClose, onSave }) {
           <div style={{ borderBottom:"1px solid var(--border)" }}>
             <button onClick={() => setMobileControlsOpen(v => !v)}
               style={{ width:"100%",background:"none",border:"none",padding:"9px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",color:"var(--text)",fontSize:13,fontWeight:600,cursor:"pointer" }}>
-              <span>âï¸ Text Editor {activeTextLayer ? <span style={{ fontSize:11,color:"var(--accent)",fontWeight:400 }}>— {activeTextLayer.fontSize||42}px</span> : ""}</span>
+              <span>✏️ Text Editor {activeTextLayer ? <span style={{ fontSize:11,color:"var(--accent)",fontWeight:400 }}>— {activeTextLayer.fontSize||42}px</span> : ""}</span>
               <div style={{ display:"flex",alignItems:"center",gap:8 }}>
                 <button className="btn btn-sm btn-secondary" style={{ padding:"3px 10px",fontSize:12 }} onClick={e => { e.stopPropagation(); addTextLayer(); setMobileControlsOpen(true); }}><Icon d={ic.plus} size={13} /> Add</button>
                 <Icon d={mobileControlsOpen ? "M18 15l-6-6-6 6" : "M6 9l6 6 6-6"} size={16} stroke="var(--text3)" />
@@ -1156,7 +1173,7 @@ export function ImageEditor({ photo, onClose, onSave }) {
           <button
             onClick={() => setMobileControlsOpen(v => !v)}
             style={{ width:"100%",background:"none",border:"none",padding:"9px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",color:"var(--text)",fontSize:13,fontWeight:600,cursor:"pointer" }}>
-            <span>ð¨ Brush &amp; Color &nbsp;<span style={{ fontSize:11,color:"var(--text3)",fontWeight:400 }}>{Math.round(zoom*100)}% zoom</span></span>
+            <span>🎨 Brush &amp; Color &nbsp;<span style={{ fontSize:11,color:"var(--text3)",fontWeight:400 }}>{Math.round(zoom*100)}% zoom</span></span>
             <Icon d={mobileControlsOpen ? "M18 15l-6-6-6 6" : "M6 9l6 6 6-6"} size={16} stroke="var(--text3)" />
           </button>
           {mobileControlsOpen && (
@@ -1165,7 +1182,7 @@ export function ImageEditor({ photo, onClose, onSave }) {
               <div>
                 <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".07em",color:"var(--text3)",marginBottom:6 }}>Zoom — {Math.round(zoom*100)}%</div>
                 <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-                  <button className="btn btn-sm btn-secondary" style={{ minWidth:36 }} onClick={() => setZoom(z => Math.max(0.25, +(z-0.25).toFixed(2)))}>â</button>
+                  <button className="btn btn-sm btn-secondary" style={{ minWidth:36 }} onClick={() => setZoom(z => Math.max(0.25, +(z-0.25).toFixed(2)))}>−</button>
                   <input type="range" min="25" max="300" value={Math.round(zoom*100)} onChange={e => setZoom(+e.target.value/100)} className="size-slider" style={{ flex:1,margin:0 }} />
                   <button className="btn btn-sm btn-secondary" style={{ minWidth:36 }} onClick={() => setZoom(z => Math.min(3, +(z+0.25).toFixed(2)))}>+</button>
                   {(zoom !== 1 || pan.x !== 0 || pan.y !== 0) && <button className="btn btn-sm btn-ghost" style={{ fontSize:11 }} onClick={() => { setZoom(1); setPan({x:0,y:0}); }}>Reset</button>}
@@ -1208,7 +1225,7 @@ export function ImageEditor({ photo, onClose, onSave }) {
                     {tool === "blur" ? "Blur Strength" : "Brush Size"} — {size}px
                   </div>
                   <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-                    <button className="btn btn-sm btn-secondary" style={{ minWidth:34 }} onClick={() => setSize(s => Math.max(10, s-5))}>â</button>
+                    <button className="btn btn-sm btn-secondary" style={{ minWidth:34 }} onClick={() => setSize(s => Math.max(10, s-5))}>−</button>
                     <input type="range" min="10" max="80" value={size} onChange={e => setSize(+e.target.value)} className="size-slider" style={{ flex:1,margin:0 }} />
                     <button className="btn btn-sm btn-secondary" style={{ minWidth:34 }} onClick={() => setSize(s => Math.min(80, s+5))}>+</button>
                   </div>
@@ -1331,7 +1348,7 @@ export function ImageEditor({ photo, onClose, onSave }) {
         <div className="editor-side">
           <h4>Zoom — {Math.round(zoom*100)}%</h4>
           <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:14 }}>
-            <button className="btn btn-sm btn-secondary" style={{ minWidth:30 }} onClick={() => setZoom(z => Math.max(0.25, +(z-0.25).toFixed(2)))}>â</button>
+            <button className="btn btn-sm btn-secondary" style={{ minWidth:30 }} onClick={() => setZoom(z => Math.max(0.25, +(z-0.25).toFixed(2)))}>−</button>
             <input type="range" min="25" max="300" value={Math.round(zoom*100)} onChange={e => setZoom(+e.target.value/100)} className="size-slider" style={{ flex:1 }} />
             <button className="btn btn-sm btn-secondary" style={{ minWidth:30 }} onClick={() => setZoom(z => Math.min(3, +(z+0.25).toFixed(2)))}>+</button>
             {(zoom !== 1 || pan.x !== 0 || pan.y !== 0) && <button className="btn btn-sm btn-ghost" style={{ fontSize:11,padding:"2px 6px" }} onClick={() => { setZoom(1); setPan({x:0,y:0}); }}>1:1</button>}

@@ -6,7 +6,29 @@ import {
   getTitleBlockHeight, buildSketchTitleBlockData,
 } from "../utils/helpers.js";
 import { PLAN_AI_LIMITS, getWeekWindowStart, getNextResetDate } from "../utils/constants.js";
-import { getAuthHeaders } from "../lib/supabase.js";
+import { supabase, getAuthHeaders } from "../lib/supabase.js";
+
+const SKETCH_TOOLS = [
+  { id:"pan",       icon:"M18 11V6a2 2 0 00-2-2 2 2 0 00-2 2 2 2 0 00-2-2 2 2 0 00-2 2v.5 M14 10.5V4a2 2 0 00-2-2 2 2 0 00-2 2v.5 M10 10.5V6a2 2 0 00-2-2 2 2 0 00-2 2v8a6 6 0 006 6h2a6 6 0 006-6v-2.5",  label:"Pan / Move Screen" },
+  { id:"select",    icon:"M3 3l7 18 3-7 7-3z",                        label:"Select Element" },
+  { id:"pen",       icon:"M12 20h9 M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z", label:"Pen" },
+  { id:"line",      icon:"M5 19L19 5",                                  label:"Line"      },
+  { id:"rect",      icon:"M3 3h18v18H3z",                              label:"Rectangle" },
+  { id:"circle",    icon:"M12 22a10 10 0 100-20 10 10 0 000 20z",      label:"Circle"    },
+  { id:"dimension", icon:"M21 6H3 M3 6l3-3M3 6l3 3 M21 6l-3-3 M21 6l-3 3 M12 6v8", label:"Dimension"},
+  { id:"text",      icon:"M4 7V4h16v3 M9 20h6 M12 4v16",               label:"Text"      },
+  { id:"eraser",    icon:"M20 20H7L3 16l10-10 7 7-2.5 2.5",            label:"Eraser"    },
+];
+
+const STROKE_COLORS = ["#000000","#e86c3a","#4a90d9","#3dba7e","#e8c53a","#e85a3a","#8b7cf8","#ffffff"];
+
+const MOISTURE_COLORS = [
+  { id:"dry",       color:"#4a90d9", label:"Dry"       },
+  { id:"damp",      color:"#3dba7e", label:"Damp"      },
+  { id:"wet",       color:"#e8c53a", label:"Wet"       },
+  { id:"saturated", color:"#e85a3a", label:"Saturated" },
+  { id:"mold",      color:"#8b7cf8", label:"Mold Risk" },
+];
 
 export function SketchEditor({ sketch, rooms, reports, project, settings, onSave, onClose }) {
   const { useState: us, useRef: ur, useEffect: ue, useCallback: uc } = React;
@@ -976,11 +998,11 @@ export function SketchEditor({ sketch, rooms, reports, project, settings, onSave
           <div style={{ position:"absolute",top:12,right:12,display:"flex",flexDirection:"row",gap:4,zIndex:20 }}>
             <button onClick={undo} title="Undo"
               style={{ height:40,padding:"0 12px",borderRadius:10,background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5,boxShadow:"0 2px 12px rgba(0,0,0,.4)",fontSize:14,fontWeight:600 }}>
-              â© <span style={{ fontSize:12 }}>Undo</span>
+              ↩ <span style={{ fontSize:12 }}>Undo</span>
             </button>
             <button onClick={redo} title="Redo"
               style={{ height:40,padding:"0 12px",borderRadius:10,background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5,boxShadow:"0 2px 12px rgba(0,0,0,.4)",fontSize:14,fontWeight:600 }}>
-              âª <span style={{ fontSize:12 }}>Redo</span>
+              ↪ <span style={{ fontSize:12 }}>Redo</span>
             </button>
           </div>
 
@@ -992,11 +1014,11 @@ export function SketchEditor({ sketch, rooms, reports, project, settings, onSave
                 <div style={{ display:"flex",alignItems:"center",gap:6 }}>
                   {!fpPanelCollapsed && selectedLine && <div style={{ fontSize:11,color:"var(--accent)" }}>Wall selected</div>}
                   <button onClick={() => setFpPanelCollapsed(v => !v)} title={fpPanelCollapsed ? "Expand" : "Collapse"} style={{ background:"none",border:"none",cursor:"pointer",color:"var(--text3)",fontSize:16,lineHeight:1,padding:"0 2px" }}>
-                    {fpPanelCollapsed ? "â²" : "â¼"}
+                    {fpPanelCollapsed ? "▲" : "▼"}
                   </button>
                 </div>
               </div>
-              {fpPanelCollapsed && <div style={{ fontSize:11,color:"var(--text3)",textAlign:"center" }}>Tap â² to expand</div>}
+              {fpPanelCollapsed && <div style={{ fontSize:11,color:"var(--text3)",textAlign:"center" }}>Tap ▲ to expand</div>}
               {!fpPanelCollapsed && <>
               <button className={`btn btn-sm ${snapToGrid ? "btn-primary" : "btn-secondary"}`} onClick={() => setSnapToGrid(v => !v)} style={{ alignSelf:"flex-start" }}>
                 <Icon d={ic.grid} size={13} /> {snapToGrid ? "Snap On" : "Snap Off"}
@@ -1082,7 +1104,7 @@ export function SketchEditor({ sketch, rooms, reports, project, settings, onSave
 
           <div style={{ position:"absolute",bottom:12,right:12,display:"flex",flexDirection:"row",alignItems:"center",gap:4,zIndex:20 }}>
             <button onClick={zoomOut} title="Zoom Out"
-              style={{ width:40,height:40,borderRadius:10,background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text)",cursor:"pointer",fontSize:20,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 12px rgba(0,0,0,.4)" }}>â</button>
+              style={{ width:40,height:40,borderRadius:10,background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text)",cursor:"pointer",fontSize:20,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 12px rgba(0,0,0,.4)" }}>−</button>
             <button onClick={zoomReset} title={`${Math.round(zoom*100)}% — Click to reset`}
               style={{ height:40,padding:"0 8px",minWidth:44,borderRadius:8,background:"var(--surface2)",border:"1px solid var(--border)",color:"var(--text2)",cursor:"pointer",fontSize:10,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center" }}>
               {Math.round(zoom*100)}%
@@ -1276,82 +1298,114 @@ export function SketchEditor({ sketch, rooms, reports, project, settings, onSave
 }
 
 // ── Project Activity Feed ──────────────────────────────────────────────────────
-export function ProjectActivityFeed({ project, onUpdateProject, settings }) {
+export function ProjectActivityFeed({ project, onUpdateProject, settings, userId }) {
   const [newNote, setNewNote] = useState("");
   const [posting, setPosting] = useState(false);
+  const [postSuccess, setPostSuccess] = useState(false);
 
   // Build a unified activity list from all project data
   const events = [];
 
-  // Project created
-  if (project.date) events.push({ id:"created", type:"created", date: project.date, time:"", icon:"ð", label:"Project created", detail: project.title });
+  // Project created — prefer explicit activityLog "created" entries; fall back to createdAt/date for legacy projects
+  const hasCreatedEntry = (project.activityLog || []).some(a => a.type === "created");
+  if (!hasCreatedEntry) {
+    const createdTs = project.createdAt || null;
+    const createdDate = createdTs ? createdTs.slice(0, 10) : project.date;
+    const createdTime = createdTs ? new Date(createdTs).toLocaleTimeString("en-US", { hour:"2-digit", minute:"2-digit", hour12:true }) : "";
+    if (createdDate) events.push({ id:"created", type:"created", date:createdDate, time:createdTime, icon:"🏗", label:"Jobsite created", detail:project.title });
+  }
 
   // Photos
   (project.photos || []).forEach(p => {
-    if (p.date) events.push({ id:`ph-${p.id}`, type:"photo", date:p.date, time:p.time||"", icon:"ð·", label:"Photo captured", detail: `${p.name || "Photo"}${p.room ? ` · ${p.room}` : ""}` });
+    if (p.date) events.push({ id:`ph-${p.id}`, type:"photo", date:p.date, time:p.time||"", icon:"📷", label:"Photo captured", detail:`${p.name || "Photo"}${p.room ? ` · ${p.room}` : ""}`, addedBy:p.addedBy||"" });
   });
 
   // Videos
   (project.videos || []).forEach(v => {
-    if (v.date) events.push({ id:`vid-${v.id}`, type:"video", date:v.date, time:"", icon:"ð¬", label:"Video recorded", detail: v.name || "Video clip" });
+    if (v.date) events.push({ id:`vid-${v.id}`, type:"video", date:v.date, time:v.time||"", icon:"🎬", label:"Video recorded", detail:v.name || "Video clip", addedBy:v.addedBy||"" });
   });
 
   // Voice notes
   (project.voiceNotes || []).forEach(vn => {
-    if (vn.date) events.push({ id:`vn-${vn.id}`, type:"voice", date:vn.date, time:"", icon:"ð", label:"Voice note recorded", detail: vn.name || "Voice note" });
+    if (vn.date) events.push({ id:`vn-${vn.id}`, type:"voice", date:vn.date, time:vn.time||"", icon:"🎙", label:"Voice note recorded", detail:vn.name || "Voice note", addedBy:vn.addedBy||"" });
   });
 
   // Reports
   (project.reports || []).forEach(r => {
-    if (r.date) events.push({ id:`rpt-${r.id}`, type:"report", date:r.date, time:"", icon:"ð", label:`Report ${r.status === "final" ? "finalised" : r.status === "sent" ? "sent" : "created"}`, detail: r.title || "Report" });
+    if (r.date) events.push({ id:`rpt-${r.id}`, type:"report", date:r.date, time:r.time||"", icon:"📄", label:`Report ${r.status==="final"?"finalised":r.status==="sent"?"sent":"created"}`, detail:r.title || "Report", addedBy:r.addedBy||"" });
   });
 
   // Checklists
   (project.checklists || []).forEach(cl => {
-    if (cl.date) events.push({ id:`cl-${cl.id}`, type:"checklist", date:cl.date, time:"", icon:"â", label:`Checklist ${cl.status === "complete" ? "completed" : "started"}`, detail: cl.name || "Checklist" });
+    if (cl.date) events.push({ id:`cl-${cl.id}`, type:"checklist", date:cl.date, time:cl.time||"", icon:"✅", label:`Checklist ${cl.status==="complete"?"completed":"started"}`, detail:cl.name || "Checklist", addedBy:cl.addedBy||"" });
   });
 
   // Files
   (project.files || []).forEach(f => {
-    if (f.date || f.uploadedAt) events.push({ id:`fl-${f.id}`, type:"file", date:f.date||f.uploadedAt, time:"", icon:"ð", label:"File uploaded", detail: f.name || "File" });
+    if (f.date || f.uploadedAt) events.push({ id:`fl-${f.id}`, type:"file", date:f.date||f.uploadedAt, time:f.time||"", icon:"📎", label:"File uploaded", detail:f.name || "File", addedBy:f.addedBy||"" });
   });
 
-  // Activity log notes (manual entries)
+  // Activity log entries (notes + structured events like jobsite creation)
   (project.activityLog || []).forEach(a => {
-    events.push({ id:`al-${a.id}`, type:"note", date:a.date, time:a.time||"", icon:"ð¬", label:a.author ? `Note by ${a.author}` : "Note added", detail:a.text, deletable: true, _raw: a });
+    const isNote = !a.type || a.type === "note";
+    events.push({
+      id:       `al-${a.id}`,
+      type:     a.type || "note",
+      date:     a.date,
+      time:     a.time || "",
+      icon:     a.icon || "💬",
+      label:    a.label || (a.author ? `Note · ${a.author}` : "Note added"),
+      detail:   a.text || a.detail || "",
+      addedBy:  a.author || "",
+      deletable: isNote,
+      _raw:     a,
+    });
   });
 
-  // Timeline stage changes
-  if (project.timelineStage) {
-    events.push({ id:"stage", type:"stage", date: project.date || today(), time:"", icon:"ð·", label:"Stage updated", detail: project.timelineStage.replace(/_/g," ") });
+  // Timeline stage changes (show at top of timeline if stage set but no log entry)
+  if (project.timelineStage && !(project.activityLog||[]).some(a => a.type==="stage")) {
+    const stageDate = project.updatedAt ? project.updatedAt.slice(0,10) : (project.date || today());
+    events.push({ id:"stage", type:"stage", date:stageDate, time:"", icon:"🏷", label:"Stage updated", detail:project.timelineStage.replace(/_/g," "), addedBy:"" });
   }
 
   // Sort newest first
   const sorted = events.sort((a, b) => {
-    const da = new Date(`${a.date}${a.time ? " " + a.time : ""}`);
-    const db = new Date(`${b.date}${b.time ? " " + b.time : ""}`);
+    const da = new Date(`${a.date}T${a.time || "00:00:00"}`);
+    const db = new Date(`${b.date}T${b.time || "00:00:00"}`);
     return db - da;
   });
 
   const postNote = () => {
     if (!newNote.trim()) return;
     setPosting(true);
-    const entry = { id: uid(), type:"note", date: today(), time: new Date().toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",hour12:true}), text: newNote.trim(), author: settings?.userFirstName ? `${settings.userFirstName} ${settings.userLastName||""}`.trim() : "You" };
+    const authorName = settings?.userFirstName ? `${settings.userFirstName} ${settings.userLastName||""}`.trim() : "You";
+    const entry = {
+      id:     uid(),
+      type:   "note",
+      date:   today(),
+      time:   new Date().toLocaleTimeString("en-US", { hour:"2-digit", minute:"2-digit", hour12:true }),
+      text:   newNote.trim(),
+      author: authorName,
+      userId: userId || null,
+      label:  `Note · ${authorName}`,
+      icon:   "💬",
+    };
     onUpdateProject({ ...project, activityLog: [...(project.activityLog||[]), entry] });
-    setNewNote(""); setPosting(false);
+    setNewNote("");
+    setPosting(false);
+    setPostSuccess(true);
+    setTimeout(() => setPostSuccess(false), 2500);
   };
 
   const deleteNote = (id) => {
     onUpdateProject({ ...project, activityLog: (project.activityLog||[]).filter(a => a.id !== id) });
   };
 
-  const TYPE_COLOR = { photo:"var(--accent)", video:"#8b7cf8", voice:"#f0954e", report:"#3dba7e", checklist:"#3dba7e", file:"#4a90d9", note:"var(--text2)", created:"var(--accent)", stage:"#fbbf24" };
-
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
       {/* Add a note */}
       <div className="card">
-        <div className="card-header"><span style={{ fontWeight:700 }}>ð¬ Add Note</span></div>
+        <div className="card-header"><span style={{ fontWeight:700 }}>💬 Add Note</span></div>
         <div className="card-body" style={{ padding:"14px 20px" }}>
           <div style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
             <textarea
@@ -1359,19 +1413,23 @@ export function ProjectActivityFeed({ project, onUpdateProject, settings }) {
               placeholder="Log an update, note, or observation about this project…"
               value={newNote}
               onChange={e => setNewNote(e.target.value)}
+              onKeyDown={e => { if (e.key==="Enter" && (e.metaKey||e.ctrlKey)) postNote(); }}
               style={{ flex:1, minHeight:72, resize:"vertical" }}
             />
             <button className="btn btn-primary" disabled={!newNote.trim() || posting} onClick={postNote} style={{ flexShrink:0, alignSelf:"flex-end" }}>
               <Icon d={ic.plus} size={14} /> Post
             </button>
           </div>
+          {postSuccess && (
+            <div style={{ marginTop:8, fontSize:12, color:"#3dba7e", fontWeight:600 }}>✓ Note saved</div>
+          )}
         </div>
       </div>
 
       {/* Activity timeline */}
       <div className="card">
         <div className="card-header" style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <span style={{ fontWeight:700 }}>ð Activity Feed</span>
+          <span style={{ fontWeight:700 }}>📋 Activity Feed</span>
           <span style={{ fontSize:12, color:"var(--text3)" }}>{sorted.length} event{sorted.length!==1?"s":""}</span>
         </div>
         <div className="card-body" style={{ padding:"6px 0" }}>
@@ -1382,7 +1440,7 @@ export function ProjectActivityFeed({ project, onUpdateProject, settings }) {
           )}
           {sorted.map((ev, i) => (
             <div key={ev.id} style={{ display:"flex", gap:14, padding:"12px 20px", borderBottom: i < sorted.length-1 ? "1px solid var(--border)" : "none", alignItems:"flex-start" }}>
-              {/* Icon + line */}
+              {/* Icon + connector line */}
               <div style={{ display:"flex", flexDirection:"column", alignItems:"center", flexShrink:0, paddingTop:2 }}>
                 <div style={{ width:32, height:32, borderRadius:"50%", background:"var(--surface2)", border:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>
                   {ev.icon}
@@ -1391,13 +1449,20 @@ export function ProjectActivityFeed({ project, onUpdateProject, settings }) {
               </div>
               {/* Content */}
               <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
                   <span style={{ fontSize:13, fontWeight:600, color:"var(--text)" }}>{ev.label}</span>
+                </div>
+                <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:2, flexWrap:"wrap" }}>
                   <span style={{ fontSize:11, color:"var(--text3)" }}>{ev.date}{ev.time ? ` · ${ev.time}` : ""}</span>
+                  {ev.addedBy && (
+                    <span style={{ fontSize:11, color:"var(--text3)" }}>· by {ev.addedBy}</span>
+                  )}
                 </div>
-                <div style={{ fontSize:13, color:"var(--text2)", marginTop:3, lineHeight:1.5, wordBreak:"break-word" }}>
-                  {ev.detail}
-                </div>
+                {ev.detail && (
+                  <div style={{ fontSize:13, color:"var(--text2)", marginTop:4, lineHeight:1.5, wordBreak:"break-word" }}>
+                    {ev.detail}
+                  </div>
+                )}
               </div>
               {/* Delete note */}
               {ev.deletable && (
@@ -1422,6 +1487,16 @@ export function AIProjectOverview({ project, settings, onSettingsChange, orgId, 
   const [expanded,        setExpanded]        = useState(false);
   const [genError,        setGenError]        = useState(null);
   const supaUrl = import.meta.env.VITE_SUPABASE_URL;
+
+  // Kraken usage display
+  const _aiPlan    = settings?.plan || "base";
+  const _aiLimit   = PLAN_AI_LIMITS[_aiPlan] || 0;
+  const _aiWinStart = settings?.aiGenerationsWindowStart ? new Date(settings.aiGenerationsWindowStart) : null;
+  const _aiCurWin  = getWeekWindowStart();
+  const _aiValid   = _aiWinStart && _aiWinStart >= _aiCurWin;
+  const _aiUsed    = _aiValid ? (settings?.aiGenerationsUsed || 0) : 0;
+  const aiRemaining = Math.max(0, _aiLimit - _aiUsed);
+  const aiEnabled  = _aiLimit > 0;
 
   useEffect(() => {
     if (!orgId || !project?.id) return;
@@ -1505,11 +1580,13 @@ export function AIProjectOverview({ project, settings, onSettingsChange, orgId, 
       setOverviewData({ text, updatedAt: now });
 
       if (onSettingsChange) {
-        const curWin2 = getWeekWindowStart();
-        const wStart2 = settings?.aiGenerationsWindowStart ? new Date(settings.aiGenerationsWindowStart) : null;
-        const valid2  = wStart2 && wStart2 >= curWin2;
-        const used2   = valid2 ? (settings?.aiGenerationsUsed || 0) : 0;
-        onSettingsChange(prev => ({ ...prev, aiGenerationsUsed: used2 + 1, aiGenerationsWindowStart: valid2 ? prev.aiGenerationsWindowStart : curWin2.toISOString() }));
+        onSettingsChange(prev => {
+          const curWin = getWeekWindowStart();
+          const wStart = prev.aiGenerationsWindowStart ? new Date(prev.aiGenerationsWindowStart) : null;
+          const valid  = wStart && wStart >= curWin;
+          const used   = valid ? (prev.aiGenerationsUsed || 0) : 0;
+          return { ...prev, aiGenerationsUsed: used + 1, aiGenerationsWindowStart: valid ? prev.aiGenerationsWindowStart : curWin.toISOString() };
+        });
       }
     } catch (err) { setGenError(`Generation failed: ${err.message}`); }
     finally { setGenerating(false); }
@@ -1531,11 +1608,13 @@ export function AIProjectOverview({ project, settings, onSettingsChange, orgId, 
           {lastUpdatedLabel && (
             <span style={{ fontSize:11.5, color:"var(--text3)" }}>Last updated: {lastUpdatedLabel}</span>
           )}
-          <button className="btn btn-primary btn-sm" onClick={handleGenerate} disabled={generating}
-            style={{ display:"flex", alignItems:"center", gap:6 }}>
+          <button onClick={handleGenerate} disabled={generating}
+            style={{ height:32,padding:"0 10px",borderRadius:7,border:"none",background:generating?"rgba(139,124,248,.5)":"linear-gradient(135deg,#8b7cf8,#6c63e0)",display:"flex",alignItems:"center",justifyContent:"center",gap:5,cursor:generating?"default":"pointer",boxShadow:generating?"none":"0 2px 8px rgba(139,124,248,.45)",transition:"transform .1s,box-shadow .1s",whiteSpace:"nowrap",opacity:generating?0.8:1 }}
+            onMouseEnter={e=>{if(!generating){e.currentTarget.style.transform="scale(1.05)";e.currentTarget.style.boxShadow="0 3px 12px rgba(139,124,248,.6)";}}}
+            onMouseLeave={e=>{e.currentTarget.style.transform="scale(1)";e.currentTarget.style.boxShadow=generating?"none":"0 2px 8px rgba(139,124,248,.45)";}}>
             {generating
-              ? <><div style={{ width:11,height:11,border:"2px solid rgba(255,255,255,.4)",borderTop:"2px solid white",borderRadius:"50%",animation:"spin 0.7s linear infinite" }} />Updating\u2026</>
-              : <>&#10022; Update&nbsp;<span style={{ fontSize:10,fontWeight:700,background:"rgba(255,255,255,.2)",borderRadius:8,padding:"1px 6px" }}>1 Kraken</span></>}
+              ? <><div style={{ width:11,height:11,border:"2px solid rgba(255,255,255,.4)",borderTop:"2px solid white",borderRadius:"50%",animation:"spin 0.7s linear infinite" }} /><span style={{ fontSize:11,fontWeight:700,color:"white" }}>Updating\u2026</span></>
+              : <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg><span style={{ fontSize:11,fontWeight:700,color:"white" }}>Update</span><span style={{ fontSize:10,fontWeight:600,opacity:.85,background:"rgba(0,0,0,.22)",borderRadius:4,padding:"1px 5px" }}>{"1 \u2B21"}{aiEnabled ? <span style={{ opacity:.85 }}>{" \u00b7 "}{aiRemaining}{" left"}</span> : null}</span></>}
           </button>
         </div>
       </div>

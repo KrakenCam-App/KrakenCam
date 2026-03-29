@@ -8,7 +8,7 @@ import { hasPermissionLevel, getEffectivePermissions, DEFAULT_CL_TEMPLATES, getP
 import { uid, formatDate, formatDateTimeLabel, today, buildEmbedCode, formatDurationLabel , isPortalApprovedItem, filterPortalApprovedItems, withPortalFilteredProject, getPortalItemDateValue, formatPortalRelativeLabel, buildPortalActivity, formatFileSizeLabel, getFileExtension, isPreviewableFile, inferProjectFileKind, normaliseProjectFile, parseTagInput, decodeDataUrlText
 } from "../utils/helpers.js";
 import { getAuthHeaders } from "../lib/supabase.js";
-const REPORT_EMAIL_FEATURE_VISIBLE = false; // feature flag â email reports hidden until ready
+const REPORT_EMAIL_FEATURE_VISIBLE = false; // feature flag – email reports hidden until ready
 
 function LegacyChecklistsTab({ project, onUpdateProject }) {
   const [view,          setView]          = useState("list");   // list | run | build
@@ -166,7 +166,7 @@ function LegacyChecklistsTab({ project, onUpdateProject }) {
                   onMouseEnter={e=>e.currentTarget.style.borderColor="var(--accent)"}
                   onMouseLeave={e=>e.currentTarget.style.borderColor="var(--border)"}>
                   <div style={{ flex:1 }}>
-                    <div style={{ fontWeight:700, fontSize:13.5 }}>â Build Custom Checklist</div>
+                    <div style={{ fontWeight:700, fontSize:13.5 }}>➕ Build Custom Checklist</div>
                     <div style={{ fontSize:12, color:"var(--text2)", marginTop:2 }}>Start from scratch with any field types</div>
                   </div>
                   <Icon d={ic.chevRight} size={14} stroke="var(--text3)" />
@@ -391,8 +391,8 @@ function LegacyChecklistBuilder({ checklist, onSave, onBack }) {
           <div key={f.id} className="card" style={{ padding:0 }}>
             <div style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 14px" }}>
               <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
-                <button onClick={()=>moveField(f.id,-1)} disabled={i===0} style={{ background:"none",border:"none",cursor:i===0?"default":"pointer",color:i===0?"var(--border)":"var(--text3)",lineHeight:1,padding:0,fontSize:11 }}>â²</button>
-                <button onClick={()=>moveField(f.id,1)} disabled={i===cl.fields.length-1} style={{ background:"none",border:"none",cursor:i===cl.fields.length-1?"default":"pointer",color:i===cl.fields.length-1?"var(--border)":"var(--text3)",lineHeight:1,padding:0,fontSize:11 }}>â¼</button>
+                <button onClick={()=>moveField(f.id,-1)} disabled={i===0} style={{ background:"none",border:"none",cursor:i===0?"default":"pointer",color:i===0?"var(--border)":"var(--text3)",lineHeight:1,padding:0,fontSize:11 }}>▲</button>
+                <button onClick={()=>moveField(f.id,1)} disabled={i===cl.fields.length-1} style={{ background:"none",border:"none",cursor:i===cl.fields.length-1?"default":"pointer",color:i===cl.fields.length-1?"var(--border)":"var(--text3)",lineHeight:1,padding:0,fontSize:11 }}>▼</button>
               </div>
               <div style={{ width:28, height:28, borderRadius:6, background:"var(--surface2)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, flexShrink:0 }}>
                 {FIELD_TYPES.find(t=>t.id===f.type)?.icon || "?"}
@@ -625,13 +625,13 @@ export function ChecklistsTab({ project, onUpdateProject }) {
               <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                 {templates.map(t => (
                   <div key={t.id} onClick={() => startFromTemplate(t)} style={{ padding:"12px 14px", border:"1px solid var(--border)", borderRadius:"var(--radius-sm)", cursor:"pointer", display:"flex", alignItems:"center", gap:12, background:"var(--surface2)" }}>
-                    <div style={{ width:36, height:36, borderRadius:8, background:"var(--accent-glow)", border:"1px solid var(--accent)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0 }}>ð</div>
+                    <div style={{ width:36, height:36, borderRadius:8, background:"var(--accent-glow)", border:"1px solid var(--accent)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0 }}>📋</div>
                     <div style={{ flex:1 }}><div style={{ fontWeight:700, fontSize:13.5 }}>{t.name}</div><div style={{ fontSize:12, color:"var(--text2)", marginTop:2 }}>{t.desc} · {t.fields.length} fields</div></div>
                     <Icon d={ic.chevRight} size={14} stroke="var(--text3)" />
                   </div>
                 ))}
                 <div onClick={startBlank} style={{ padding:"12px 14px", border:"2px dashed var(--border)", borderRadius:"var(--radius-sm)", cursor:"pointer", display:"flex", alignItems:"center", gap:12 }}>
-                  <div style={{ width:36, height:36, borderRadius:8, background:"var(--surface2)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>â</div>
+                  <div style={{ width:36, height:36, borderRadius:8, background:"var(--surface2)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>➕</div>
                   <div style={{ flex:1 }}><div style={{ fontWeight:700, fontSize:13.5 }}>Build Custom Checklist</div><div style={{ fontSize:12, color:"var(--text2)", marginTop:2 }}>Start from scratch with room routing, evidence, and issues</div></div>
                   <Icon d={ic.chevRight} size={14} stroke="var(--text3)" />
                 </div>
@@ -943,8 +943,8 @@ function ChecklistBuilder({ checklist, rooms = [], onSave, onBack }) {
           <div key={f.id} className="card" style={{ padding:0 }}>
             <div style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 14px" }}>
               <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
-                <button onClick={()=>moveField(f.id,-1)} disabled={i===0} style={{ background:"none",border:"none",cursor:i===0?"default":"pointer",color:i===0?"var(--border)":"var(--text3)",lineHeight:1,padding:0,fontSize:11 }}>â²</button>
-                <button onClick={()=>moveField(f.id,1)} disabled={i===(cl.fields||[]).length-1} style={{ background:"none",border:"none",cursor:i===(cl.fields||[]).length-1?"default":"pointer",color:i===(cl.fields||[]).length-1?"var(--border)":"var(--text3)",lineHeight:1,padding:0,fontSize:11 }}>â¼</button>
+                <button onClick={()=>moveField(f.id,-1)} disabled={i===0} style={{ background:"none",border:"none",cursor:i===0?"default":"pointer",color:i===0?"var(--border)":"var(--text3)",lineHeight:1,padding:0,fontSize:11 }}>▲</button>
+                <button onClick={()=>moveField(f.id,1)} disabled={i===(cl.fields||[]).length-1} style={{ background:"none",border:"none",cursor:i===(cl.fields||[]).length-1?"default":"pointer",color:i===(cl.fields||[]).length-1?"var(--border)":"var(--text3)",lineHeight:1,padding:0,fontSize:11 }}>▼</button>
               </div>
               <div style={{ width:28, height:28, borderRadius:6, background:"var(--surface2)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, flexShrink:0 }}>{FIELD_TYPES.find(t=>t.id===f.type)?.icon || "?"}</div>
               <div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:13, fontWeight:600 }}>{f.label}{f.required && <span style={{ color:"var(--accent)",marginLeft:4 }}>*</span>}</div><div style={{ fontSize:11.5, color:"var(--text3)", marginTop:1 }}>{FIELD_TYPES.find(t=>t.id===f.type)?.label}{f.options?.length > 0 && ` · ${f.options.length} options`}{` · ${f.room || "General"}`}</div><div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:6 }}>{f.requireCommentOnFail && <span className="tag tag-orange">Comment on fail</span>}{f.requireEvidenceOnFail && <span className="tag tag-blue">Evidence on fail</span>}{f.createIssueOnFail !== false && <span className="tag tag-purple">Punchlist on fail</span>}</div></div>
@@ -1238,7 +1238,7 @@ function TemplateManagerModal({ templates, setTemplates, onClose }) {
         </div>
         {/* Manage categories section */}
         <div style={{ borderTop:"1px solid var(--border)", padding:"12px 20px" }}>
-          <div style={{ fontSize:12, fontWeight:700, color:"var(--text2)", marginBottom:8 }}>ð Manage Categories</div>
+          <div style={{ fontSize:12, fontWeight:700, color:"var(--text2)", marginBottom:8 }}>📂 Manage Categories</div>
           {/* Active categories with remove button */}
           <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:8 }}>
             {allCats.map(cat => {
@@ -1416,7 +1416,7 @@ function SendEmailModal({ project, reports, settings, onClose, onSent }) {
     .replace(/{{recipient}}/g,   recipient||"")
     .replace(/{{date}}/g,        formatDate(new Date().toISOString().slice(0,10), settings))
     .replace(/{{inspector}}/g,   `${settings?.userFirstName||""} ${settings?.userLastName||""}`.trim())
-    .replace(/{{reports_list}}/g, reports.map(r=>`  â¢ ${r.title} (${r.reportType||r.type})`).join("\n"));
+    .replace(/{{reports_list}}/g, reports.map(r=>`  • ${r.title} (${r.reportType||r.type})`).join("\n"));
 
   const QUICK_RECIPIENTS = [
     project.clientName    && project.clientEmail    ? { label:`Client — ${project.clientName}`,    email:project.clientEmail,    name:project.clientName }    : null,
@@ -1473,7 +1473,7 @@ function SendEmailModal({ project, reports, settings, onClose, onSent }) {
           {["compose","preview"].map(t=>(
             <button key={t} className="btn btn-ghost btn-sm"
               style={{ borderBottom:`2px solid ${activeTab===t?"var(--accent)":"transparent"}`,borderRadius:0,paddingBottom:10,color:activeTab===t?"var(--accent)":"var(--text2)",fontWeight:activeTab===t?700:500,textTransform:"capitalize" }}
-              onClick={()=>setActiveTab(t)}>{t==="compose"?"â Compose":"ð Preview"}</button>
+              onClick={()=>setActiveTab(t)}>{t==="compose"?"✏ Compose":"👁 Preview"}</button>
           ))}
           <div style={{ marginLeft:"auto",display:"flex",alignItems:"center",gap:6,paddingBottom:8 }}>
             <span style={{ fontSize:11.5,color:"var(--text3)" }}>Sending:</span>
@@ -1627,7 +1627,7 @@ export function VideosTab({ project, onUpdateProject, onOpenCamera, orgId }) {
             )}
             <button className="btn btn-secondary btn-sm" onClick={() => { setSelectMode(false); setSelectedIds(new Set()); }}>Cancel</button>
           </>) : (<>
-            {videos.length > 0 && <button className="btn btn-secondary btn-sm" onClick={() => setSelectMode(true)}>â Select</button>}
+            {videos.length > 0 && <button className="btn btn-secondary btn-sm" onClick={() => setSelectMode(true)}>☑ Select</button>}
             <button className="btn btn-primary btn-sm" onClick={()=>onOpenCamera(project)}>
               <Icon d={ic.video} size={14}/> Record Video
             </button>
@@ -1675,7 +1675,7 @@ export function VideosTab({ project, onUpdateProject, onOpenCamera, orgId }) {
                   </span>
                 )}
                 <span style={{ position:"absolute",top:8,left:8,fontSize:10.5,background:"rgba(0,0,0,.6)",color:"rgba(255,255,255,.85)",padding:"2px 8px",borderRadius:6 }}>
-                  ð¬ {v.room || "General"}
+                  🎬 {v.room || "General"}
                 </span>
               </div>
               {/* Meta */}
@@ -1929,7 +1929,7 @@ export function VoiceNotesTab({ project, teamUsers = [], settings = {}, onUpdate
               )}
               <button className="btn btn-secondary btn-sm" onClick={() => { setSelectMode(false); setSelectedIds(new Set()); }}>Cancel</button>
             </>) : voiceNotes.length > 0 && (
-              <button className="btn btn-secondary btn-sm" onClick={() => setSelectMode(true)}>â Select</button>
+              <button className="btn btn-secondary btn-sm" onClick={() => setSelectMode(true)}>☑ Select</button>
             )}
           </div>
         </div>
@@ -1989,7 +1989,7 @@ export function VoiceNotesTab({ project, teamUsers = [], settings = {}, onUpdate
                         <span className="tag tag-blue">{formatDurationLabel(note.durationMs)}</span>
                       </div>
                       <div style={{ fontSize:12,color:"var(--text2)",marginTop:5 }}>
-                        {note.createdByName || authorName} â¢ {formatDateTimeLabel(note.createdAt, settings)}
+                        {note.createdByName || authorName} • {formatDateTimeLabel(note.createdAt, settings)}
                       </div>
                     </div>
                   </div>
@@ -2075,6 +2075,38 @@ export function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpda
   const [imgZoom,      setImgZoom]      = useState(1);
   const [imgPan,       setImgPan]       = useState({x:0,y:0});
   const imgPanStart = useRef(null);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState(null);
+  const pdfBlobRef = useRef(null); // tracks the current blob URL for cleanup
+
+  // Fetch storage-URL PDFs as blob so browsers (Brave, Safari) can render them inline
+  useEffect(() => {
+    const vUrl = viewerFile?.dataUrl || "";
+    const isStoragePdf = viewerFile
+      && vUrl.startsWith("http")
+      && (viewerFile.type === "application/pdf" || getFileExtension(viewerFile.name) === "pdf");
+
+    if (!isStoragePdf) {
+      // Clean up previous blob URL if any
+      if (pdfBlobRef.current) { URL.revokeObjectURL(pdfBlobRef.current); pdfBlobRef.current = null; }
+      setPdfBlobUrl(null);
+      return;
+    }
+    // Reset while loading
+    setPdfBlobUrl("loading");
+    fetch(vUrl)
+      .then(r => r.blob())
+      .then(blob => {
+        if (pdfBlobRef.current) URL.revokeObjectURL(pdfBlobRef.current);
+        const blobUrl = URL.createObjectURL(blob);
+        pdfBlobRef.current = blobUrl;
+        setPdfBlobUrl(blobUrl);
+      })
+      .catch(() => setPdfBlobUrl("error"));
+    return () => {
+      if (pdfBlobRef.current) { URL.revokeObjectURL(pdfBlobRef.current); pdfBlobRef.current = null; }
+    };
+  }, [viewerFile?.id, viewerFile?.dataUrl]);
+
   const filePerms = getEffectivePermissions(settings?.userRole || "admin", settings?.userPermissions, settings);
   const filePolicies = getPermissionPolicies(settings);
   const canUploadFiles = hasPermissionLevel(filePerms, "files", "edit") && (settings?.userRole !== "user" || filePolicies.allowUserFileUploads);
@@ -2194,11 +2226,45 @@ export function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpda
   };
 
   const openFile = (file) => {
-    // Use the storage URL if available, otherwise fall back to dataUrl
-    const url = file.dataUrl?.startsWith("http") ? file.dataUrl : file.dataUrl;
+    const url = file.dataUrl;
     if (!url) { alert("File URL unavailable."); return; }
     const w = window.open(url, "_blank", "noopener,noreferrer");
     if (!w) alert("Please allow pop-ups to open files.");
+  };
+
+  // Download a file — uses fetch→blob for cross-origin Storage URLs so the
+  // browser actually saves the file instead of just opening it in a new tab.
+  const downloadFile = async (file) => {
+    const url = file.dataUrl;
+    if (!url) { alert("File URL unavailable."); return; }
+    try {
+      if (url.startsWith("http")) {
+        // Cross-origin Storage URL — must fetch as blob first
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Download failed: " + res.status);
+        const blob = await res.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = objectUrl;
+        a.download = file.name || "download";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
+      } else {
+        // data: URL — direct download anchor works fine
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = file.name || "download";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+    } catch (err) {
+      console.warn("[KrakenCam] File download failed:", err.message);
+      // Fallback: open in new tab
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
   };
 
   const toggleSelect = id => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -2278,7 +2344,7 @@ export function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpda
               )}
               <button className="btn btn-secondary btn-sm" onClick={() => { setSelectMode(false); setSelectedIds(new Set()); }}>Cancel</button>
             </>) : (<>
-              {files.length > 0 && <button className="btn btn-secondary btn-sm" onClick={() => setSelectMode(true)}>â Select</button>}
+              {files.length > 0 && <button className="btn btn-secondary btn-sm" onClick={() => setSelectMode(true)}>☑ Select</button>}
               <button className="btn btn-primary btn-sm" onClick={() => canUploadFiles && uploadRef.current?.click()} disabled={!canUploadFiles}><Icon d={ic.upload} size={13} /> Upload Files</button>
             </>)}
           </div>
@@ -2372,9 +2438,9 @@ export function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpda
                     </div>
                     <div style={{ fontSize:11.5,color:"var(--text3)",display:"flex",gap:8,flexWrap:"wrap" }}>
                       <span>{formatFileSizeLabel(file.size)}</span>
-                      <span>â¢</span>
+                      <span>•</span>
                       <span>{file.uploadedByName || "Unknown"}</span>
-                      <span>â¢</span>
+                      <span>•</span>
                       <span>{formatDateTimeLabel(file.uploadedAt, settings)}</span>
                     </div>
                   </div>
@@ -2388,7 +2454,7 @@ export function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpda
                     {availableUsers.length > 0 && <button className="btn btn-secondary btn-sm" onClick={() => { if (!canShareToDm) return; setShareFileId(file.id); setShareTargetId(availableUsers[0]?.id || ""); }} disabled={!canShareToDm}><Icon d={ic.message} size={13} /> Send to DM</button>}
                     {reports.length > 0 && <button className="btn btn-secondary btn-sm" onClick={() => { setReportFileId(file.id); setReportTargetId(reports[0]?.id || ""); }}><Icon d={ic.reports} size={13} /> Add to Report</button>}
                     {canDownloadFiles
-                      ? <a className="btn btn-ghost btn-sm" href={file.dataUrl} download={file.name}><Icon d={ic.download} size={13} /> Download</a>
+                      ? <button className="btn btn-ghost btn-sm" onClick={() => downloadFile(file)}><Icon d={ic.download} size={13} /> Download</button>
                       : <button className="btn btn-ghost btn-sm" disabled><Icon d={ic.download} size={13} /> Download</button>}
                     <button className="btn btn-ghost btn-sm btn-icon" title="Delete" style={{ color:"#e85a3a" }} onClick={() => canDeleteFiles && setConfirmDel(file.id)} disabled={!canDeleteFiles}><Icon d={ic.trash} size={14} /></button>
                   </div>
@@ -2447,10 +2513,12 @@ export function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpda
       {viewerFile && (() => {
         const vUrl       = viewerFile.dataUrl || "";
         const vIsStorage = vUrl.startsWith("http");
-        const vIsImg     = viewerFile.type?.startsWith("image/");
-        // PDFs: use <object> only for base64 (data:) — storage URLs fail silently in many browsers
-        const vIsPdfInline = viewerFile.type === "application/pdf" && !vIsStorage;
-        const vIsText    = (viewerFile.type?.startsWith("text/") || ["txt","csv","json","md"].includes(getFileExtension(viewerFile.name))) && !vIsStorage;
+        const vIsImg        = viewerFile.type?.startsWith("image/");
+        // PDFs: detect by MIME type OR .pdf extension (Supabase-loaded files may lack type)
+        const _vIsPdf       = viewerFile.type === "application/pdf" || getFileExtension(viewerFile.name) === "pdf";
+        const vIsPdfIframe  = _vIsPdf && vIsStorage;
+        const vIsPdfInline  = _vIsPdf && !vIsStorage;
+        const vIsText       = (viewerFile.type?.startsWith("text/") || ["txt","csv","json","md"].includes(getFileExtension(viewerFile.name))) && !vIsStorage;
         const onImgDown  = e => { e.preventDefault(); imgPanStart.current = { mx:e.clientX, my:e.clientY, px:imgPan.x, py:imgPan.y }; };
         const onImgMove  = e => { if (!imgPanStart.current) return; setImgPan({ x:imgPanStart.current.px+e.clientX-imgPanStart.current.mx, y:imgPanStart.current.py+e.clientY-imgPanStart.current.my }); };
         const onImgUp    = () => { imgPanStart.current = null; };
@@ -2466,7 +2534,7 @@ export function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpda
                   <button className="btn btn-sm btn-secondary" onClick={() => { setImgZoom(1); setImgPan({x:0,y:0}); }} style={{ fontSize:11 }}>Reset</button>
                   <button className="btn btn-sm btn-secondary" onClick={() => setImgZoom(z => Math.min(8,z*1.3))} style={{ minWidth:32 }}>+</button>
                   <span style={{ color:"rgba(255,255,255,.6)",fontSize:12,minWidth:44,textAlign:"center" }}>{Math.round(imgZoom*100)}%</span>
-                  <button className="btn btn-sm btn-secondary" onClick={() => setImgZoom(z => Math.max(0.2,z*0.77))} style={{ minWidth:32 }}>â</button>
+                  <button className="btn btn-sm btn-secondary" onClick={() => setImgZoom(z => Math.max(0.2,z*0.77))} style={{ minWidth:32 }}>−</button>
                 </>}
                 <button className="btn btn-sm btn-secondary" onClick={() => openFile(viewerFile)}><Icon d={ic.arrowUpRight} size={13}/> Open</button>
                 <button className="btn btn-ghost btn-sm btn-icon" style={{ color:"white" }} onClick={closeViewer}><Icon d={ic.close} size={20}/></button>
@@ -2481,7 +2549,27 @@ export function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpda
                     style={{ transform:`translate(${imgPan.x}px,${imgPan.y}px) scale(${imgZoom})`,transformOrigin:"center",maxWidth:"90vw",maxHeight:"90vh",objectFit:"contain",pointerEvents:"none" }}
                   />
                 </div>
+              ) : vIsPdfIframe ? (
+                /* Storage URL PDF — fetch as blob first to avoid Brave/Safari blocking inline rendering */
+                pdfBlobUrl === "loading" ? (
+                  <div style={{ color:"rgba(255,255,255,.6)",fontSize:14 }}>Loading PDF…</div>
+                ) : pdfBlobUrl && pdfBlobUrl !== "error" ? (
+                  <object data={pdfBlobUrl} type="application/pdf" style={{ width:"100%",height:"100%",border:"none" }}>
+                    <div style={{ textAlign:"center",padding:40,color:"rgba(255,255,255,.7)" }}>
+                      <div style={{ fontSize:15,marginBottom:16,color:"white" }}>PDF cannot display inline.</div>
+                      <button className="btn btn-primary" onClick={() => openFile(viewerFile)}><Icon d={ic.arrowUpRight} size={14}/> Open in New Tab</button>
+                    </div>
+                  </object>
+                ) : (
+                  <div style={{ textAlign:"center",color:"rgba(255,255,255,.7)",padding:40 }}>
+                    <div style={{ fontSize:56,marginBottom:16 }}>📄</div>
+                    <div style={{ fontSize:15,fontWeight:600,color:"white",marginBottom:8 }}>{viewerFile.name}</div>
+                    <div style={{ fontSize:13,marginBottom:24,color:"rgba(255,255,255,.5)" }}>PDF preview unavailable. Open in your browser's PDF viewer.</div>
+                    <button className="btn btn-primary" onClick={() => openFile(viewerFile)}><Icon d={ic.arrowUpRight} size={14}/> Open in New Tab</button>
+                  </div>
+                )
               ) : vIsPdfInline ? (
+                /* data: URL PDF — use object tag (works for base64 in Chrome/Firefox) */
                 <object data={vUrl} type="application/pdf" style={{ width:"100%",height:"100%",border:"none" }}>
                   <div style={{ textAlign:"center",padding:40,color:"rgba(255,255,255,.7)" }}>
                     <div style={{ fontSize:15,marginBottom:16,color:"white" }}>PDF cannot display inline.</div>
@@ -2497,7 +2585,7 @@ export function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpda
               ) : (
                 /* Storage URL PDF, unsupported type, or anything else → Open in New Tab */
                 <div style={{ textAlign:"center",color:"rgba(255,255,255,.7)",padding:40 }}>
-                  <div style={{ fontSize:56,marginBottom:16 }}>ð</div>
+                  <div style={{ fontSize:56,marginBottom:16 }}>📄</div>
                   <div style={{ fontSize:15,fontWeight:600,color:"white",marginBottom:8 }}>{viewerFile.name}</div>
                   <div style={{ fontSize:13,marginBottom:24,color:"rgba(255,255,255,.5)" }}>
                     {viewerFile.type === "application/pdf" ? "PDF preview opens in your browser's PDF viewer." : "Preview not available for this file type."}
@@ -2771,7 +2859,7 @@ function ClientPortalPreview({ project, settings = {}, portal, onAddClientNote }
                   </div>
                   <div style={{ padding:"12px 12px 13px" }}>
                     <div style={{ fontSize:13.5,fontWeight:700,color:"#17324d" }}>{photo.name || "Project photo"}</div>
-                    <div style={{ fontSize:12.5,color:"#6c849b",marginTop:4 }}>{photo.room || "General"}{photo.floor ? ` â¢ ${photo.floor}` : ""}</div>
+                    <div style={{ fontSize:12.5,color:"#6c849b",marginTop:4 }}>{photo.room || "General"}{photo.floor ? ` • ${photo.floor}` : ""}</div>
                   </div>
                 </div>
               ))}
@@ -2824,7 +2912,7 @@ function ClientPortalPreview({ project, settings = {}, portal, onAddClientNote }
                   <div style={{ width:42,height:42,borderRadius:14,background:"#fff2e5",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}><Icon d={ic.reports} size={18} stroke="#f0954e" /></div>
                   <div style={{ flex:1,minWidth:0 }}>
                     <div style={{ fontSize:13.5,fontWeight:700,color:"#17324d" }}>{report.title || report.type || "Project report"}</div>
-                    <div style={{ fontSize:12.5,color:"#6c849b",marginTop:3 }}>{report.type || "Report"}{report.createdAt ? ` â¢ ${formatPortalRelativeLabel(report.createdAt)}` : ""}</div>
+                    <div style={{ fontSize:12.5,color:"#6c849b",marginTop:3 }}>{report.type || "Report"}{report.createdAt ? ` • ${formatPortalRelativeLabel(report.createdAt)}` : ""}</div>
                   </div>
                 </div>
               ))}
@@ -2833,7 +2921,7 @@ function ClientPortalPreview({ project, settings = {}, portal, onAddClientNote }
                   <div style={{ width:42,height:42,borderRadius:14,background:"#e9f2ff",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}><Icon d={ic.folder} size={18} stroke={brandColor} /></div>
                   <div style={{ flex:1,minWidth:0 }}>
                     <div style={{ fontSize:13.5,fontWeight:700,color:"#17324d" }}>{file.name || "Shared file"}</div>
-                    <div style={{ fontSize:12.5,color:"#6c849b",marginTop:3 }}>{file.category || file.kind || "Project file"}{file.size ? ` â¢ ${formatFileSizeLabel(file.size)}` : ""}</div>
+                    <div style={{ fontSize:12.5,color:"#6c849b",marginTop:3 }}>{file.category || file.kind || "Project file"}{file.size ? ` • ${formatFileSizeLabel(file.size)}` : ""}</div>
                   </div>
                   {file.dataUrl && <a href={file.dataUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize:12.5,fontWeight:700,color:brandColor,textDecoration:"none" }}>Open</a>}
                 </div>
@@ -3008,7 +3096,7 @@ export function ClientPortalTab({ project, settings = {}, onUpdateProject }) {
     portal.shareFiles ? `${filterPortalApprovedItems(project.files).length || 0} approved files` : null,
   ].filter(Boolean);
   const approvalSections = [
-    { key:"photos", title:"Approved Photos", enabled:portal.sharePhotos, items:(project.photos || []).slice().sort((a,b) => getPortalItemDateValue(b) - getPortalItemDateValue(a)), label:item => item.name || "Project photo", sub:item => `${item.room || "General"}${item.floor ? ` â¢ ${item.floor}` : ""}`, previewKind:"image" },
+    { key:"photos", title:"Approved Photos", enabled:portal.sharePhotos, items:(project.photos || []).slice().sort((a,b) => getPortalItemDateValue(b) - getPortalItemDateValue(a)), label:item => item.name || "Project photo", sub:item => `${item.room || "General"}${item.floor ? ` • ${item.floor}` : ""}`, previewKind:"image" },
     { key:"videos", title:"Approved Videos", enabled:portal.shareVideos, items:(project.videos || []).slice().sort((a,b) => getPortalItemDateValue(b) - getPortalItemDateValue(a)), label:item => item.name || "Project video", sub:item => item.room || "General area", previewKind:"video" },
     { key:"sketches", title:"Approved Sketches", enabled:portal.shareSketches, items:(project.sketches || []).slice().sort((a,b) => getPortalItemDateValue(b) - getPortalItemDateValue(a)), label:item => item.title || "Project sketch", sub:item => item.floorLabel || item.roomTag || "Shared drawing", previewKind:"image" },
     { key:"reports", title:"Approved Reports", enabled:portal.shareReports, items:(project.reports || []).slice().sort((a,b) => getPortalItemDateValue(b) - getPortalItemDateValue(a)), label:item => item.title || item.type || "Project report", sub:item => item.type || "Report", previewKind:"report" },
@@ -3569,7 +3657,7 @@ export function BAPairCard({ pair, bPhoto, aPhoto, onDelete, settings }) {
           {/* Copy button */}
           <div style={{ display:"flex",justifyContent:"flex-end",marginTop:8,gap:8 }}>
             <div style={{ fontSize:11,color:"var(--text3)",alignSelf:"center" }}>
-              â  Images are embedded as data — keep file sizes reasonable.
+              ⚠ Images are embedded as data — keep file sizes reasonable.
             </div>
             <button className="btn btn-primary btn-sm" onClick={copyEmbed}
               style={{ minWidth:130,background:embedCopied?"#3dba7e":undefined,borderColor:embedCopied?"#3dba7e":undefined,transition:"background .2s" }}>
