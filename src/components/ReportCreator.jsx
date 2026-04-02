@@ -9,6 +9,7 @@ import {
 } from "./ReportRestorationBlocks.jsx";
 import { PLAN_AI_LIMITS, canAccessFeature, getWeekWindowStart, getNextResetDate } from "../utils/constants.js";
 import { checkAiPermission, logAiEvent, deductKrakens, KRAKEN_COSTS, getOneClickCost } from "../lib/krakenUsage.js";
+import { getProjectSubcontractors } from "../lib/projects.js";
 import { AiBlockedModal } from "./KrakenUsageBar.jsx";
 import {
   uid, formatDate, formatTime, formatDateTimeLabel,
@@ -379,7 +380,7 @@ export function ScaledReportPreview({ zoomMult = 1, ...props }) {
   );
 }
 
-export function ReportPages({ title, reportType, reportDate, reportTime, accentColor, project, coverPhoto, blocks, settings, showCoverInfo, showGps, showTimestamp, showRooms, showTags, gridClass, forPrint = false, showSections = { dates:true, contractor:true, insurance:true, site:true } }) {
+export function ReportPages({ title, reportType, reportDate, reportTime, accentColor, project, coverPhoto, blocks, settings, showCoverInfo, showGps, showTimestamp, showRooms, showTags, gridClass, forPrint = false, showSections = { dates:true, contractor:true, insurance:true, site:true }, subcontractors = [] }) {
   const today = reportDate ? formatDate(reportDate, settings) : formatDate(new Date().toISOString().slice(0,10), settings);
 
   // ── Page 1: cover + property info (always fills exactly one page) ──
@@ -418,7 +419,7 @@ export function ReportPages({ title, reportType, reportDate, reportTime, accentC
             <div style={{ fontSize:20,fontWeight:700,color:"white",marginBottom:4,lineHeight:1.2 }}>{title}</div>
             <div style={{ fontSize:11.5,color:"rgba(255,255,255,.75)",display:"flex",gap:12,flexWrap:"wrap" }}>
               {project.address && <span>📍 {[project.address,project.city,project.state].filter(Boolean).join(", ")}</span>}
-              {project.clientName && <span>👤 {project.clientName}</span>}
+              {([project.clientFirstName,project.clientLastName].filter(Boolean).join(' ')||project.clientName) && <span>👤 {[project.clientFirstName,project.clientLastName].filter(Boolean).join(' ')||project.clientName}</span>}
             </div>
           </div>
         )}
@@ -440,7 +441,7 @@ export function ReportPages({ title, reportType, reportDate, reportTime, accentC
 
         const hasInsurance = project.insuranceEnabled && (project.insuranceCarrier||project.insurancePolicyNum||project.claimNumber||project.adjusterName);
         const hasSiteConditions = project.accessLimitations||project.powerStatus||project.waterStatus||(project.ppeItems?.length > 0);
-        const hasDates = project.dateInspection||project.dateWorkPerformed||project.dateOfLoss;
+        const hasDates = project.dateInspection||project.dateWorkPerformed||project.completionDate||project.dateOfLoss;
 
         return (
           <div style={{ padding:"14px 36px",flex:1,overflowY:"auto",fontSize:11 }}>
@@ -450,8 +451,10 @@ export function ReportPages({ title, reportType, reportDate, reportTime, accentC
               <InfoRow label="Property Address" value={[project.address,project.city,project.state,project.zip].filter(Boolean).join(", ")} />
               <InfoRow label="Property Type"    value={project.propertyType} />
               <InfoRow label="Project #"        value={project.projectNumber} />
-              <InfoRow label="Client"           value={project.clientName} />
+              <InfoRow label="Client"           value={[project.clientFirstName,project.clientLastName].filter(Boolean).join(' ')||project.clientName} />
+              <InfoRow label="Business"         value={project.clientBusinessName} />
               <InfoRow label="Client Phone"     value={project.clientPhone} />
+              <InfoRow label="Client Cell"      value={project.clientCellPhone} />
               <InfoRow label="Client Email"     value={project.clientEmail} />
               <InfoRow label="Relationship"     value={project.clientRelationship} />
               <InfoRow label="Occupancy"        value={project.occupancyStatus} />
@@ -465,15 +468,32 @@ export function ReportPages({ title, reportType, reportDate, reportTime, accentC
                 <InfoRow label="Time of Inspection"   value={formatTime(project.timeInspection, settings)} />
                 <InfoRow label="Date Work Performed"  value={formatDate(project.dateWorkPerformed, settings)} />
                 <InfoRow label="Time Work Performed"  value={formatTime(project.timeWorkPerformed, settings)} />
+                <InfoRow label="Completion Date"      value={formatDate(project.completionDate, settings)} />
+                <InfoRow label="Completion Time"      value={formatTime(project.completionTime, settings)} />
                 {project.dateOfLoss && <InfoRow label="Date of Loss" value={project.dateOfLoss} />}
                 <InfoRow label="Report Date" value={reportDate ? formatDate(reportDate, settings) : today} />
               </>}
 
               {/* Contractor */}
-              {project.contractorName && showSections.contractor && <SectionHead label="Contractor / Inspector" />}
+              {(project.contractorName || subcontractors.length > 0) && showSections.contractor && <SectionHead label="Contractor / Inspector" />}
               {showSections.contractor && <>
                 <InfoRow label="Contractor / Inspector" value={project.contractorName} />
                 <InfoRow label="Contractor Phone"       value={project.contractorPhone} />
+                {subcontractors.length > 0 && (
+                  <div style={{ gridColumn:"1/-1", marginTop: project.contractorName ? 4 : 0 }}>
+                    <div style={{ fontSize:8.5,fontWeight:700,textTransform:"uppercase",letterSpacing:".07em",color:"#999",marginBottom:4 }}>Subcontractors</div>
+                    <div style={{ display:"flex",flexDirection:"column",gap:4 }}>
+                      {subcontractors.map((sub, i) => (
+                        <div key={sub.id||i} style={{ background:"#f7f7f7",border:"1px solid #e8e8e8",borderRadius:4,padding:"4px 8px",fontSize:9.5,lineHeight:1.4 }}>
+                          <span style={{ fontWeight:700 }}>{sub.companyName}</span>
+                          {sub.serviceDescription && <span style={{ color:"#666",marginLeft:6 }}>· {sub.serviceDescription}</span>}
+                          {sub.contactName && <span style={{ color:"#888",marginLeft:6 }}>· {sub.contactName}</span>}
+                          {sub.phoneNumber && <span style={{ color:"#888",marginLeft:6 }}>· {sub.phoneNumber}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </>}
 
               {/* Insurance */}
@@ -1318,7 +1338,7 @@ function AiOneClickModal({ project, settings, onGenerate, onClose, onUsageIncrem
   );
 }
 
-export function ReportCreator({ project, reportData, settings, onSettingsChange, templates, users, onSave, onClose, onUpgradeAi, userRole }) {
+export function ReportCreator({ project, reportData, settings, onSettingsChange, templates, users, onSave, onAutoSave, onClose, onUpgradeAi, userRole }) {
   const isNew = !reportData;
   const coverRef  = useRef();
   const photoLayout = settings?.reportPhotoLayout || "3 per row";
@@ -1360,6 +1380,15 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
   const [previewZoom,   setPreviewZoom]   = useState(1.0);
   const [showSections,  setShowSections]  = useState({ dates:true, contractor:true, insurance:true, site:true });
   const [showSigModal,  setShowSigModal]  = useState(false);
+
+  // ── Subcontractors (loaded async from separate DB table) ──
+  const [projectSubcontractors, setProjectSubcontractors] = useState([]);
+  useEffect(() => {
+    if (!project?.id) return;
+    getProjectSubcontractors(project.id)
+      .then(subs => setProjectSubcontractors(subs))
+      .catch(() => {}); // non-fatal
+  }, [project?.id]);
   const [signatureTargetId, setSignatureTargetId] = useState(null);
 
   // ── Content blocks ──
@@ -1445,9 +1474,9 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
   // 'saved' = just saved (fades back to idle after 3s)
   // 'failed' = last save attempt threw
   const [saveStatus,     setSaveStatus]     = useState('idle');
-  const latestStateRef   = useRef({});
-  const autoSaveTimerRef = useRef(null);
-  const hasAutoSaveInit  = useRef(false);
+  const latestStateRef  = useRef({});
+  // Stable report ID: reuse reportData.id for existing reports, generate once for new ones
+  const autoSaveIdRef   = useRef(reportData?.id || uid());
 
   const printLayerRef = useRef(null);
   const aiEnabled = (PLAN_AI_LIMITS[settings?.plan || "base"] || 0) > 0;
@@ -1610,44 +1639,43 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
     const r = new FileReader(); r.onload = ev => setCoverPhoto(ev.target.result); r.readAsDataURL(f);
   };
 
-  // Keep latestStateRef in sync so the debounced timer always reads fresh state
+  // Keep latestStateRef in sync so the interval callback always reads fresh state
   useEffect(() => {
     latestStateRef.current = { title, reportType, reportDate, reportTime, status, coverPhoto, blocks };
   }, [title, reportType, reportDate, reportTime, status, coverPhoto, blocks]);
 
-  // Mark dirty + schedule auto-save (skip very first render)
+  // Auto-save every 2 minutes on a fixed schedule (not triggered by edits).
+  // Uses onAutoSave if provided — that callback saves without closing the editor.
+  // Falls back to onSave only if onAutoSave is not wired up.
   useEffect(() => {
-    if (!hasAutoSaveInit.current) { hasAutoSaveInit.current = true; return; }
-    setSaveStatus('unsaved');
-    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    autoSaveTimerRef.current = setTimeout(() => {
+    const intervalId = setInterval(() => {
       const s = latestStateRef.current;
       setSaveStatus('saving');
       try {
         const saved = {
-          id: reportData?.id || uid(),
+          id: autoSaveIdRef.current,
           title: s.title, reportType: s.reportType,
           reportDate: s.reportDate, reportTime: s.reportTime,
           status: s.status, coverPhoto: s.coverPhoto, blocks: s.blocks,
           date: today(),
           photos: (s.blocks||[]).reduce((a,b) => a+(b.photos?.length||0), 0),
         };
-        onSave(saved);
+        const autoSaveFn = onAutoSave || onSave;
+        autoSaveFn(saved);
         setSaveStatus('saved');
         setTimeout(() => setSaveStatus(cur => cur==='saved' ? 'idle' : cur), 3000);
       } catch(err) {
         setSaveStatus('failed');
       }
-    }, 2500);
-    return () => clearTimeout(autoSaveTimerRef.current);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [blocks, title, reportType, reportDate, reportTime, coverPhoto, status]);
+    }, 120000); // every 2 minutes
+    return () => clearInterval(intervalId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // mount/unmount only — reads fresh state via latestStateRef
 
   const handleSaveReport = () => {
-    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     setSaveStatus('saving');
     try {
-      const saved = { id: reportData?.id || uid(), title, reportType, reportDate, reportTime, status, coverPhoto, blocks, date: today(), photos: blocks.reduce((a,b)=>a+(b.photos?.length||0),0) };
+      const saved = { id: autoSaveIdRef.current, title, reportType, reportDate, reportTime, status, coverPhoto, blocks, date: today(), photos: blocks.reduce((a,b)=>a+(b.photos?.length||0),0) };
       onSave(saved);
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus(cur => cur==='saved' ? 'idle' : cur), 3000);
@@ -1903,7 +1931,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                     <div style={{ fontSize:22,fontWeight:700,color:"white",marginBottom:6,lineHeight:1.2 }}>{title}</div>
                     <div style={{ fontSize:12,color:"rgba(255,255,255,.75)",display:"flex",gap:12,flexWrap:"wrap" }}>
                       {project.address && <span>📍 {[project.address,project.city,project.state].filter(Boolean).join(", ")}</span>}
-                      {project.clientName && <span>👤 {project.clientName}</span>}
+                      {([project.clientFirstName,project.clientLastName].filter(Boolean).join(' ')||project.clientName) && <span>👤 {[project.clientFirstName,project.clientLastName].filter(Boolean).join(' ')||project.clientName}</span>}
                       {project.type && <span>🏷 {project.type}</span>}
                     </div>
                   </div>
@@ -1919,8 +1947,10 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                     ["Property Address", [project.address,project.city,project.state,project.zip].filter(Boolean).join(", ")||"—"],
                     ["Property Type",    project.propertyType],
                     ["Project #",        project.projectNumber],
-                    ["Client",           project.clientName],
+                    ["Client",           [project.clientFirstName,project.clientLastName].filter(Boolean).join(' ')||project.clientName],
+                    ["Business",         project.clientBusinessName],
                     ["Client Phone",     project.clientPhone],
+                    ["Client Cell",      project.clientCellPhone],
                     ["Client Email",     project.clientEmail],
                     ["Relationship",     project.clientRelationship],
                     ["Occupancy Status", project.occupancyStatus],
@@ -1936,7 +1966,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
               </div>
 
               {/* Key Dates */}
-              {showSections.dates && (project.dateInspection||project.dateWorkPerformed||project.dateOfLoss) && (
+              {showSections.dates && (project.dateInspection||project.dateWorkPerformed||project.completionDate||project.dateOfLoss) && (
                 <div className="rp-section">
                   <div className="rp-section-title" style={{ "--sec-color":accentColor }}>Key Dates</div>
                   <div className="rp-info-grid">
@@ -1945,6 +1975,8 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                       ["Time of Inspection",  formatTime(project.timeInspection, settings)],
                       ["Date Work Performed", formatDate(project.dateWorkPerformed, settings)],
                       ["Time Work Performed", formatTime(project.timeWorkPerformed, settings)],
+                      ["Completion Date",     formatDate(project.completionDate, settings)],
+                      ["Completion Time",     formatTime(project.completionTime, settings)],
                       ["Date of Loss",        formatDate(project.dateOfLoss, settings)],
                       ["Report Date",         formatDate(new Date().toISOString().slice(0,10), settings)],
                     ].filter(([,v])=>v).map(([label,value]) => (
@@ -1958,7 +1990,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
               )}
 
               {/* Contractor */}
-              {showSections.contractor && project.contractorName && (
+              {showSections.contractor && (project.contractorName || projectSubcontractors.length > 0) && (
                 <div className="rp-section">
                   <div className="rp-section-title" style={{ "--sec-color":accentColor }}>Contractor / Inspector</div>
                   <div className="rp-info-grid">
@@ -1971,6 +2003,21 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                         <div className="rp-info-value">{value}</div>
                       </div>
                     ))}
+                    {projectSubcontractors.length > 0 && (
+                      <div className="rp-info-row" style={{ gridColumn:"1/-1", marginTop: project.contractorName ? 8 : 0 }}>
+                        <div className="rp-info-label" style={{ marginBottom:6 }}>Subcontractors</div>
+                        <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
+                          {projectSubcontractors.map((sub, i) => (
+                            <div key={sub.id||i} style={{ background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 10px",fontSize:11.5 }}>
+                              <span style={{ fontWeight:600 }}>{sub.companyName}</span>
+                              {sub.serviceDescription && <span style={{ color:"var(--text2)",marginLeft:8 }}>· {sub.serviceDescription}</span>}
+                              {sub.contactName && <span style={{ color:"var(--text3)",marginLeft:8 }}>· {sub.contactName}</span>}
+                              {sub.phoneNumber && <span style={{ color:"var(--text3)",marginLeft:8 }}>· {sub.phoneNumber}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -3075,7 +3122,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
           project={project} coverPhoto={coverPhoto} blocks={blocks}
           settings={settings} showCoverInfo={showCoverInfo}
           showGps={showGps} showTimestamp={showTimestamp} showRooms={showRooms} showTags={showTags}
-          gridClass={gridClass} forPrint={true} showSections={showSections}
+          gridClass={gridClass} forPrint={true} showSections={showSections} subcontractors={projectSubcontractors}
         />
       </div>
 
@@ -3112,7 +3159,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
               project={project} coverPhoto={coverPhoto} blocks={blocks}
               settings={settings} showCoverInfo={showCoverInfo}
               showGps={showGps} showTimestamp={showTimestamp} showRooms={showRooms} showTags={showTags}
-              gridClass={gridClass} showSections={showSections}
+              gridClass={gridClass} showSections={showSections} subcontractors={projectSubcontractors}
             />
           </div>
         </div>
