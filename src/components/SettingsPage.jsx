@@ -831,6 +831,73 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
               </div>
             </div>
           </div>
+
+          {/* Report Permissions — admin/manager only */}
+          {(form.userRole === "admin" || form.userRole === "manager") && (
+            <div className="card" style={{ marginTop:16, border:"1.5px solid var(--accent)", borderRadius:"var(--radius)" }}>
+              <div className="card-header">
+                <span style={{ fontWeight:700 }}>Report Permissions</span>
+                <span style={{ fontSize:11,padding:"2px 8px",background:"var(--accent)",color:"white",borderRadius:999,fontWeight:700,marginLeft:8 }}>Admin / Manager</span>
+              </div>
+              <div className="card-body">
+                <div style={{ fontSize:12.5,color:"var(--text2)",marginBottom:16,lineHeight:1.6 }}>
+                  Control who can publish, finalize, or export reports across your organization.
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Who can mark reports as Final?</label>
+                    <select className="form-input form-select" value={form.reportFinalizeRole||"admin"} onChange={e => set("reportFinalizeRole", e.target.value)}>
+                      <option value="admin">Admin only</option>
+                      <option value="manager">Admin &amp; Manager</option>
+                      <option value="all">All team members</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Who can export / print reports?</label>
+                    <select className="form-input form-select" value={form.reportExportRole||"manager"} onChange={e => set("reportExportRole", e.target.value)}>
+                      <option value="admin">Admin only</option>
+                      <option value="manager">Admin &amp; Manager</option>
+                      <option value="all">All team members</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Report Number Prefix</label>
+                    <input className="form-input" value={form.reportNumberPrefix||""} onChange={e => set("reportNumberPrefix", e.target.value)} placeholder="e.g. RPT-, INS-, 2025-" />
+                    <div style={{ fontSize:11,color:"var(--text3)",marginTop:4 }}>Applied to auto-generated report IDs.</div>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Default New Report Status</label>
+                    <select className="form-input form-select" value={form.reportDefaultStatus||"draft"} onChange={e => set("reportDefaultStatus", e.target.value)}>
+                      <option value="draft">Draft</option>
+                      <option value="review">In Review</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Required Sections in All Reports</label>
+                  <div style={{ display:"flex",flexWrap:"wrap",gap:8,marginTop:4 }}>
+                    {["Cover Page","Property Information","Scope of Work","Observations","Photo Documentation","Sign Off"].map(sec => {
+                      const required = (form.reportRequiredSections||[]).includes(sec);
+                      return (
+                        <div key={sec} onClick={() => {
+                          const current = form.reportRequiredSections||[];
+                          set("reportRequiredSections", required ? current.filter(s=>s!==sec) : [...current,sec]);
+                        }} style={{ display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:8,border:`1.5px solid ${required?"var(--accent)":"var(--border)"}`,background:required?"var(--accent-light, rgba(43,127,232,.08))":"var(--surface2)",cursor:"pointer",transition:"all .15s",fontSize:12,fontWeight:required?700:400,color:required?"var(--accent)":"var(--text2)" }}>
+                          <div style={{ width:12,height:12,borderRadius:3,border:`1.5px solid ${required?"var(--accent)":"var(--border)"}`,background:required?"var(--accent)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
+                            {required && <svg width="8" height="8" viewBox="0 0 10 10"><polyline points="1.5 5.5 4 8 8.5 2" stroke="white" strokeWidth="1.8" fill="none"/></svg>}
+                          </div>
+                          {sec}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{ fontSize:11,color:"var(--text3)",marginTop:6 }}>Marked sections are highlighted in the report editor when missing.</div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

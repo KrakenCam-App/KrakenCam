@@ -1,7 +1,15 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../lib/supabase";
+import { generateMapSnapshot } from "./PropertyMapTab";
 import { Icon, ic } from "../utils/icons.jsx";
+import {
+  MoistureDataBlock, EquipmentLogBlock, DryingTimelineBlock,
+  RestorationToolsPopup,
+  MoistureDataBlockPrint, EquipmentLogBlockPrint, DryingTimelineBlockPrint,
+} from "./ReportRestorationBlocks.jsx";
 import { PLAN_AI_LIMITS, canAccessFeature, getWeekWindowStart, getNextResetDate } from "../utils/constants.js";
+import { checkAiPermission, logAiEvent, deductKrakens, KRAKEN_COSTS, getOneClickCost } from "../lib/krakenUsage.js";
+import { AiBlockedModal } from "./KrakenUsageBar.jsx";
 import {
   uid, formatDate, formatTime, formatDateTimeLabel,
   estimateBlockHeight, paginateBlocks, today,
@@ -43,7 +51,11 @@ export function PageFooter({ accentColor, settings, reportDate, reportTime, page
   );
 }
 
-export function BlockRenderer({ block, showGps, showTimestamp, showRooms, showTags, gridClass, settings, allBlocks = [] }) {
+export function BlockRenderer({ block, showGps, showTimestamp, showRooms, showTags, gridClass, settings, allBlocks = [], project = {} }) {
+  // ── RESTORATION blocks — print renderers ───────────────────────────────────
+  if (block.type === "moisture_data")   return <MoistureDataBlockPrint    block={block} settings={settings} />;
+  if (block.type === "equipment_log")   return <EquipmentLogBlockPrint    block={block} settings={settings} />;
+  if (block.type === "drying_timeline") return <DryingTimelineBlockPrint  block={block} settings={settings} />;
   // ── TABLE OF CONTENTS block ──────────────────────────────────────────────────
   if (block.type === "toc") {
     const dividers = allBlocks.filter(b => b.type === "divider");
@@ -139,6 +151,7 @@ export function BlockRenderer({ block, showGps, showTimestamp, showRooms, showTa
         background:block.textStyle?.highlight?"#ffe066":"transparent",
         padding:block.textStyle?.highlight?"2px 4px":"0",
         borderRadius:block.textStyle?.highlight?3:0,
+        textAlign:block.textStyle?.align||"left",
       }} dangerouslySetInnerHTML={{ __html: block.content||"" }} />
     </div>
   );
@@ -279,6 +292,18 @@ export function BlockRenderer({ block, showGps, showTimestamp, showRooms, showTa
             {block.caption && <div style={{ fontSize:10.5,color:"#888",textAlign:"center",marginTop:5,fontStyle:"italic" }}>{block.caption}</div>}
           </div>
         : <div style={{ background:"#f8f8f8",border:"1.5px dashed #ccc",borderRadius:6,padding:"20px",textAlign:"center",color:"#bbb",fontSize:11 }}>Sketch not available</div>
+      }
+    </div>
+  );
+  if (block.type === "map") return (
+    <div style={{ padding:"6px 36px 14px" }}>
+      {block.mapTitle && <div style={{ fontSize:12,fontWeight:700,color:"#444",textAlign:"center",marginBottom:6 }}>{block.mapTitle}</div>}
+      {block.dataUrl
+        ? <div>
+            <img src={block.dataUrl} alt={block.mapTitle||"Site Plan"} style={{ width:"100%",borderRadius:4,border:"1px solid #e8e8e8",display:"block" }} />
+            {block.caption && <div style={{ fontSize:10.5,color:"#888",textAlign:"center",marginTop:5,fontStyle:"italic" }}>{block.caption}</div>}
+          </div>
+        : <div style={{ background:"#f8f8f8",border:"1.5px dashed #ccc",borderRadius:6,padding:"20px",textAlign:"center",color:"#bbb",fontSize:11 }}>Site plan snapshot not generated</div>
       }
     </div>
   );
@@ -536,7 +561,7 @@ export function ReportPages({ title, reportType, reportDate, reportTime, accentC
               <BlockRenderer key={block.id} block={block.type==="beforeafter" ? (() => {
                 const pair = (project.beforeAfterPairs||[]).find(p=>p.id===block.baPairId);
                 return { ...block, _bPhoto: pair ? (project.photos||[]).find(p=>p.id===pair.beforeId) : null, _aPhoto: pair ? (project.photos||[]).find(p=>p.id===pair.afterId) : null };
-              })() : block} showGps={showGps} showTimestamp={showTimestamp} showRooms={showRooms} showTags={showTags} gridClass={gridClass} settings={settings} allBlocks={blocks} />
+              })() : block} showGps={showGps} showTimestamp={showTimestamp} showRooms={showRooms} showTags={showTags} gridClass={gridClass} settings={settings} allBlocks={blocks} project={project} />
             ))}
           </div>
           {/* Footer */}
@@ -684,16 +709,17 @@ export function SignatureDrawModal({ onSave, onClose }) {
 }
 
 const BLOCK_TYPES = [
-  { id:"toc",         label:"Table of Contents", icon:"M4 6h16 M4 10h10 M4 14h16 M4 18h10", singleton:true },
-  { id:"text",        label:"Text Block",        icon:ic.text      },
-  { id:"table",       label:"Table",             icon:"M3 3h18v18H3V3z M3 9h18 M3 15h18 M9 3v18 M15 3v18" },
-  { id:"photos",      label:"Photo Grid",        icon:ic.image     },
-  { id:"files",       label:"File List",         icon:ic.folder    },
-  { id:"textphoto",   label:"Text + Photo",      icon:ic.copy      },
-  { id:"beforeafter", label:"Before & After",    icon:ic.layers    },
-  { id:"sketch",      label:"Sketch / Map",      icon:ic.sketch    },
-  { id:"divider",     label:"Section Divider",   icon:ic.hash      },
-  { id:"signature",   label:"Signature",         icon:"M12 19l7-7-7-7 M5 12h14" },
+  { id:"toc",              label:"Table of Contents", icon:"M4 6h16 M4 10h10 M4 14h16 M4 18h10", singleton:true },
+  { id:"text",             label:"Text Block",        icon:ic.text      },
+  { id:"table",            label:"Table",             icon:"M3 3h18v18H3V3z M3 9h18 M3 15h18 M9 3v18 M15 3v18" },
+  { id:"photos",           label:"Photo Grid",        icon:ic.image     },
+  { id:"files",            label:"File List",         icon:ic.folder    },
+  { id:"textphoto",        label:"Text + Photo",      icon:ic.copy      },
+  { id:"beforeafter",      label:"Before & After",    icon:ic.layers    },
+  { id:"sketch",           label:"Sketch",            icon:ic.sketch    },
+  { id:"map",              label:"Site Plan",         icon:"M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" },
+  { id:"divider",          label:"Section Divider",   icon:ic.hash      },
+  { id:"signature",        label:"Signature",         icon:"M12 19l7-7-7-7 M5 12h14" },
 ];
 
 // Scrollable block-type picker that fits in a fixed bar without overflowing
@@ -756,12 +782,13 @@ export function AiWriterModal({ block, project, settings, onAccept, onClose, onU
   const [error,     setError]     = useState("");
   const promptRef = useRef();
 
-  const blockLabel = block.label || block.sketchTitle || (
+  const blockLabel = block.label || block.sketchTitle || block.mapTitle || (
     block.type==="text"      ? "Report Text" :
     block.type==="table"     ? "Data Table" :
     block.type==="textphoto" ? "Text + Photo" :
     block.type==="divider"   ? "Section Divider" :
     block.type==="toc"       ? "Table of Contents" :
+    block.type==="map"       ? "Site Plan" :
     block.type==="signature" ? "Signature Block" : "Block"
   );
 
@@ -1094,6 +1121,60 @@ export function AiWriterUpgradeModal({ onUpgrade, onClose, isAdmin, settings, us
 }
 
 
+// ── Map Block Editor ──────────────────────────────────────────────────────────
+function MapBlockEditor({ block, project, updateBlock }) {
+  const [maps,       setMaps]       = useState([]);
+  const [loadingMaps, setLoadingMaps] = useState(true);
+  const [generating,  setGenerating]  = useState(false);
+  const [selectedMapId, setSelectedMapId] = useState(block.mapId || "");
+
+  useEffect(() => {
+    if (!project?.id) return;
+    setLoadingMaps(true);
+    supabase.from("project_maps").select("id,title").eq("project_id", project.id).order("created_at")
+      .then(({ data }) => { setMaps(data || []); if (data?.length && !selectedMapId) setSelectedMapId(data[0].id); })
+      .catch(() => {})
+      .finally(() => setLoadingMaps(false));
+  }, [project?.id]);
+
+  const handleGenerate = async () => {
+    if (!selectedMapId) return;
+    setGenerating(true);
+    try {
+      const dataUrl = await generateMapSnapshot(selectedMapId);
+      updateBlock(block.id, { dataUrl, mapId: selectedMapId });
+    } catch(err) {
+      alert("Failed to generate snapshot: " + err.message);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  return (
+    <div style={{ border:"2px dashed #ccc", borderRadius:8, padding:"24px 20px", textAlign:"center", color:"#aaa" }}>
+      <div style={{ fontSize:22, marginBottom:8 }}>🗺️</div>
+      <div style={{ fontSize:13, fontWeight:700, color:"#555", marginBottom:4 }}>Site Plan Snapshot</div>
+      <div style={{ fontSize:11.5, color:"#bbb", marginBottom:16 }}>Pick a map and generate a snapshot to embed it in this report.</div>
+      {loadingMaps ? (
+        <div style={{ fontSize:12, color:"#bbb" }}>Loading maps…</div>
+      ) : maps.length === 0 ? (
+        <div style={{ fontSize:12, color:"#bbb" }}>No maps found for this project. Upload a map in the Maps tab first.</div>
+      ) : (
+        <div style={{ display:"flex", flexDirection:"column", gap:10, alignItems:"center" }}>
+          <select value={selectedMapId} onChange={e => setSelectedMapId(e.target.value)}
+            style={{ background:"var(--surface2)", border:"1px solid var(--border)", borderRadius:6, color:"var(--text)", fontSize:13, padding:"7px 12px", width:"100%", maxWidth:280, cursor:"pointer" }}>
+            {maps.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
+          </select>
+          <button onClick={handleGenerate} disabled={generating || !selectedMapId}
+            style={{ padding:"8px 20px", borderRadius:8, background:"#2b7fe8", color:"white", border:"none", fontWeight:700, fontSize:13, cursor:"pointer", opacity: generating ? .7 : 1 }}>
+            {generating ? "⏳ Generating…" : "📸 Generate Snapshot"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── AI 1-Click Report Generator ─────────────────────────────────────────────
 function parseAiOutputToBlocks(rawText) {
   const paras = rawText.split(/\n{2,}/);
@@ -1288,6 +1369,48 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
   const [selectedBlock, setSelectedBlock] = useState(null);
   const [editingBlock,  setEditingBlock]  = useState(null);
 
+  // ── Undo / Redo ────────────────────────────────────────────────────────────
+  const blockHistoryRef    = useRef([JSON.stringify(reportData?.blocks || [])]);
+  const blockHistoryIdxRef = useRef(0);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+
+  const pushHistory = useCallback((snapshot) => {
+    // Truncate any forward history
+    blockHistoryRef.current = blockHistoryRef.current.slice(0, blockHistoryIdxRef.current + 1);
+    blockHistoryRef.current.push(JSON.stringify(snapshot));
+    if (blockHistoryRef.current.length > 50) { blockHistoryRef.current.shift(); }
+    else { blockHistoryIdxRef.current++; }
+    setCanUndo(blockHistoryIdxRef.current > 0);
+    setCanRedo(false);
+  }, []);
+
+  const undo = useCallback(() => {
+    if (blockHistoryIdxRef.current <= 0) return;
+    blockHistoryIdxRef.current--;
+    setBlocks(JSON.parse(blockHistoryRef.current[blockHistoryIdxRef.current]));
+    setCanUndo(blockHistoryIdxRef.current > 0);
+    setCanRedo(true);
+  }, []);
+
+  const redo = useCallback(() => {
+    if (blockHistoryIdxRef.current >= blockHistoryRef.current.length - 1) return;
+    blockHistoryIdxRef.current++;
+    setBlocks(JSON.parse(blockHistoryRef.current[blockHistoryIdxRef.current]));
+    setCanUndo(true);
+    setCanRedo(blockHistoryIdxRef.current < blockHistoryRef.current.length - 1);
+  }, []);
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
+      if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.key === "z" && e.shiftKey))) { e.preventDefault(); redo(); }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [undo, redo]);
+
   const coverFileRef = useRef();
   const addBlockFileRef = useRef();
   const [addingPhotosToBlock, setAddingPhotosToBlock] = useState(null);
@@ -1298,11 +1421,44 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
   const [selectedProjectPhotos, setSelectedProjectPhotos] = useState([]);
   const [printing, setPrinting] = useState(false);
   const [aiWriterBlock, setAiWriterBlock] = useState(null);   // blockId being written
-  const [showAiOneClick, setShowAiOneClick] = React.useState(false);
+  const [showAiOneClick,        setShowAiOneClick]        = React.useState(false);
+  const [showRestorationPopup,  setShowRestorationPopup]  = React.useState(false);
+  const restorationBtnRef = React.useRef(null);
+  // Close restoration popup on outside click
+  React.useEffect(() => {
+    if (!showRestorationPopup) return;
+    const handler = (e) => {
+      if (restorationBtnRef.current && !restorationBtnRef.current.contains(e.target)) {
+        setShowRestorationPopup(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showRestorationPopup]);
   const [showAiUpgrade, setShowAiUpgrade] = useState(false);
+  const [showAiBlocked, setShowAiBlocked] = useState(false);
+
+  // ── Auto-Save ────────────────────────────────────────────────────────────────
+  // 'idle' = nothing changed since last save
+  // 'unsaved' = changes pending, timer running
+  // 'saving' = write in flight
+  // 'saved' = just saved (fades back to idle after 3s)
+  // 'failed' = last save attempt threw
+  const [saveStatus,     setSaveStatus]     = useState('idle');
+  const latestStateRef   = useRef({});
+  const autoSaveTimerRef = useRef(null);
+  const hasAutoSaveInit  = useRef(false);
+
   const printLayerRef = useRef(null);
   const aiEnabled = (PLAN_AI_LIMITS[settings?.plan || "base"] || 0) > 0;
   const canExportReports = canAccessFeature(settings, "exports", "view");
+
+  // Permission-aware AI entry — shows blocked modal if role is restricted
+  const openAiFeature = (cb) => {
+    const perm = checkAiPermission(settings);
+    if (!perm.allowed) { setShowAiBlocked(true); return; }
+    cb();
+  };
 
   // ── Kraken (AI usage) tracking for button badges ──────────────────────────
   const _aiPlan      = settings?.plan || "base";
@@ -1370,16 +1526,34 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
       photos: type==="photos"||type==="textphoto" ? [] : undefined,
       files: type==="files" ? [] : undefined,
       label:  type==="divider" ? "Section" : type==="signature" ? "Authorized Signature" : undefined,
-      dataUrl: type==="sketch" ? null : undefined,
-      sketchTitle: type==="sketch" ? "Sketch / Map" : undefined,
+      dataUrl: (type==="sketch"||type==="map") ? null : undefined,
+      sketchTitle: type==="sketch" ? "Sketch" : undefined,
+      mapTitle: type==="map" ? "Site Plan" : undefined,
+      mapId: type==="map" ? null : undefined,
       sideText: type==="textphoto" ? "" : undefined,
       baPairId: type==="beforeafter" ? null : undefined,
-      caption:  type==="beforeafter" ? "" : (type==="photos"||type==="sketch"||type==="files" ? "" : undefined),
+      caption:  type==="beforeafter" ? "" : (type==="photos"||type==="sketch"||type==="files"||type==="map" ? "" : undefined),
       signatureImg: type==="signature" ? null : undefined,
       signerName:  type==="signature" ? (settings?.userFirstName||"")+" "+(settings?.userLastName||"") : undefined,
       signerTitle: type==="signature" ? (settings?.userTitle||"") : undefined,
       sigDate:     type==="signature" ? formatDate(new Date().toISOString().slice(0,10), settings) : undefined,
       signerCertCodes: type==="signature" ? defaultSignerCertCodes : undefined,
+      // restoration blocks
+      title:          (type==="moisture_data") ? "Moisture & Drying Data" :
+                      (type==="equipment_log") ? "Equipment Log" :
+                      (type==="drying_timeline") ? "Drying Timeline" : undefined,
+      showGraph:    type==="moisture_data" ? true  : undefined,
+      showTable:    type==="moisture_data" ? true  : undefined,
+      showPhotos:   type==="moisture_data" ? true  : undefined,
+      showSummary:  type==="moisture_data" ? true  : undefined,
+      showEnv:      type==="moisture_data" ? false : undefined,
+      showNotes:    type==="equipment_log" ? true  : undefined,
+      roomIds:      (type==="moisture_data"||type==="equipment_log"||type==="drying_timeline") ? [] : undefined,
+      dateFrom:     type==="moisture_data" ? (project?.dateOfLoss || "") : undefined,
+      dateTo:       type==="moisture_data" ? "" : undefined,
+      readingTypes: type==="moisture_data" ? [] : undefined,
+      summaryText:  type==="moisture_data" ? "" : undefined,
+      events:       type==="drying_timeline" ? [] : undefined,
       // table
       tableTitle:   type==="table" ? "Table Title" : undefined,
       tableHeading: type==="table" ? "" : undefined,
@@ -1397,6 +1571,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
       tableBorders:    type==="table" ? "all" : undefined, // "all"|"outer"|"none"
     };
     setBlocks(prev => {
+      pushHistory(prev);
       const idx = afterId ? prev.findIndex(b=>b.id===afterId) : prev.length-1;
       const next = [...prev];
       next.splice(idx+1, 0, newBlock);
@@ -1406,10 +1581,14 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
   };
 
   const updateBlock = (id, patch) => setBlocks(prev => prev.map(b => b.id===id ? { ...b, ...patch } : b));
-  const deleteBlock = (id) => { setBlocks(prev => prev.filter(b => b.id!==id)); setSelectedBlock(null); };
+  const deleteBlock = (id) => {
+    setBlocks(prev => { pushHistory(prev); return prev.filter(b => b.id!==id); });
+    setSelectedBlock(null);
+  };
   const moveBlock   = (id, dir) => setBlocks(prev => {
     const idx = prev.findIndex(b=>b.id===id);
     if ((dir===-1&&idx===0)||(dir===1&&idx===prev.length-1)) return prev;
+    pushHistory(prev);
     const next = [...prev];
     [next[idx],next[idx+dir]] = [next[idx+dir],next[idx]];
     return next;
@@ -1431,9 +1610,50 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
     const r = new FileReader(); r.onload = ev => setCoverPhoto(ev.target.result); r.readAsDataURL(f);
   };
 
+  // Keep latestStateRef in sync so the debounced timer always reads fresh state
+  useEffect(() => {
+    latestStateRef.current = { title, reportType, reportDate, reportTime, status, coverPhoto, blocks };
+  }, [title, reportType, reportDate, reportTime, status, coverPhoto, blocks]);
+
+  // Mark dirty + schedule auto-save (skip very first render)
+  useEffect(() => {
+    if (!hasAutoSaveInit.current) { hasAutoSaveInit.current = true; return; }
+    setSaveStatus('unsaved');
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      const s = latestStateRef.current;
+      setSaveStatus('saving');
+      try {
+        const saved = {
+          id: reportData?.id || uid(),
+          title: s.title, reportType: s.reportType,
+          reportDate: s.reportDate, reportTime: s.reportTime,
+          status: s.status, coverPhoto: s.coverPhoto, blocks: s.blocks,
+          date: today(),
+          photos: (s.blocks||[]).reduce((a,b) => a+(b.photos?.length||0), 0),
+        };
+        onSave(saved);
+        setSaveStatus('saved');
+        setTimeout(() => setSaveStatus(cur => cur==='saved' ? 'idle' : cur), 3000);
+      } catch(err) {
+        setSaveStatus('failed');
+      }
+    }, 2500);
+    return () => clearTimeout(autoSaveTimerRef.current);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blocks, title, reportType, reportDate, reportTime, coverPhoto, status]);
+
   const handleSaveReport = () => {
-    const saved = { id: reportData?.id || uid(), title, reportType, reportDate, reportTime, status, coverPhoto, blocks, date: today(), photos: blocks.reduce((a,b)=>a+(b.photos?.length||0),0) };
-    onSave(saved);
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    setSaveStatus('saving');
+    try {
+      const saved = { id: reportData?.id || uid(), title, reportType, reportDate, reportTime, status, coverPhoto, blocks, date: today(), photos: blocks.reduce((a,b)=>a+(b.photos?.length||0),0) };
+      onSave(saved);
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus(cur => cur==='saved' ? 'idle' : cur), 3000);
+    } catch(err) {
+      setSaveStatus('failed');
+    }
   };
 
   const handlePrintOrExport = () => _doPrint();
@@ -1443,12 +1663,20 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
     html, body { margin:0; padding:0; background:#fff; }
     body { font-family: 'Inter', system-ui, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .print-root { padding:0; margin:0; }
-    .print-root > div { page-break-after: always; break-after: page; }
+    /* Each paginated page is a fixed 8.5x11 div — force break after every page except last */
+    .print-root > div { page-break-after: always; break-after: page; overflow: hidden; }
     .print-root > div:last-child { page-break-after: auto; break-after: auto; }
-    .rp-photo-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-    .rp-photo-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
-    .rp-photo-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
-    .rp-table-wrap{padding:18px 36px 22px;}
+    /* Prevent internal block overflow from creating phantom blank pages */
+    .rp { overflow: hidden; box-sizing: border-box; }
+    .rp * { box-sizing: border-box; }
+    /* Photos — keep each photo group together; images don't overflow page */
+    .rp-photo-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px;page-break-inside:avoid;}
+    .rp-photo-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;page-break-inside:avoid;}
+    .rp-photo-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;page-break-inside:avoid;}
+    .rp-photo-grid-2 > *, .rp-photo-grid-3 > *, .rp-photo-grid-4 > * { page-break-inside: avoid; break-inside: avoid; }
+    img { max-width: 100%; height: auto; display: block; }
+    /* Tables */
+    .rp-table-wrap{padding:18px 36px 22px;page-break-inside:avoid;}
     .rp-table-title{font-size:14px;font-weight:800;color:#111;margin-bottom:3px;}
     .rp-table-heading{font-size:11px;color:#888;margin-bottom:10px;line-height:1.5;}
     .rp-table{border-collapse:collapse;table-layout:fixed;width:100%;}
@@ -1459,6 +1687,19 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
     .rp-table th{font-size:11px;font-weight:700;padding:7px 10px;letter-spacing:.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .rp-table td{font-size:12px;padding:7px 10px;vertical-align:top;overflow:hidden;word-break:break-word;}
     .rp-table tr.striped{background:#f9f9f9;}
+    /* Section dividers and text blocks */
+    .rp-section { overflow: hidden; }
+    /* Signature block — keep together */
+    .rp-sig-block { page-break-inside: avoid; break-inside: avoid; }
+    /* Restoration blocks */
+    .rp-restore-graph{page-break-inside:avoid;break-inside:avoid;}
+    .rp-restore-table{page-break-inside:auto;overflow:visible;}
+    .rp-restore-table table{border-collapse:collapse;width:100%;table-layout:fixed;}
+    .rp-restore-table th,.rp-restore-table td{font-size:10px;padding:5px 6px;border:1px solid #d0d0d0;overflow:hidden;word-break:break-word;}
+    .rp-restore-photos{display:grid;grid-template-columns:1fr 1fr;gap:12px;page-break-inside:avoid;break-inside:avoid;}
+    .rp-restore-photos img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;}
+    .rp-restore-timeline{padding-left:28px;position:relative;}
+    .rp-restore-timeline::before{content:"";position:absolute;left:8px;top:0;bottom:0;width:2px;background:#e0d0f0;}
   `;
 
   const _doPrint = async () => {
@@ -1516,6 +1757,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
   // ── Render ──
   return (
     <>
+    <style>{`@keyframes rc-pulse{0%,100%{opacity:1}50%{opacity:.35}}`}</style>
     <div className="rc-wrap">
 
       {/* Top bar */}
@@ -1528,7 +1770,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
             {["draft","review","sent","final"].map(s=><option key={s} value={s}>{s.charAt(0).toUpperCase()+s.slice(1)}</option>)}
           </select>
           <button className="btn btn-secondary btn-sm" onClick={()=>setPreviewOpen(true)}><Icon d={ic.eye} size={13} /> Preview</button>
-          <button className="btn btn-sm" onClick={() => settings?.plan === "command" ? setShowAiOneClick(true) : setShowAiUpgrade(true)}
+          <button className="btn btn-sm" onClick={() => settings?.plan === "command" ? openAiFeature(() => setShowAiOneClick(true)) : setShowAiUpgrade(true)}
             title="AI 1-Click Report Generator — Command III feature"
             style={{ background:"linear-gradient(135deg,#7c3aed,#a855f7)",color:"white",border:"none",display:"flex",alignItems:"center",gap:5,padding:"5px 12px",borderRadius:7,fontWeight:700,fontSize:13,cursor:"pointer",whiteSpace:"nowrap" }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
@@ -1537,9 +1779,35 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
               2–6 ⬡{settings?.plan === "command" ? ` · ${aiRemaining} left` : ""}
             </span>
           </button>
+          {/* Auto-save status badge */}
+          {saveStatus === 'unsaved' && (
+            <span style={{ fontSize:11,color:"var(--text3)",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4 }}>
+              <span style={{ width:7,height:7,borderRadius:"50%",background:"#e8c53a",display:"inline-block",flexShrink:0 }} />
+              Unsaved
+            </span>
+          )}
+          {saveStatus === 'saving' && (
+            <span style={{ fontSize:11,color:"var(--text3)",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4 }}>
+              <span style={{ width:7,height:7,borderRadius:"50%",background:"#2b7fe8",display:"inline-block",flexShrink:0,animation:"rc-pulse 1s ease-in-out infinite" }} />
+              Saving…
+            </span>
+          )}
+          {saveStatus === 'saved' && (
+            <span style={{ fontSize:11,color:"#3dba7e",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4 }}>
+              <span style={{ width:7,height:7,borderRadius:"50%",background:"#3dba7e",display:"inline-block",flexShrink:0 }} />
+              Saved
+            </span>
+          )}
+          {saveStatus === 'failed' && (
+            <span style={{ fontSize:11,color:"#e85a3a",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4,cursor:"pointer" }} onClick={handleSaveReport} title="Click to retry">
+              <span style={{ width:7,height:7,borderRadius:"50%",background:"#e85a3a",display:"inline-block",flexShrink:0 }} />
+              Save failed — retry
+            </span>
+          )}
           <button className="btn btn-secondary btn-sm" onClick={handlePrintOrExport} disabled={!canExportReports}><Icon d={ic.download} size={13} /> Export PDF</button>
-          <button className="btn btn-secondary btn-sm btn-icon" title="Print" onClick={handlePrintOrExport} disabled={!canExportReports}><Icon d={ic.printer} size={13} /></button>
-          <button className="btn btn-primary btn-sm" onClick={handleSaveReport}><Icon d={ic.check} size={13} /> Save Report</button>
+          <button className="btn btn-primary btn-sm" onClick={handleSaveReport} disabled={saveStatus==='saving'}>
+            <Icon d={ic.check} size={13} /> {saveStatus==='saving' ? 'Saving…' : 'Save Report'}
+          </button>
         </div>
       </div>
 
@@ -1552,8 +1820,12 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
           { label:"Room Labels", val:showRooms,      set:setShowRooms      },
           { label:"Photo Tags",  val:showTags,       set:setShowTags       },
           { label:"Cover Info",  val:showCoverInfo,  set:setShowCoverInfo  },
+          { label:"Dates",       val:showSections.dates,       set:()=>setShowSections(prev=>({...prev,dates:!prev.dates}))       },
+          { label:"Contractor",  val:showSections.contractor,  set:()=>setShowSections(prev=>({...prev,contractor:!prev.contractor}))  },
+          { label:"Insurance",   val:showSections.insurance,   set:()=>setShowSections(prev=>({...prev,insurance:!prev.insurance}))   },
+          { label:"Site",        val:showSections.site,        set:()=>setShowSections(prev=>({...prev,site:!prev.site}))        },
         ].map(t => (
-          <div key={t.label} className={`rc-toggle ${t.val?"on":""}`} onClick={()=>t.set(v=>!v)}>
+          <div key={t.label} className={`rc-toggle ${t.val?"on":""}`} onClick={()=>typeof t.set==="function"&&t.set(v=>!v)}>
             <div style={{ width:14,height:14,borderRadius:3,background:t.val?"var(--accent)":"var(--surface3)",border:`1.5px solid ${t.val?"var(--accent)":"var(--border)"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
               {t.val && <Icon d={ic.check} size={9} stroke="white" strokeWidth={3} />}
             </div>
@@ -1567,23 +1839,15 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
           <option value="">— None / Custom —</option>
           {(templates||[]).map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
-        <div style={{ width:1,height:18,background:"var(--border)",margin:"0 4px" }} />
-        <span style={{ fontSize:11.5,fontWeight:600,color:"var(--text3)",whiteSpace:"nowrap" }}>COVER:</span>
-        {[
-          { label:"Dates",       key:"dates"       },
-          { label:"Contractor",  key:"contractor"  },
-          { label:"Insurance",   key:"insurance"   },
-          { label:"Site",        key:"site"        },
-        ].map(t => (
-          <div key={t.key} className={`rc-toggle ${showSections[t.key]?"on":""}`}
-            onClick={()=>setShowSections(prev=>({...prev,[t.key]:!prev[t.key]}))}>
-            <div style={{ width:14,height:14,borderRadius:3,background:showSections[t.key]?"var(--accent)":"var(--surface3)",border:`1.5px solid ${showSections[t.key]?"var(--accent)":"var(--border)"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
-              {showSections[t.key] && <Icon d={ic.check} size={9} stroke="white" strokeWidth={3} />}
-            </div>
-            {t.label}
-          </div>
-        ))}
         <div style={{ marginLeft:"auto",display:"flex",gap:4,alignItems:"center" }}>
+          {/* Undo / Redo */}
+          <button className="btn btn-ghost btn-sm btn-icon" title="Undo (Ctrl+Z)" disabled={!canUndo}
+            style={{ padding:"0 6px",minWidth:26,fontSize:14,lineHeight:1,opacity:canUndo?1:.3 }}
+            onClick={undo}>↩</button>
+          <button className="btn btn-ghost btn-sm btn-icon" title="Redo (Ctrl+Y)" disabled={!canRedo}
+            style={{ padding:"0 6px",minWidth:26,fontSize:14,lineHeight:1,opacity:canRedo?1:.3 }}
+            onClick={redo}>↪</button>
+          <div style={{ width:1,height:16,background:"var(--border)",margin:"0 2px" }} />
           <span style={{ fontSize:11,fontWeight:600,color:"var(--text3)",whiteSpace:"nowrap",marginRight:2 }}>ZOOM:</span>
           <button className="btn btn-ghost btn-sm btn-icon" style={{ padding:"0 6px",minWidth:24,fontSize:15,lineHeight:1 }} title="Zoom out" onClick={()=>setCanvasZoom(z=>parseFloat(Math.max(0.25,z-0.25).toFixed(2)))}>−</button>
           <span style={{ fontSize:11,fontWeight:700,color:"var(--text2)",minWidth:36,textAlign:"center" }}>{Math.round(canvasZoom*100)}%</span>
@@ -1774,7 +2038,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
           {/* Add block at top */}
           <BlockInsertBar prefix="Add at top:"
             existingTypes={blocks.map(b=>b.type)}
-            onAdd={id=>{const nb={id:uid(),type:id,content:id==="text"?"":undefined,photos:id==="photos"||id==="textphoto"?[]:undefined,files:id==="files"?[]:undefined,label:id==="divider"?"Section":id==="signature"?"Authorized Signature":undefined,sideText:id==="textphoto"?"":undefined,signatureImg:id==="signature"?null:undefined,signerName:id==="signature"?(settings?.userFirstName||"")+" "+(settings?.userLastName||""):undefined,signerTitle:id==="signature"?(settings?.userTitle||""):undefined,sigDate:id==="signature"?formatDate(new Date().toISOString().slice(0,10),settings):undefined,signerCertCodes:id==="signature"?defaultSignerCertCodes:undefined,caption:id==="photos"||id==="sketch"||id==="files"?"":undefined,dataUrl:id==="sketch"?null:undefined,sketchTitle:id==="sketch"?"Sketch / Map":undefined};setBlocks(prev=>[nb,...prev]);setEditingBlock(nb.id);}}
+            onAdd={id=>{const nb={id:uid(),type:id,content:id==="text"?"":undefined,photos:id==="photos"||id==="textphoto"?[]:undefined,files:id==="files"?[]:undefined,label:id==="divider"?"Section":id==="signature"?"Authorized Signature":undefined,sideText:id==="textphoto"?"":undefined,signatureImg:id==="signature"?null:undefined,signerName:id==="signature"?(settings?.userFirstName||"")+" "+(settings?.userLastName||""):undefined,signerTitle:id==="signature"?(settings?.userTitle||""):undefined,sigDate:id==="signature"?formatDate(new Date().toISOString().slice(0,10),settings):undefined,signerCertCodes:id==="signature"?defaultSignerCertCodes:undefined,caption:id==="photos"||id==="sketch"||id==="files"||id==="map"?"":undefined,dataUrl:id==="sketch"||id==="map"?null:undefined,sketchTitle:id==="sketch"?"Sketch":undefined,mapTitle:id==="map"?"Site Plan":undefined,mapId:id==="map"?null:undefined};setBlocks(prev=>[nb,...prev]);setEditingBlock(nb.id);}}
           />
 
           {/* Content blocks */}
@@ -1868,7 +2132,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                       {!block.content && editingBlock!==block.id && (
                         <div style={{ position:"absolute",top:10,left:10,color:"#aaa",fontSize:(block.textStyle?.fontSize||12.5)+"px",pointerEvents:"none",fontStyle:"italic" }}>Click to type text…</div>
                       )}
-                      <button title="✨ Write with AI" onClick={e=>{e.stopPropagation(); aiEnabled ? setAiWriterBlock(block.id) : setShowAiUpgrade(true);}}
+                      <button title="✨ Write with AI" onClick={e=>{e.stopPropagation(); aiEnabled ? openAiFeature(() => setAiWriterBlock(block.id)) : setShowAiUpgrade(true);}}
                         style={{ position:"absolute",top:6,right:6,height:32,padding:"0 10px",borderRadius:7,border:"none",background:"linear-gradient(135deg,#2b7fe8,#1a5fc8)",display:"flex",alignItems:"center",justifyContent:"center",gap:5,cursor:"pointer",boxShadow:"0 2px 8px rgba(43,127,232,.45)",transition:"transform .1s,box-shadow .1s",whiteSpace:"nowrap" }}
                         onMouseEnter={e=>{e.currentTarget.style.transform="scale(1.05)";e.currentTarget.style.boxShadow="0 3px 12px rgba(43,127,232,.6)";}}
                         onMouseLeave={e=>{e.currentTarget.style.transform="scale(1)";e.currentTarget.style.boxShadow="0 2px 8px rgba(43,127,232,.45)";}}>
@@ -2182,6 +2446,38 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                   </div>
                 )}
 
+                {/* MAP / SITE PLAN block */}
+                {block.type==="map" && (
+                  <div className="rp-section" style={{ padding:"10px 36px 14px" }}>
+                    {/* Editable map title */}
+                    {editingBlock===block.id
+                      ? <input autoFocus value={block.mapTitle||"Site Plan"} onChange={e=>updateBlock(block.id,{mapTitle:e.target.value})} onBlur={()=>setEditingBlock(null)}
+                          style={{ width:"100%",marginBottom:8,fontSize:13,fontWeight:700,color:"#333",background:"transparent",border:"none",borderBottom:"1px dashed #2b7fe8",outline:"none",textAlign:"center" }} />
+                      : <div style={{ fontSize:13,fontWeight:700,color:"#444",textAlign:"center",marginBottom:8,cursor:"text" }} onDoubleClick={()=>setEditingBlock(block.id)}>
+                          {block.mapTitle||"Site Plan"}
+                        </div>
+                    }
+                    {block.dataUrl ? (
+                      <div>
+                        <img src={block.dataUrl} alt={block.mapTitle||"Site Plan"} style={{ width:"100%",borderRadius:6,border:"1px solid #e8e8e8",display:"block" }} />
+                        {editingBlock===block.id
+                          ? <input autoFocus value={block.caption||""} onChange={e=>updateBlock(block.id,{caption:e.target.value})} onBlur={()=>setEditingBlock(null)}
+                              style={{ width:"100%",marginTop:6,fontSize:11,color:"#888",background:"transparent",border:"none",borderBottom:"1px dashed #ccc",outline:"none",textAlign:"center" }}
+                              placeholder="Add caption..." />
+                          : <div style={{ fontSize:11,color:"#999",marginTop:6,textAlign:"center",cursor:"text",fontStyle:"italic" }} onDoubleClick={()=>setEditingBlock(block.id)}>{block.caption||"Double-click to add caption"}</div>
+                        }
+                        <div style={{ display:"flex",gap:8,marginTop:10,justifyContent:"center" }}>
+                          <button className="btn btn-secondary btn-sm" style={{ fontSize:11 }} onClick={e=>{ e.stopPropagation(); updateBlock(block.id,{dataUrl:null,mapId:null}); }}>
+                            ✕ Remove Snapshot
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <MapBlockEditor block={block} project={project} updateBlock={updateBlock} />
+                    )}
+                  </div>
+                )}
+
                 {/* TABLE block */}
                 {block.type==="table" && (() => {
                   const rows      = block.tableRows      || [["Col A","Col B","Col C"],["","",""]];
@@ -2419,6 +2715,42 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                   );
                 })()}
 
+                {/* MOISTURE DATA block */}
+                {block.type==="moisture_data" && (
+                  <div className="rp-section" style={{ padding:"6px 12px 10px" }}>
+                    {editingBlock===block.id
+                      ? <input autoFocus value={block.title||"Moisture & Drying Data"} onChange={e=>updateBlock(block.id,{title:e.target.value})} onBlur={()=>{}}
+                          style={{ fontSize:14,fontWeight:800,color:"#1a2744",background:"transparent",border:"none",borderBottom:"2px solid var(--accent)",outline:"none",width:"100%",marginBottom:6 }} />
+                      : <div style={{ fontSize:14,fontWeight:800,color:"#1a2744",marginBottom:6,cursor:"text" }} onDoubleClick={()=>setEditingBlock(block.id)}>{block.title||"Moisture & Drying Data"}</div>
+                    }
+                    <MoistureDataBlock block={block} updateBlock={updateBlock} project={project} settings={settings} />
+                  </div>
+                )}
+
+                {/* EQUIPMENT LOG block */}
+                {block.type==="equipment_log" && (
+                  <div className="rp-section" style={{ padding:"6px 12px 10px" }}>
+                    {editingBlock===block.id
+                      ? <input autoFocus value={block.title||"Equipment Log"} onChange={e=>updateBlock(block.id,{title:e.target.value})} onBlur={()=>{}}
+                          style={{ fontSize:14,fontWeight:800,color:"#1a4a2a",background:"transparent",border:"none",borderBottom:"2px solid var(--accent)",outline:"none",width:"100%",marginBottom:6 }} />
+                      : <div style={{ fontSize:14,fontWeight:800,color:"#1a4a2a",marginBottom:6,cursor:"text" }} onDoubleClick={()=>setEditingBlock(block.id)}>{block.title||"Equipment Log"}</div>
+                    }
+                    <EquipmentLogBlock block={block} updateBlock={updateBlock} project={project} settings={settings} />
+                  </div>
+                )}
+
+                {/* DRYING TIMELINE block */}
+                {block.type==="drying_timeline" && (
+                  <div className="rp-section" style={{ padding:"6px 12px 10px" }}>
+                    {editingBlock===block.id
+                      ? <input autoFocus value={block.title||"Drying Timeline"} onChange={e=>updateBlock(block.id,{title:e.target.value})} onBlur={()=>{}}
+                          style={{ fontSize:14,fontWeight:800,color:"#3a2a6a",background:"transparent",border:"none",borderBottom:"2px solid var(--accent)",outline:"none",width:"100%",marginBottom:6 }} />
+                      : <div style={{ fontSize:14,fontWeight:800,color:"#3a2a6a",marginBottom:6,cursor:"text" }} onDoubleClick={()=>setEditingBlock(block.id)}>{block.title||"Drying Timeline"}</div>
+                    }
+                    <DryingTimelineBlock block={block} updateBlock={updateBlock} project={project} settings={settings} />
+                  </div>
+                )}
+
               </div>
               {/* Inline block action bar */}
               <BlockInsertBar
@@ -2487,6 +2819,23 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                   }
                 };
 
+                // Text alignment — stored in textStyle.align ('left'|'center'|'right'|'justify')
+                const fmtAlign = (align) => {
+                  const cmd = { left:"justifyLeft", center:"justifyCenter", right:"justifyRight", justify:"justifyFull" }[align];
+                  if (!block.type !== "divider" && cmd) {
+                    const el = document.querySelector(`[data-block-id="${block.id}"]`);
+                    if (el) { el.focus(); document.execCommand(cmd, false, null); updateBlock(block.id, { [contentField]: el.innerHTML }); }
+                  }
+                  updateBlock(block.id, { textStyle:{ ...ts, align } });
+                };
+
+                // Lists — toggle on/off using execCommand
+                const fmtList = (listType) => {
+                  const cmd = listType === "ul" ? "insertUnorderedList" : "insertOrderedList";
+                  const el = document.querySelector(`[data-block-id="${block.id}"]`);
+                  if (el) { el.focus(); document.execCommand(cmd, false, null); updateBlock(block.id, { [contentField]: el.innerHTML }); }
+                };
+
                 const togBtn = (active, title, children, onClick) => (
                   <button title={title} onMouseDown={e=>{e.preventDefault();onClick();}}
                     style={{ background:active?"var(--accent)":"transparent",color:active?"white":"var(--text2)",
@@ -2524,6 +2873,28 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                       <input type="color" value={ts.color||"#222222"} onChange={e=>fmtColor(e.target.value)}
                         style={{ position:"absolute",opacity:0,width:0,height:0,pointerEvents:"none" }} />
                     </label>
+                    {block.type !== "divider" && (<>
+                      <div style={{ width:1,height:14,background:"var(--border)",flexShrink:0 }} />
+                      {/* Alignment */}
+                      {[
+                        { a:"left",    icon:"☰", tip:"Align Left"    },
+                        { a:"center",  icon:"≡", tip:"Align Center"  },
+                        { a:"right",   icon:"☰", tip:"Align Right", flip:true },
+                      ].map(({a,icon,tip,flip}) => (
+                        <button key={a} title={tip} onMouseDown={e=>{e.preventDefault();fmtAlign(a);}}
+                          style={{ background:(ts.align||"left")===a?"var(--accent)":"transparent",
+                            color:(ts.align||"left")===a?"white":"var(--text2)",
+                            border:`1px solid ${(ts.align||"left")===a?"var(--accent)":"var(--border)"}`,
+                            borderRadius:4,padding:"1px 5px",fontSize:12,cursor:"pointer",lineHeight:"18px",flexShrink:0,
+                            transform:flip?"scaleX(-1)":"none" }}>
+                          {icon}
+                        </button>
+                      ))}
+                      <div style={{ width:1,height:14,background:"var(--border)",flexShrink:0 }} />
+                      {/* Lists */}
+                      {togBtn(false, "Bullet List", <span style={{ fontFamily:"monospace",letterSpacing:"-.02em" }}>• ≡</span>, ()=>fmtList("ul"))}
+                      {togBtn(false, "Numbered List", <span style={{ fontFamily:"monospace",letterSpacing:"-.02em" }}>1 ≡</span>, ()=>fmtList("ol"))}
+                    </>)}
                   </div>
                 );
               })()}
@@ -2592,6 +2963,80 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                 {["draft","review","sent","final"].map(s=><option key={s} value={s}>{s.charAt(0).toUpperCase()+s.slice(1)}</option>)}
               </select>
             </div>
+          </div>
+
+          {/* ── Tools section ── */}
+          <div className="rc-sidebar-section">
+            <div className="rc-sidebar-title">Tools</div>
+            <div style={{ position:"relative" }} ref={restorationBtnRef}>
+              <button className="btn btn-secondary btn-sm" style={{ width:"100%",justifyContent:"center",fontSize:12,fontWeight:700 }}
+                onClick={e=>{e.stopPropagation();setShowRestorationPopup(v=>!v);}}>
+                Restoration Blocks
+              </button>
+              {showRestorationPopup && (
+                <RestorationToolsPopup
+                  onAdd={type=>{
+                    addBlock(type, selectedBlock || blocks[blocks.length-1]?.id);
+                    setShowRestorationPopup(false);
+                  }}
+                  onClose={()=>setShowRestorationPopup(false)}
+                />
+              )}
+            </div>
+          </div>
+
+          {/* ── Professional Sections ── */}
+          <div className="rc-sidebar-section">
+            <div className="rc-sidebar-title">Insert Section</div>
+            <div style={{ fontSize:11,color:"var(--text3)",marginBottom:8,lineHeight:1.5 }}>
+              Insert a pre-labelled section divider + text block at the end of the report.
+            </div>
+            {[
+              { label:"Executive Summary",        icon:"📋", placeholder:"Provide a high-level overview of findings, scope, and key conclusions." },
+              { label:"Scope of Work",             icon:"🔧", placeholder:"Describe the work performed, methodology, and areas inspected." },
+              { label:"Observations",              icon:"👁",  placeholder:"Document your on-site observations and conditions found." },
+              { label:"Findings & Deficiencies",   icon:"⚠️", placeholder:"List identified deficiencies, damage, and non-conformances." },
+              { label:"Recommendations",           icon:"✅", placeholder:"Provide recommended corrective actions and next steps." },
+              { label:"Professional Opinion",      icon:"📝", placeholder:"State your professional opinion based on findings and industry standards." },
+              { label:"Limitations & Disclaimers", icon:"📌", placeholder:"Note any access limitations, exclusions, and standard disclaimers." },
+              { label:"Photo Documentation",       icon:"📷", placeholder:"" },
+              { label:"Sign Off",                  icon:"✍️", placeholder:"" },
+            ].map(sec => (
+              <button key={sec.label} className="btn btn-ghost btn-sm"
+                style={{ width:"100%",justifyContent:"flex-start",fontSize:11.5,padding:"5px 8px",marginBottom:3,textAlign:"left",gap:6 }}
+                onClick={() => {
+                  const afterId = selectedBlock || blocks[blocks.length-1]?.id;
+                  const divId   = uid();
+                  const txtId   = uid();
+                  // Build the blocks to insert
+                  const newBlocks = [
+                    { id:divId, type:"divider", label:sec.label, textStyle:{ bold:true } },
+                  ];
+                  if (sec.label === "Photo Documentation") {
+                    newBlocks.push({ id:txtId, type:"photos", photos:[], caption:"" });
+                  } else if (sec.label === "Sign Off") {
+                    newBlocks.push({ id:txtId, type:"text", content: `Prepared by: ${settings?.userFirstName||""} ${settings?.userLastName||""}\nTitle: ${settings?.userTitle||""}\nDate: ${formatDate(new Date().toISOString().slice(0,10), settings)}` });
+                    newBlocks.push({ id:uid(), type:"signature", label:"Authorized Signature",
+                      signatureImg:null,
+                      signerName:`${settings?.userFirstName||""} ${settings?.userLastName||""}`.trim(),
+                      signerTitle:settings?.userTitle||"",
+                      sigDate:formatDate(new Date().toISOString().slice(0,10), settings),
+                      signerCertCodes:defaultSignerCertCodes });
+                  } else {
+                    newBlocks.push({ id:txtId, type:"text", content:sec.placeholder });
+                  }
+                  setBlocks(prev => {
+                    pushHistory(prev);
+                    const idx = afterId ? prev.findIndex(b=>b.id===afterId) : prev.length-1;
+                    const next = [...prev];
+                    next.splice(idx+1, 0, ...newBlocks);
+                    return next;
+                  });
+                }}>
+                <span style={{ fontSize:13 }}>{sec.icon}</span>
+                {sec.label}
+              </button>
+            ))}
           </div>
 
           <div className="rc-sidebar-section">
@@ -2740,14 +3185,16 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
             setShowAiOneClick(false);
           }}
           onClose={() => setShowAiOneClick(false)}
-          onUsageIncrement={(krakens) => {
-            if (!onSettingsChange) return;
-            onSettingsChange(prev => {
-              const curWin = getWeekWindowStart();
-              const wStart = prev.aiGenerationsWindowStart ? new Date(prev.aiGenerationsWindowStart) : null;
-              const valid  = wStart && wStart >= curWin;
-              const used   = valid ? (prev.aiGenerationsUsed || 0) : 0;
-              return { ...prev, aiGenerationsUsed: used + krakens, aiGenerationsWindowStart: valid ? prev.aiGenerationsWindowStart : curWin.toISOString() };
+          onUsageIncrement={(krakens, typeId) => {
+            deductKrakens(krakens, onSettingsChange);
+            logAiEvent({
+              orgId:      settings?.orgId,
+              userId:     settings?.userId,
+              projectId:  project?.id,
+              featureKey: "report_editor_one_click",
+              actionKey:  typeId || null,
+              krakensCost: krakens,
+              status:     "success",
             });
           }}
         />
@@ -2762,17 +3209,20 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
           onAccept={text=>{ updateBlock(aiWriterBlock,{content:text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}); setAiWriterBlock(null); }}
           onClose={()=>setAiWriterBlock(null)}
           onUsageIncrement={() => {
-            if (!onSettingsChange) return;
-            onSettingsChange(prev => {
-              const curWin = getWeekWindowStart();
-              const wStart = prev.aiGenerationsWindowStart ? new Date(prev.aiGenerationsWindowStart) : null;
-              const valid  = wStart && wStart >= curWin;
-              const used   = valid ? (prev.aiGenerationsUsed || 0) : 0;
-              return { ...prev, aiGenerationsUsed: used + 1, aiGenerationsWindowStart: valid ? prev.aiGenerationsWindowStart : curWin.toISOString() };
+            deductKrakens(KRAKEN_COSTS.report_editor_ai_write, onSettingsChange);
+            logAiEvent({
+              orgId:      settings?.orgId,
+              userId:     settings?.userId,
+              projectId:  project?.id,
+              featureKey: "report_editor_ai_write",
+              krakensCost: KRAKEN_COSTS.report_editor_ai_write,
+              status:     "success",
             });
           }}
         />
       )}
+
+      {showAiBlocked && <AiBlockedModal onClose={() => setShowAiBlocked(false)} />}
 
       {/* AI Writer upgrade modal */}
       {showAiUpgrade && (
