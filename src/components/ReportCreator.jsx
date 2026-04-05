@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { supabase } from "../lib/supabase";
 import { generateMapSnapshot } from "./PropertyMapTab";
 import { Icon, ic } from "../utils/icons.jsx";
@@ -16,6 +16,23 @@ import {
   estimateBlockHeight, paginateBlocks, today,
   formatFileSizeLabel, inferProjectFileKind
 } from "../utils/helpers.js";
+
+// ── ContentEditableBlock ───────────────────────────────────────────────────────
+// Wraps a contentEditable div and memoizes the dangerouslySetInnerHTML object so
+// React 19 only re-sets innerHTML when the actual HTML string changes. Without
+// this, React 19 re-sets innerHTML on EVERY render (even unrelated state changes),
+// which destroys execCommand formatting effects and the cursor/selection.
+function ContentEditableBlock({ html, ...props }) {
+  const dangerHtml = useMemo(() => ({ __html: html }), [html]);
+  return (
+    <div
+      contentEditable
+      suppressContentEditableWarning
+      dangerouslySetInnerHTML={dangerHtml}
+      {...props}
+    />
+  );
+}
 
 // ── Report Pages (paginated preview) ──────────────────────────────────────────
 // Estimates block heights and splits them into 8.5×11 pages (816×1056px at 96dpi).
@@ -2156,15 +2173,12 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                 {block.type==="text" && (
                   <div className="rp-section">
                     <div style={{ position:"relative" }}>
-                      <div
+                      <ContentEditableBlock
+                        html={block.content || ""}
                         className="rp-text-content"
-                        contentEditable
-                        suppressContentEditableWarning
                         data-block-id={block.id}
                         onFocus={()=>setEditingBlock(block.id)}
                         onBlur={e=>{ commitBlock(block.id,{content:e.currentTarget.innerHTML}); setEditingBlock(null); }}
-                        onInput={e=>{/* save on blur only to avoid cursor jump */}}
-                        dangerouslySetInnerHTML={{ __html: block.content || "" }}
                         style={{ width:"100%",minHeight:72,outline:"none",cursor:"text",
                           padding:"10px 52px 10px 10px",
                           fontSize:(block.textStyle?.fontSize||12.5)+"px",
@@ -2290,14 +2304,12 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                       <div>
                         {editingBlock===block.id
                           ? <div style={{ position:"relative" }}>
-                              <div
-                                contentEditable
-                                suppressContentEditableWarning
+                              <ContentEditableBlock
+                                html={block.sideText||""}
                                 data-block-id={block.id}
                                 onFocus={e=>{setEditingBlock(block.id); e.currentTarget.parentElement.querySelector('.tp-placeholder') && (e.currentTarget.parentElement.querySelector('.tp-placeholder').style.display='none');}}
                                 onBlur={e=>{ commitBlock(block.id,{sideText:e.currentTarget.innerHTML}); setEditingBlock(null); }}
                                 onInput={e=>{ const p=e.currentTarget.parentElement.querySelector('.tp-placeholder'); if(p) p.style.display=e.currentTarget.innerHTML&&e.currentTarget.innerHTML!=='<br>'?'none':'block'; }}
-                                dangerouslySetInnerHTML={{ __html: block.sideText||"" }}
                                 style={{ width:"100%",minHeight:120,outline:"none",cursor:"text",
                                   fontSize:(block.textStyle?.fontSize||12.5)+"px",lineHeight:1.7,
                                   fontWeight:block.textStyle?.bold?"bold":"normal",fontStyle:block.textStyle?.italic?"italic":"normal",
@@ -2821,28 +2833,20 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                 const ts = block.textStyle || {};
                 const contentField = block.type==="text" ? "content" : block.type==="textphoto" ? "sideText" : "label";
 
-                // Helper: snapshot current innerHTML so React 19's dangerouslySetInnerHTML
-                // re-paint doesn't revert unsaved edits or destroy inline formatting/selection.
-                const snapContent = () => {
-                  const isDivider = block.type === "divider";
-                  if (isDivider) return {};
-                  const el = document.querySelector(`[data-block-id="${block.id}"]`);
-                  return el ? { [contentField]: el.innerHTML } : {};
-                };
-
-                // execCommand on current selection; if no selection falls back to block-level toggle
+                // execCommand on current selection; if no selection falls back to block-level toggle.
+                // ContentEditableBlock (useMemo) ensures React only re-sets innerHTML when
+                // block.content actually changes — so execCommand effects and text selections
+                // survive re-renders caused by textStyle-only state updates.
                 const fmt = (cmd, value) => {
                   const isDivider = block.type === "divider";
                   const el = document.querySelector(`[data-block-id="${block.id}"]`);
                   const sel = window.getSelection();
                   const hasSelection = !isDivider && sel && sel.toString().length > 0;
                   if (hasSelection) {
-                    // Apply to selection via execCommand — focus preserved by onMouseDown preventDefault.
+                    // Apply inline format to selection; DOM change persists until blur saves it.
                     document.execCommand(cmd, false, value || null);
-                    // Snapshot content so the React re-render keeps the execCommand changes.
-                    updateBlock(block.id, { ...snapContent() });
                   } else {
-                    // No selection — toggle block-level style
+                    // No selection — toggle block-level style via CSS + execCommand cursor state
                     const defaultBold = isDivider ? true : false;
                     const patch = {
                       bold:      cmd==="bold"      ? !(ts.bold??defaultBold) : (ts.bold??defaultBold),
@@ -2850,13 +2854,10 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                       underline: cmd==="underline" ? !ts.underline : ts.underline,
                       highlight: cmd==="highlight" ? !ts.highlight : ts.highlight,
                     };
-                    // If the editor has focus, also call execCommand so newly typed characters
-                    // inherit the inline format (e.g. typing while italic is on works correctly).
                     if (!isDivider && el && el === document.activeElement) {
                       document.execCommand(cmd, false, null);
                     }
-                    // Snapshot content along with style so React 19 doesn't revert unsaved edits.
-                    updateBlock(block.id, { ...snapContent(), textStyle:{ ...ts, ...patch } });
+                    updateBlock(block.id, { textStyle:{ ...ts, ...patch } });
                   }
                 };
 
@@ -2865,9 +2866,8 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                   const sel = window.getSelection();
                   if (!isDivider && sel && sel.toString().length > 0) {
                     document.execCommand("foreColor", false, color);
-                    updateBlock(block.id, { ...snapContent() });
                   } else {
-                    updateBlock(block.id, { ...snapContent(), textStyle:{ ...ts, color } });
+                    updateBlock(block.id, { textStyle:{ ...ts, color } });
                   }
                 };
 
@@ -2876,16 +2876,16 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                   const sel = window.getSelection();
                   if (!isDivider && sel && sel.toString().length > 0) {
                     document.execCommand("hiliteColor", false, ts.highlight ? "transparent" : "#ffe066");
-                    updateBlock(block.id, { ...snapContent() });
                   } else {
-                    updateBlock(block.id, { ...snapContent(), textStyle:{ ...ts, highlight:!ts.highlight } });
+                    updateBlock(block.id, { textStyle:{ ...ts, highlight:!ts.highlight } });
                   }
                 };
 
-                // Text alignment — stored in textStyle.align ('left'|'center'|'right'|'justify')
-                // Snapshot content so React 19 re-render doesn't destroy selection or edits.
+                // Text alignment — pure CSS via textStyle.align; no execCommand needed.
+                // Selection is preserved because ContentEditableBlock doesn't re-set innerHTML
+                // on textStyle-only updates.
                 const fmtAlign = (align) => {
-                  updateBlock(block.id, { ...snapContent(), textStyle:{ ...ts, align } });
+                  updateBlock(block.id, { textStyle:{ ...ts, align } });
                 };
 
                 // Lists — toggle on/off using execCommand
