@@ -12,6 +12,8 @@ import {
 } from "../utils/constants.js";
 import { uid, today, getCertStatus, ROLE_META } from "../utils/helpers.js";
 import { useAuth } from "./AuthProvider.jsx";
+import { startCheckout, openBillingPortal } from "../lib/subscriptions.js";
+import { supabase } from "../lib/supabase.js";
 
 const billingDaySuffix = (dateStr) => {
   const d = new Date(dateStr || "2025-03-11").getDate();
@@ -613,53 +615,85 @@ export function UserModal({ user, projects, settings = {}, currentUserRole = "ad
   );
 }
 
-export function BillingHistoryModal({ monthlyTotal, signupDate, cycle, onClose }) {
-  const anchorDay = new Date(signupDate||"2025-03-11").getDate();
-  const isAnnual  = cycle === "annual";
-  const invoices  = Array.from({ length: isAnnual ? 3 : 12 }, (_, i) => {
-    const d = new Date();
-    if (isAnnual) {
-      d.setFullYear(d.getFullYear() - (i + 1));
-      d.setDate(anchorDay);
-    } else {
-      d.setMonth(d.getMonth() - (i + 1));
-      d.setDate(anchorDay);
+export function BillingHistoryModal({ onClose }) {
+  const { session } = useAuth();
+  const [invoices, setInvoices] = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState(null);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await fetch('/api/get-invoices', {
+          headers: { 'Authorization': `Bearer ${session?.access_token}` },
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load invoices');
+        setInvoices(data.invoices || []);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
     }
-    return {
-      id: `INV-${2025000 + (12 - i)}`,
-      date: isAnnual
-        ? d.toLocaleDateString("en-US", { month:"long", year:"numeric" })
-        : d.toLocaleDateString("en-US", { month:"long", year:"numeric" }),
-      amount: isAnnual ? monthlyTotal * 12 : monthlyTotal,
-      status: "Paid",
-    };
-  });
+    load();
+  }, [session]);
+
+  const fmtDate   = ts => new Date(ts * 1000).toLocaleDateString("en-US", { month:"long", year:"numeric" });
+  const fmtAmount = (cents, currency) => {
+    const sym = currency === "usd" ? "$" : currency.toUpperCase() + " ";
+    return `${sym}${(cents / 100).toFixed(2)}`;
+  };
+  const statusColor = s => s === "paid" ? { bg:"#3dba7e18", fg:"#3dba7e" } : s === "open" ? { bg:"#e8c53a18", fg:"#c49a00" } : { bg:"#e85a3a18", fg:"#e85a3a" };
 
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{ maxWidth: 500 }}>
+      <div className="modal" style={{ maxWidth: 520 }}>
         <div className="modal-header">
           <div className="modal-title"><Icon d={ic.creditCard} size={16} /> Billing History</div>
           <button className="btn btn-ghost btn-icon" style={{ width:44,height:44 }} onClick={onClose}><Icon d={ic.close} size={22} /></button>
         </div>
         <div className="modal-body" style={{ padding: 0 }}>
-          <div className="bill-row" style={{ display: "grid", gridTemplateColumns: "1fr 120px 80px 80px", padding: "9px 18px", borderBottom: "1px solid var(--border)", fontSize: 11.5, fontWeight: 700, color: "var(--text2)" }}>
-            <span>Invoice</span><span>Date</span><span style={{ textAlign: "right" }}>Amount</span><span style={{ textAlign: "right" }}>Status</span>
-          </div>
-          <div style={{ maxHeight: 380, overflowY: "auto" }}>
-            {invoices.map((inv, i) => (
-              <div key={inv.id} className="bill-row" style={{ display: "grid", gridTemplateColumns: "1fr 120px 80px 80px", padding: "11px 18px", borderBottom: i < invoices.length - 1 ? "1px solid var(--border)" : "none", alignItems: "center", fontSize: 13, transition: "background .1s" }}
-                onMouseEnter={e => e.currentTarget.style.background = "var(--surface2)"}
-                onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                <span style={{ fontWeight: 600, color: "var(--accent)", cursor: "pointer", fontSize: 12.5 }}>{inv.id}</span>
-                <span style={{ color: "var(--text2)", fontSize: 12.5 }}>{inv.date}</span>
-                <span style={{ textAlign: "right", fontWeight: 600 }}>${inv.amount}.00</span>
-                <span style={{ textAlign: "right" }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10, background: "#3dba7e18", color: "#3dba7e" }}>{inv.status}</span>
-                </span>
+          {loading ? (
+            <div style={{ padding:"32px", textAlign:"center", color:"var(--text2)", fontSize:13 }}>Loading invoices…</div>
+          ) : error ? (
+            <div style={{ padding:"24px", textAlign:"center", color:"#e85a3a", fontSize:13 }}>{error}</div>
+          ) : invoices.length === 0 ? (
+            <div style={{ padding:"32px", textAlign:"center", color:"var(--text2)", fontSize:13 }}>No invoices yet.</div>
+          ) : (
+            <>
+              <div className="bill-row" style={{ display:"grid", gridTemplateColumns:"1fr 120px 90px 70px 36px", padding:"9px 18px", borderBottom:"1px solid var(--border)", fontSize:11.5, fontWeight:700, color:"var(--text2)" }}>
+                <span>Invoice</span><span>Date</span><span style={{ textAlign:"right" }}>Amount</span><span style={{ textAlign:"right" }}>Status</span><span/>
               </div>
-            ))}
-          </div>
+              <div style={{ maxHeight:380, overflowY:"auto" }}>
+                {invoices.map((inv, i) => {
+                  const sc = statusColor(inv.status);
+                  return (
+                    <div key={inv.id} className="bill-row"
+                      style={{ display:"grid", gridTemplateColumns:"1fr 120px 90px 70px 36px", padding:"11px 18px", borderBottom: i < invoices.length-1 ? "1px solid var(--border)" : "none", alignItems:"center", fontSize:13, transition:"background .1s" }}
+                      onMouseEnter={e=>e.currentTarget.style.background="var(--surface2)"}
+                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                      <span style={{ fontWeight:600, color:"var(--accent)", fontSize:12.5 }}>{inv.number}</span>
+                      <span style={{ color:"var(--text2)", fontSize:12.5 }}>{fmtDate(inv.created)}</span>
+                      <span style={{ textAlign:"right", fontWeight:600 }}>{fmtAmount(inv.amount_paid, inv.currency)}</span>
+                      <span style={{ textAlign:"right" }}>
+                        <span style={{ fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:10, background:sc.bg, color:sc.fg, textTransform:"capitalize" }}>{inv.status}</span>
+                      </span>
+                      <span style={{ textAlign:"right" }}>
+                        {inv.invoice_pdf && (
+                          <a href={inv.invoice_pdf} target="_blank" rel="noopener noreferrer"
+                            title="Download PDF"
+                            style={{ color:"var(--text3)", display:"inline-flex", alignItems:"center" }}>
+                            <Icon d="M12 16l-4-4h2.5V4h3v8H16l-4 4zM4 20h16v-2H4v2z" size={15} />
+                          </a>
+                        )}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
         <div className="modal-footer" style={{ justifyContent: "space-between" }}>
           <span style={{ fontSize: 12, color: "var(--text3)" }}>Showing last 12 months</span>
@@ -670,6 +704,90 @@ export function BillingHistoryModal({ monthlyTotal, signupDate, cycle, onClose }
   );
 }
 
+// ── ReAuthModal ───────────────────────────────────────────────────────────────
+// Asks the user to re-enter their password before sensitive billing actions.
+export function ReAuthModal({ email, actionLabel, onConfirm, onClose }) {
+  const [password, setPassword] = useState("");
+  const [error,    setError]    = useState(null);
+  const [loading,  setLoading]  = useState(false);
+
+  const handleConfirm = async () => {
+    if (!password) { setError("Please enter your password."); return; }
+    setLoading(true); setError(null);
+    const { error: authErr } = await supabase.auth.signInWithPassword({ email, password });
+    setLoading(false);
+    if (authErr) { setError("Incorrect password. Please try again."); return; }
+    onConfirm();
+    onClose();
+  };
+
+  return (
+    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="modal" style={{ maxWidth:380 }}>
+        <div className="modal-header">
+          <div className="modal-title"><Icon d={ic.lock} size={16}/> Confirm your identity</div>
+          <button className="btn btn-ghost btn-icon" style={{ width:44,height:44 }} onClick={onClose}><Icon d={ic.close} size={22}/></button>
+        </div>
+        <div className="modal-body" style={{ display:"flex",flexDirection:"column",gap:14 }}>
+          <div style={{ fontSize:13,color:"var(--text2)",lineHeight:1.6 }}>
+            Re-enter your password to <strong>{actionLabel}</strong>.
+          </div>
+          <div>
+            <div className="form-label">Password</div>
+            <input className="form-input" type="password" placeholder="Your password"
+              value={password} onChange={e=>{setPassword(e.target.value);setError(null);}}
+              onKeyDown={e=>e.key==="Enter"&&handleConfirm()} autoFocus />
+            {error && <div style={{ fontSize:12,color:"#e85a3a",marginTop:5 }}>{error}</div>}
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleConfirm} disabled={loading}>
+            {loading ? "Verifying…" : "Confirm"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── CancelSubscriptionModal ───────────────────────────────────────────────────
+export function CancelSubscriptionModal({ onConfirm, onClose }) {
+  return (
+    <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="modal" style={{ maxWidth:420 }}>
+        <div className="modal-header">
+          <div className="modal-title" style={{ color:"#e85a3a" }}><Icon d={ic.alert} size={16} stroke="#e85a3a"/> Cancel subscription?</div>
+          <button className="btn btn-ghost btn-icon" style={{ width:44,height:44 }} onClick={onClose}><Icon d={ic.close} size={22}/></button>
+        </div>
+        <div className="modal-body" style={{ display:"flex",flexDirection:"column",gap:12 }}>
+          <div style={{ fontSize:13,color:"var(--text2)",lineHeight:1.6 }}>
+            You'll be taken to Stripe to complete cancellation. Your current plan features remain active until the end of your billing cycle.
+          </div>
+          <div style={{ background:"rgba(232,90,58,.06)",border:"1px solid rgba(232,90,58,.2)",borderRadius:8,padding:"10px 14px" }}>
+            <div style={{ fontSize:12,fontWeight:700,color:"#e85a3a",marginBottom:5 }}>What happens when you cancel:</div>
+            {["Access to paid features will end at cycle close","Your data is retained for 60 days","You can re-subscribe at any time"].map(f=>(
+              <div key={f} style={{ display:"flex",alignItems:"center",gap:6,fontSize:12,color:"var(--text2)",marginBottom:3 }}>
+                <Icon d={ic.close} size={11} stroke="#e85a3a"/> {f}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-secondary" onClick={onClose}>Keep my subscription</button>
+          <button className="btn btn-ghost btn-sm" style={{ color:"#e85a3a",border:"1px solid rgba(232,90,58,.4)" }} onClick={onConfirm}>
+            Cancel subscription →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── UpdateCardModal (REMOVED) ─────────────────────────────────────────────────
+// Payment method updates now redirect to Stripe Customer Portal instead of
+// collecting card details in a custom form (PCI compliance requirement).
+// eslint-disable-next-line no-unused-vars
 export function UpdateCardModal({ current, onSave, onClose }) {
   const [num,    setNum]    = useState("");
   const [expiry, setExpiry] = useState("");
@@ -935,7 +1053,7 @@ export function InviteUserButton({ canEdit }) {
 }
 
 export function AccountPage({ settings, onSettingsChange, projects, users, onUsersChange, onProjectsChange, onNotify }) {
-  const { profile: acctAuthProfile, session } = useAuth();
+  const { profile: acctAuthProfile, session, subscription } = useAuth();
   const [tab, setTab]         = useState("team");
   const [editingUser, setEditingUser] = useState(null);
   const [addingUser, setAddingUser]   = useState(false);
@@ -946,11 +1064,14 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
   const [adminCertImgPreview, setAdminCertImgPreview] = useState(null);
   const [confirmDel, setConfirmDel]   = useState(null);
   const [searchQ, setSearchQ]         = useState("");
-  const [showCardModal, setShowCardModal] = useState(false);
-  const [cardInfo, setCardInfo] = useState({ number:"", expiry:"", cvc:"", name:"", brand:"Visa", last4:"4242", displayExpiry:"08/27" });
   const [showBillingHistory, setShowBillingHistory] = useState(false);
   const [confirmUpgrade,   setConfirmUpgrade]   = useState(false);
   const [confirmDowngrade, setConfirmDowngrade] = useState(false);
+  const [showCancelModal,  setShowCancelModal]  = useState(false);
+  const [showReAuthModal,  setShowReAuthModal]  = useState(false);
+  const [reAuthAction,     setReAuthAction]     = useState(null);
+  const [billingLoading,   setBillingLoading]   = useState(false);
+  const [billingError,     setBillingError]     = useState(null);
 
   const activeUsers   = users.filter(u => u.status !== "inactive");
   const currentPlan   = settings?.plan || "base";
@@ -966,7 +1087,9 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
   const permissionPolicies = getPermissionPolicies(settings);
   const canViewTeam = hasPermissionLevel(currentUserPerms, "team", "view");
   const canEditTeam = hasPermissionLevel(currentUserPerms, "team", "edit");
-  const canViewBilling = hasPermissionLevel(currentUserPerms, "billing", "view");
+  const canViewBilling = currentUserRole === "admin" ||
+    (currentUserRole === "manager" && settings?.allowManagerBillingAccess === true &&
+     hasPermissionLevel(currentUserPerms, "billing", "view"));
   const canViewPerms = hasPermissionLevel(currentUserPerms, "settings", "view");
   const canEditPerms = currentUserRole === "admin" || (permissionPolicies.allowManagerPermissionEditing && currentUserRole === "manager" && hasPermissionLevel(currentUserPerms, "settings", "edit"));
 
@@ -1022,6 +1145,15 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
     };
     const exists = users.find(x => x.id === normalizedUser.id);
     onUsersChange(exists ? users.map(x => x.id===normalizedUser.id ? normalizedUser : x) : [...users, normalizedUser]);
+    // Sync seat count to Stripe when adding a new active user
+    if (!exists && normalizedUser.status !== "inactive" && subscription?.stripe_subscription_id) {
+      const newSeatCount = activeUsers.length + 1; // existing actives + new user
+      fetch("/api/update-seats", {
+        method: "POST",
+        headers: { "Content-Type":"application/json", "Authorization":`Bearer ${session?.access_token}` },
+        body: JSON.stringify({ seatCount: newSeatCount }),
+      }).catch(err => console.warn("[KrakenCam] Failed to sync seat count:", err));
+    }
     // Persist to Supabase profiles table
     if (normalizedUser.email) {
       if (!exists) {
@@ -1128,6 +1260,15 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
   const removeUser = (id) => {
     const removedUser = users.find(u => u.id === id);
     onUsersChange(users.filter(u => u.id !== id));
+    // Sync seat count to Stripe when removing an active user
+    if (subscription?.stripe_subscription_id) {
+      const newSeatCount = Math.max(1, activeUsers.filter(u => u.id !== id).length);
+      fetch("/api/update-seats", {
+        method: "POST",
+        headers: { "Content-Type":"application/json", "Authorization":`Bearer ${session?.access_token}` },
+        body: JSON.stringify({ seatCount: newSeatCount }),
+      }).catch(err => console.warn("[KrakenCam] Failed to sync seat count:", err));
+    }
     // Soft-remove in Supabase (sets is_active=false)
     if (removedUser?.email) {
       dbRemoveUser(removedUser.id).catch(() => {});
@@ -1156,6 +1297,35 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
       });
     }
     setConfirmDel(null);
+  };
+
+  // ── Billing action helpers ────────────────────────────────────────────────
+  // All billing actions require password re-auth first.
+  const TIER_MAP = { base:"capture_i", pro:"intelligence_ii", command:"command_iii" };
+
+  const triggerBillingAction = (actionType, actionData = null) => {
+    setReAuthAction({ type: actionType, data: actionData });
+    setShowReAuthModal(true);
+  };
+
+  const executeBillingAction = async (action) => {
+    setBillingLoading(true); setBillingError(null);
+    try {
+      if (action.type === "upgrade") {
+        await startCheckout({
+          tier: TIER_MAP[action.data.toPlan] || "capture_i",
+          billingPeriod: cycle,
+          seatCount: Math.max(1, activeUsers.length + 1),
+        });
+      } else {
+        // portal handles: update card, downgrade, cancel
+        await openBillingPortal();
+      }
+    } catch (err) {
+      setBillingError(err.message || "Something went wrong. Please try again.");
+    } finally {
+      setBillingLoading(false);
+    }
   };
 
   const filtered = users.filter(u => {
@@ -1980,6 +2150,63 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
       {tab==="billing" && (
         <div className="fade-in">
 
+          {/* ── Trial countdown banner ── */}
+          {subscription?.status === "trialing" && (() => {
+            const msLeft  = new Date(subscription.current_period_end) - new Date();
+            const daysLeft = Math.max(0, Math.ceil(msLeft / 86400000));
+            const endDate  = new Date(subscription.current_period_end)
+              .toLocaleDateString("en-US", { month:"long", day:"numeric", year:"numeric" });
+            return (
+              <div style={{ display:"flex",alignItems:"center",gap:14,padding:"14px 18px",
+                background:"linear-gradient(135deg,#2b7fe812,#1a5fc812)",
+                border:"1px solid #2b7fe850",borderRadius:10,marginBottom:16 }}>
+                <Icon d={ic.alert} size={18} stroke="#2b7fe8"/>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontWeight:700,fontSize:14,marginBottom:2 }}>
+                    {daysLeft} day{daysLeft!==1?"s":""} left in your free trial
+                  </div>
+                  <div style={{ fontSize:12.5,color:"var(--text2)" }}>
+                    Add a payment method to continue after {endDate}
+                  </div>
+                </div>
+                <button className="btn btn-primary btn-sm"
+                  onClick={()=>triggerBillingAction("portal")}>
+                  Add Payment Method
+                </button>
+              </div>
+            );
+          })()}
+
+          {/* ── Past due warning banner ── */}
+          {subscription?.status === "past_due" && (
+            <div style={{ display:"flex",alignItems:"center",gap:14,padding:"14px 18px",
+              background:"rgba(232,90,58,.08)",border:"1px solid rgba(232,90,58,.35)",
+              borderRadius:10,marginBottom:16 }}>
+              <Icon d={ic.alert} size={18} stroke="#e85a3a"/>
+              <div style={{ flex:1 }}>
+                <div style={{ fontWeight:700,fontSize:14,color:"#e85a3a",marginBottom:2 }}>Payment failed</div>
+                <div style={{ fontSize:12.5,color:"var(--text2)" }}>
+                  Update your payment method to avoid service interruption.
+                </div>
+              </div>
+              <button className="btn btn-sm" style={{ background:"#e85a3a",color:"white",border:"none" }}
+                onClick={()=>triggerBillingAction("portal")}>
+                Fix Payment
+              </button>
+            </div>
+          )}
+
+          {/* ── Billing error banner ── */}
+          {billingError && (
+            <div style={{ display:"flex",alignItems:"center",gap:10,padding:"12px 16px",
+              background:"rgba(232,90,58,.08)",border:"1px solid rgba(232,90,58,.3)",
+              borderRadius:8,marginBottom:16,fontSize:13 }}>
+              <Icon d={ic.alert} size={14} stroke="#e85a3a"/>
+              <span style={{ flex:1,color:"#e85a3a" }}>{billingError}</span>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setBillingError(null)}>Dismiss</button>
+            </div>
+          )}
+
           {/* ── Billing cycle toggle ── */}
           <div style={{ display:"flex",alignItems:"center",justifyContent:"center",marginBottom:20 }}>
             <div style={{ display:"inline-flex",alignItems:"center",gap:0,background:"var(--surface2)",borderRadius:40,border:"1px solid var(--border)",padding:3 }}>
@@ -2175,10 +2402,18 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
               <div style={{ display:"flex",alignItems:"center",gap:14,padding:"14px 16px",background:"var(--surface2)",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",marginBottom:12 }}>
                 <Icon d={ic.creditCard} size={22} stroke="var(--accent)" />
                 <div style={{ flex:1 }}>
-                  <div style={{ fontWeight:600,fontSize:13.5 }}>{cardInfo.brand} ending in {cardInfo.last4}</div>
-                  <div style={{ fontSize:12,color:"var(--text2)" }}>Expires {cardInfo.displayExpiry} · Auto-renews {cycle==="annual"?"annually":"monthly"} on the {billingDaySuffix(settings?.signupDate)}</div>
+                  <div style={{ fontWeight:600,fontSize:13.5 }}>Payment method on file</div>
+                  <div style={{ fontSize:12,color:"var(--text2)" }}>
+                    {subscription?.current_period_end
+                      ? `Next charge: $${monthlyTotal} on ${new Date(subscription.current_period_end).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}`
+                      : `Auto-renews ${cycle==="annual"?"annually":"monthly"} on the ${billingDaySuffix(settings?.signupDate)}`}
+                  </div>
                 </div>
-                <button className="btn btn-secondary btn-sm" onClick={()=>setShowCardModal(true)}>Update Card</button>
+                <button className="btn btn-secondary btn-sm"
+                  onClick={()=>triggerBillingAction("portal")}
+                  disabled={billingLoading}>
+                  {billingLoading ? "Loading…" : "Update Card"}
+                </button>
               </div>
               <button className="btn btn-ghost btn-sm" style={{ color:"var(--text2)",fontSize:12 }} onClick={()=>setShowBillingHistory(true)}>View billing history →</button>
             </div>
@@ -2245,7 +2480,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
                     <div style={{ display:"flex",gap:8 }}>
                       <button className="btn btn-secondary btn-sm" style={{ flex:1 }} onClick={()=>setConfirmUpgrade(null)}>Cancel</button>
                       <button className="btn btn-primary btn-sm" style={{ flex:2,background:`linear-gradient(135deg,${gradFrom},${gradTo})`,border:"none",fontWeight:700,gap:6 }}
-                        onClick={()=>{ onSettingsChange({...settings, plan:toPlan, pendingPlan:null, planChangeDate: new Date().toISOString().slice(0,10) }); setConfirmUpgrade(null); }}>
+                        onClick={()=>{ setConfirmUpgrade(null); triggerBillingAction("upgrade", { toPlan }); }}>
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
                         Confirm - Pay ${Math.max(0, p.netCharge)} now
                       </button>
@@ -2300,8 +2535,8 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
                     <div style={{ display:"flex",gap:8 }}>
                       <button className="btn btn-secondary btn-sm" style={{ flex:1 }} onClick={()=>setConfirmDowngrade(null)}>Keep {PLAN_NAMES[currentPlan]}</button>
                       <button className="btn btn-ghost btn-sm" style={{ flex:1,color:"#e85a3a",borderColor:"rgba(232,90,58,.3)" }}
-                        onClick={()=>{ onSettingsChange({...settings, pendingPlan:toPlan, planChangeDate: new Date().toISOString().slice(0,10) }); setConfirmDowngrade(null); }}>
-                        Schedule downgrade
+                        onClick={()=>{ setConfirmDowngrade(null); triggerBillingAction("portal"); }}>
+                        Continue in Stripe Portal
                       </button>
                     </div>
                   </div>
@@ -2310,20 +2545,38 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
             );
           })()}
 
-          {showCardModal && (
-            <UpdateCardModal
-              current={cardInfo}
-              onSave={info=>{ setCardInfo(info); setShowCardModal(false); }}
-              onClose={()=>setShowCardModal(false)}
+          {showBillingHistory && (
+            <BillingHistoryModal onClose={()=>setShowBillingHistory(false)} />
+          )}
+
+          {/* ── Cancel subscription ── (subtle, bottom of page) */}
+          {subscription?.status === "active" && (
+            <div style={{ textAlign:"center",marginTop:28,paddingTop:16,borderTop:"1px solid var(--border)" }}>
+              <button className="btn btn-ghost btn-sm"
+                style={{ color:"var(--text3)",fontSize:12,fontWeight:400 }}
+                onClick={()=>setShowCancelModal(true)}>
+                Cancel subscription
+              </button>
+            </div>
+          )}
+
+          {showCancelModal && (
+            <CancelSubscriptionModal
+              onConfirm={()=>{ setShowCancelModal(false); triggerBillingAction("portal"); }}
+              onClose={()=>setShowCancelModal(false)}
             />
           )}
 
-          {showBillingHistory && (
-            <BillingHistoryModal
-              monthlyTotal={monthlyTotal}
-              signupDate={settings?.signupDate}
-              cycle={cycle}
-              onClose={()=>setShowBillingHistory(false)}
+          {showReAuthModal && reAuthAction && (
+            <ReAuthModal
+              email={acctAuthProfile?.email || session?.user?.email || ""}
+              actionLabel={
+                reAuthAction.type === "upgrade"  ? "upgrade your plan"         :
+                reAuthAction.type === "portal"   ? "update your billing"       :
+                "manage your subscription"
+              }
+              onConfirm={()=>executeBillingAction(reAuthAction)}
+              onClose={()=>{ setShowReAuthModal(false); setReAuthAction(null); }}
             />
           )}
         </div>
