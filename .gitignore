@@ -25,3 +25,4 @@ dist-ssr
 dist
 .vercel
 .env*.local
+.github_token

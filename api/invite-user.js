@@ -62,7 +62,7 @@ export default async function handler(req, res) {
   const orgName = org?.name || 'your organization'
 
   // --- Parse body ---
-  const { email, role } = req.body
+  const { email, role, resend } = req.body
   if (!email || !role) {
     return res.status(400).json({ error: 'Missing required fields: email, role' })
   }
@@ -73,17 +73,27 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: `Invalid role. Must be one of: ${allowedRoles.join(', ')}` })
   }
 
-  // --- Check for existing pending invite ---
-  const { data: existing } = await supabaseAdmin
-    .from('invitations')
-    .select('id, accepted_at')
-    .eq('email', normalizedEmail)
-    .eq('organization_id', callerProfile.organization_id)
-    .is('accepted_at', null)
-    .single()
+  if (resend) {
+    // Resend: delete any existing pending invite first so a fresh one is created
+    await supabaseAdmin
+      .from('invitations')
+      .delete()
+      .eq('email', normalizedEmail)
+      .eq('organization_id', callerProfile.organization_id)
+      .is('accepted_at', null)
+  } else {
+    // Check for existing pending invite — block duplicates on first send
+    const { data: existing } = await supabaseAdmin
+      .from('invitations')
+      .select('id')
+      .eq('email', normalizedEmail)
+      .eq('organization_id', callerProfile.organization_id)
+      .is('accepted_at', null)
+      .maybeSingle()
 
-  if (existing) {
-    return res.status(409).json({ error: 'A pending invitation already exists for this email.' })
+    if (existing) {
+      return res.status(409).json({ error: 'A pending invitation already exists for this email.' })
+    }
   }
 
   // --- Insert invitation ---

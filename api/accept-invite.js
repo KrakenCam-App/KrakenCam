@@ -4,7 +4,7 @@
  * POST { token, fullName, password }
  *
  * Validates invitation token, creates Supabase auth user,
- * creates profile, marks invitation accepted.
+ * links or creates profile, marks invitation accepted.
  */
 
 import { createClient } from '@supabase/supabase-js'
@@ -41,28 +41,32 @@ export default async function handler(req, res) {
     return res.status(404).json({ error: 'Invalid or expired invitation token' })
   }
 
-  // Check expiry if field exists
+  // Check expiry
   if (invitation.expires_at && new Date(invitation.expires_at) < new Date()) {
     return res.status(410).json({ error: 'This invitation has expired' })
   }
 
   const email = invitation.email
 
-  // --- Check if user already exists ---
+  // Split fullName into first/last for the profiles table
+  const nameParts = fullName.trim().split(' ')
+  const firstName = nameParts[0] || ''
+  const lastName  = nameParts.slice(1).join(' ') || ''
+
+  // --- Check if auth user already exists ---
   const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
   const existingUser = existingUsers?.users?.find(u => u.email === email)
 
   let authUserId
 
   if (existingUser) {
-    // User already exists — just update their profile
     authUserId = existingUser.id
   } else {
-    // Create Supabase auth user via Admin API
+    // Create Supabase auth user
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: true, // auto-confirm since they clicked the invite link
+      email_confirm: true, // auto-confirm — they clicked the invite link
       user_metadata: { full_name: fullName },
     })
 
@@ -74,21 +78,55 @@ export default async function handler(req, res) {
     authUserId = newUser.user.id
   }
 
-  // --- Create or update profile ---
-  const { error: profileError } = await supabaseAdmin
+  // --- Link or create profile ---
+  // If admin pre-added this user (profile exists with user_id = null), update that row.
+  // Otherwise insert a fresh profile. This avoids the unique(org_id, email) conflict.
+  const { data: existingProfile } = await supabaseAdmin
     .from('profiles')
-    .upsert({
-      user_id: authUserId,
-      email,
-      full_name: fullName,
-      organization_id: invitation.organization_id,
-      role: invitation.role || 'user',
-      is_active: true,
-    }, { onConflict: 'user_id' })
+    .select('id')
+    .eq('email', email)
+    .eq('organization_id', invitation.organization_id)
+    .is('user_id', null)
+    .maybeSingle()
 
-  if (profileError) {
-    console.error('[accept-invite] Failed to create profile:', profileError)
-    return res.status(500).json({ error: 'Failed to create user profile' })
+  if (existingProfile) {
+    // Update the pre-created profile to link the new auth user
+    const { error: updateError } = await supabaseAdmin
+      .from('profiles')
+      .update({
+        user_id:    authUserId,
+        full_name:  fullName,
+        first_name: firstName,
+        last_name:  lastName,
+        is_active:  true,
+        status:     'active',
+      })
+      .eq('id', existingProfile.id)
+
+    if (updateError) {
+      console.error('[accept-invite] Failed to update existing profile:', updateError)
+      return res.status(500).json({ error: 'Failed to update user profile' })
+    }
+  } else {
+    // No pre-created profile — insert one
+    const { error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .upsert({
+        user_id:         authUserId,
+        email,
+        full_name:       fullName,
+        first_name:      firstName,
+        last_name:       lastName,
+        organization_id: invitation.organization_id,
+        role:            invitation.role || 'user',
+        is_active:       true,
+        status:          'active',
+      }, { onConflict: 'user_id' })
+
+    if (profileError) {
+      console.error('[accept-invite] Failed to create profile:', profileError)
+      return res.status(500).json({ error: 'Failed to create user profile' })
+    }
   }
 
   // --- Mark invitation as accepted ---
