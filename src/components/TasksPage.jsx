@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Icon, ic } from "../utils/icons.jsx";
 import { uid, formatDate, today, getCertStatus, ROLE_META, getDueUrgency } from "../utils/helpers.js";
 import { DEFAULT_COLUMNS, EMPTY_TASK } from "../utils/constants.js";
+import { getTaskTags, createTaskTag, deleteTaskTag, logTaskActivity, getTaskActivity, getTaskPhotoLinks, addTaskPhotoLink, removeTaskPhotoLink, deleteTasks } from "../lib/tasks.js";
 
 const TASK_PRIORITIES = [
   { id:"critical", label:"Critical", color:"#e85a3a" },
@@ -10,16 +11,29 @@ const TASK_PRIORITIES = [
   { id:"low",      label:"Low",      color:"#3dba7e" },
 ];
 
-function TaskModal({ task, projects, teamUsers, settings, onSave, onClose, onNotify }) {
+function TaskModal({ task, projects, teamUsers, settings, onSave, onClose, onNotify, orgTags, allPhotos, userId }) {
   const isNew = !task?.id;
   const [form, setForm] = useState(isNew
-    ? { ...EMPTY_TASK, id:uid(), createdAt:today() }
-    : { ...task, checklist: task.checklist||[], comments: task.comments||[], tags: task.tags||[], assigneeIds: task.assigneeIds||[], attachments: task.attachments||[] }
+    ? { ...EMPTY_TASK, id:uid(), createdAt:today(), createdByUserId: userId || null }
+    : { ...task, checklist: task.checklist||[], comments: task.comments||[], tags: task.tags||[], assigneeIds: task.assigneeIds||[], attachments: task.attachments||[], dueTime: task.dueTime||"" }
   );
   const [tab, setTab]               = useState("details");
   const [newCheckItem, setNewCheckItem] = useState("");
   const [newComment, setNewComment]     = useState("");
   const [newTag, setNewTag]             = useState("");
+
+  // Activity log
+  const [activityLogs, setActivityLogs] = useState([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+
+  // Photo links
+  const [photoLinks, setPhotoLinks] = useState([]);
+  const [photoLinksLoading, setPhotoLinksLoading] = useState(false);
+  const [showPhotoPicker, setShowPhotoPicker] = useState(false);
+
+  // New org tag creation
+  const [newOrgTagName, setNewOrgTagName] = useState("");
+  const [newOrgTagColor, setNewOrgTagColor] = useState("#6366f1");
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
 
   // Checklist item edit state
@@ -129,7 +143,24 @@ function TaskModal({ task, projects, teamUsers, settings, onSave, onClose, onNot
     { id:"checklist",   label:`Checklist${form.checklist.length?` (${form.checklist.length})`:""}` },
     { id:"attachments", label:`Files${(form.attachments||[]).length?` (${form.attachments.length})`:""}` },
     { id:"comments",    label:`Comments${form.comments.length?` (${form.comments.length})`:""}` },
+    { id:"photos",      label:`Photos${photoLinks.length?` (${photoLinks.length})`:""}` },
+    { id:"activity",    label:"Activity"  },
   ];
+
+  // Load activity and photo links when switching to those tabs
+  useEffect(() => {
+    if (tab === "activity" && !isNew && activityLogs.length === 0 && !activityLoading) {
+      setActivityLoading(true);
+      getTaskActivity(form.id).then(logs => { setActivityLogs(logs); setActivityLoading(false); }).catch(() => setActivityLoading(false));
+    }
+  }, [tab]);
+
+  useEffect(() => {
+    if (tab === "photos" && !isNew && photoLinks.length === 0 && !photoLinksLoading) {
+      setPhotoLinksLoading(true);
+      getTaskPhotoLinks(form.id).then(links => { setPhotoLinks(links); setPhotoLinksLoading(false); }).catch(() => setPhotoLinksLoading(false));
+    }
+  }, [tab]);
 
   return (
     <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
@@ -192,12 +223,54 @@ function TaskModal({ task, projects, teamUsers, settings, onSave, onClose, onNot
                   </div>
                 </div>
                 <div className="form-group">
+                  <label className="form-label">Due Time <span style={{ color:"var(--text3)",fontWeight:400,fontSize:11 }}>(optional)</span></label>
+                  <input className="form-input" type="time" value={form.dueTime||""} onChange={e=>set("dueTime",e.target.value)} />
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
                   <label className="form-label">Linked Project</label>
                   <select className="form-input form-select" value={form.projectId} onChange={e=>set("projectId",e.target.value)}>
                     <option value="">— None —</option>
                     {projects.map(p=><option key={p.id} value={p.id}>{p.title}</option>)}
                   </select>
                 </div>
+                {!isNew && form.createdBy && (
+                  <div className="form-group">
+                    <label className="form-label">Created By</label>
+                    <div style={{ padding:"7px 10px",background:"var(--surface2)",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",fontSize:13,color:"var(--text2)" }}>
+                      {form.createdBy === "__admin__" ? (settings.userFirstName||"Admin") : form.createdBy}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Visibility */}
+              <div className="form-group">
+                <label className="form-label">Visibility</label>
+                <div style={{ display:"flex",gap:8 }}>
+                  {[{id:"shared",label:"Shared",icon:"👥",desc:"Visible to your whole team"},{id:"private",label:"Private",icon:"🔒",desc:"Only visible to you"}].map(opt=>{
+                    const active = form.visibility === opt.id;
+                    return (
+                      <div key={opt.id} onClick={()=>set("visibility",opt.id)}
+                        style={{ flex:1,padding:"8px 12px",borderRadius:"var(--radius-sm)",border:`2px solid ${active?(opt.id==="private"?"#8b5cf6":"var(--accent)"):"var(--border)"}`,background:active?(opt.id==="private"?"#8b5cf615":"var(--accent-bg, #2563eb15)"):"var(--surface2)",cursor:"pointer",transition:"all .15s" }}>
+                        <div style={{ display:"flex",alignItems:"center",gap:7 }}>
+                          <span style={{ fontSize:16 }}>{opt.icon}</span>
+                          <div>
+                            <div style={{ fontSize:12.5,fontWeight:700,color:active?(opt.id==="private"?"#8b5cf6":"var(--accent)"):"var(--text)" }}>{opt.label}</div>
+                            <div style={{ fontSize:11,color:"var(--text3)",marginTop:1 }}>{opt.desc}</div>
+                          </div>
+                          {active && <Icon d={ic.check} size={13} stroke={opt.id==="private"?"#8b5cf6":"var(--accent)"} strokeWidth={2.5} style={{marginLeft:"auto"}}/>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {form.visibility === "private" && (form.assigneeIds||[]).length > 0 && (
+                  <div style={{ marginTop:8,padding:"7px 10px",background:"#8b5cf615",border:"1px solid #8b5cf640",borderRadius:"var(--radius-sm)",fontSize:12,color:"#a78bfa",display:"flex",alignItems:"center",gap:6 }}>
+                    <span>⚠️</span> Private tasks can only be seen by you — assigned team members won't be able to view this task. Remove assignees or switch to Shared.
+                  </div>
+                )}
               </div>
 
               {/* Assignees */}
@@ -224,8 +297,28 @@ function TaskModal({ task, projects, teamUsers, settings, onSave, onClose, onNot
               {/* Tags */}
               <div className="form-group">
                 <label className="form-label">Tags</label>
+                {/* Org-level tag pills (click to toggle) */}
+                {(orgTags||[]).length > 0 && (
+                  <div style={{ display:"flex",flexWrap:"wrap",gap:5,marginBottom:8 }}>
+                    {(orgTags||[]).map(ot=>{
+                      const active = form.tags.includes(ot.name);
+                      return (
+                        <span key={ot.id} onClick={()=>set("tags", active ? form.tags.filter(x=>x!==ot.name) : [...form.tags, ot.name])}
+                          style={{ display:"flex",alignItems:"center",gap:4,fontSize:11.5,borderRadius:20,padding:"3px 10px",cursor:"pointer",transition:"all .15s",
+                            background:active?`${ot.color}22`:"var(--surface2)",
+                            border:`1.5px solid ${active?ot.color:"var(--border)"}`,
+                            color:active?ot.color:"var(--text2)",fontWeight:active?700:400 }}>
+                          <span style={{ width:7,height:7,borderRadius:"50%",background:ot.color,display:"inline-block",flexShrink:0 }} />
+                          {ot.name}
+                          {active && <Icon d={ic.check} size={10} stroke={ot.color} strokeWidth={2.5}/>}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+                {/* Applied custom tags (not in org tags list) */}
                 <div style={{ display:"flex",flexWrap:"wrap",gap:6,marginBottom:8 }}>
-                  {form.tags.map(t=>(
+                  {form.tags.filter(t=>!(orgTags||[]).find(ot=>ot.name===t)).map(t=>(
                     <span key={t} style={{ display:"flex",alignItems:"center",gap:4,fontSize:12,background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:20,padding:"2px 10px" }}>
                       <Icon d={ic.tag} size={11} stroke="var(--accent)"/>{t}
                       <span style={{ cursor:"pointer",color:"var(--text3)",marginLeft:2,fontSize:13,lineHeight:1 }} onClick={()=>set("tags",form.tags.filter(x=>x!==t))}>×</span>
@@ -233,7 +326,7 @@ function TaskModal({ task, projects, teamUsers, settings, onSave, onClose, onNot
                   ))}
                 </div>
                 <div style={{ display:"flex",gap:8 }}>
-                  <input className="form-input" style={{ flex:1 }} placeholder="Add tag…" value={newTag} onChange={e=>setNewTag(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addTag()} />
+                  <input className="form-input" style={{ flex:1 }} placeholder="Add custom tag…" value={newTag} onChange={e=>setNewTag(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addTag()} />
                   <button className="btn btn-secondary btn-sm" onClick={addTag}><Icon d={ic.plus} size={14}/></button>
                 </div>
               </div>
@@ -416,11 +509,128 @@ function TaskModal({ task, projects, teamUsers, settings, onSave, onClose, onNot
               />
             </div>
           )}
+
+          {/* ── PHOTOS TAB ── */}
+          {tab==="photos" && (
+            <div>
+              {isNew ? (
+                <div style={{ textAlign:"center",padding:"32px 16px",color:"var(--text3)",fontSize:13,border:"2px dashed var(--border)",borderRadius:"var(--radius-sm)" }}>
+                  Save the task first, then link jobsite photos.
+                </div>
+              ) : (
+                <>
+                  <div style={{ marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+                    <span style={{ fontSize:13,color:"var(--text2)" }}>{photoLinks.length} photo{photoLinks.length!==1?"s":""} linked</span>
+                    <button className="btn btn-secondary btn-sm" onClick={()=>setShowPhotoPicker(v=>!v)}>
+                      <Icon d={ic.plus} size={13}/> Link Photo
+                    </button>
+                  </div>
+
+                  {/* Photo picker */}
+                  {showPhotoPicker && (
+                    <div style={{ marginBottom:14,padding:"12px",background:"var(--surface2)",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)" }}>
+                      <div style={{ fontSize:12,fontWeight:700,color:"var(--text2)",marginBottom:8 }}>Pick a photo from your jobsites:</div>
+                      <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(80px,1fr))",gap:6,maxHeight:200,overflowY:"auto" }}>
+                        {(allPhotos||[]).length === 0 && <div style={{ fontSize:12,color:"var(--text3)" }}>No photos available.</div>}
+                        {(allPhotos||[]).map(photo=>{
+                          const alreadyLinked = photoLinks.some(l=>l.photo_id===photo.id);
+                          return (
+                            <div key={photo.id} onClick={async()=>{
+                              if (alreadyLinked) return;
+                              try {
+                                const link = await addTaskPhotoLink({ task_id:form.id, photo_id:photo.id, linked_by_user_id:null });
+                                setPhotoLinks(prev=>[link,...prev]);
+                              } catch(e) { console.warn("Photo link failed",e); }
+                            }}
+                              style={{ position:"relative",borderRadius:6,overflow:"hidden",border:`2px solid ${alreadyLinked?"var(--accent)":"var(--border)"}`,cursor:alreadyLinked?"default":"pointer",transition:"border .15s",aspectRatio:"1" }}>
+                              {photo.dataUrl || photo.url
+                                ? <img src={photo.dataUrl||photo.url} alt={photo.name||""} style={{ width:"100%",height:"100%",objectFit:"cover" }} />
+                                : <div style={{ width:"100%",height:"100%",background:"var(--surface3)",display:"flex",alignItems:"center",justifyContent:"center" }}><Icon d={ic.camera} size={20} stroke="var(--text3)"/></div>
+                              }
+                              {alreadyLinked && <div style={{ position:"absolute",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center" }}><Icon d={ic.check} size={18} stroke="white" strokeWidth={3}/></div>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <button className="btn btn-ghost btn-sm" style={{ marginTop:8 }} onClick={()=>setShowPhotoPicker(false)}>Done</button>
+                    </div>
+                  )}
+
+                  {/* Linked photos grid */}
+                  {photoLinks.length === 0 && !showPhotoPicker && (
+                    <div style={{ textAlign:"center",padding:"32px 16px",color:"var(--text3)",fontSize:13,border:"2px dashed var(--border)",borderRadius:"var(--radius-sm)" }}>
+                      No photos linked yet. Click "Link Photo" to attach jobsite photos.
+                    </div>
+                  )}
+                  <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(110px,1fr))",gap:8 }}>
+                    {photoLinks.map(link=>{
+                      const photo = (allPhotos||[]).find(p=>p.id===link.photo_id);
+                      return (
+                        <div key={link.id} style={{ position:"relative",borderRadius:8,overflow:"hidden",border:"1px solid var(--border)",aspectRatio:"1" }}>
+                          {photo && (photo.dataUrl||photo.url)
+                            ? <img src={photo.dataUrl||photo.url} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }} />
+                            : <div style={{ width:"100%",height:"100%",background:"var(--surface3)",display:"flex",alignItems:"center",justifyContent:"center" }}><Icon d={ic.camera} size={24} stroke="var(--text3)"/></div>
+                          }
+                          <button onClick={async()=>{
+                            const pid = link.photo_id;
+                            try { await removeTaskPhotoLink(form.id, pid); setPhotoLinks(prev=>prev.filter(l=>l.photo_id!==pid)); } catch(e) { console.warn("Remove link failed",e); }
+                          }}
+                            style={{ position:"absolute",top:4,right:4,width:22,height:22,borderRadius:"50%",background:"rgba(0,0,0,.6)",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}>
+                            <Icon d={ic.close} size={12} stroke="white"/>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── ACTIVITY TAB ── */}
+          {tab==="activity" && (
+            <div>
+              {isNew ? (
+                <div style={{ textAlign:"center",padding:"32px 16px",color:"var(--text3)",fontSize:13,border:"2px dashed var(--border)",borderRadius:"var(--radius-sm)" }}>
+                  Activity will appear here after the task is created.
+                </div>
+              ) : activityLoading ? (
+                <div style={{ textAlign:"center",padding:"32px 16px",color:"var(--text3)",fontSize:13 }}>Loading activity…</div>
+              ) : activityLogs.length === 0 ? (
+                <div style={{ textAlign:"center",padding:"32px 16px",color:"var(--text3)",fontSize:13,border:"2px dashed var(--border)",borderRadius:"var(--radius-sm)" }}>
+                  No activity recorded for this task yet.
+                </div>
+              ) : (
+                <div style={{ display:"flex",flexDirection:"column",gap:0 }}>
+                  {activityLogs.map((log,i)=>{
+                    const userName = log.profiles?.full_name || log.profiles?.first_name || "System";
+                    const initials = userName.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+                    const timeStr = log.created_at ? new Date(log.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}) : "";
+                    return (
+                      <div key={log.id} style={{ display:"flex",gap:10,padding:"10px 4px",borderBottom:i<activityLogs.length-1?"1px solid var(--border)":"none" }}>
+                        <div style={{ width:26,height:26,borderRadius:"50%",background:"var(--accent)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"white",flexShrink:0,marginTop:1 }}>{initials}</div>
+                        <div style={{ flex:1,minWidth:0 }}>
+                          <div style={{ fontSize:12.5,color:"var(--text)",lineHeight:1.5 }}>
+                            <strong>{userName}</strong> {log.action_label || log.action_type}
+                          </div>
+                          {log.new_value_json && <div style={{ fontSize:11.5,color:"var(--text3)",marginTop:2 }}>{typeof log.new_value_json === "string" ? log.new_value_json : JSON.stringify(log.new_value_json)}</div>}
+                          <div style={{ fontSize:11,color:"var(--text3)",marginTop:3 }}>{timeStr}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={()=>onSave(form)} disabled={!form.title.trim()}>
+          <button className="btn btn-primary"
+            onClick={()=>onSave(form)}
+            disabled={!form.title.trim() || (form.visibility==="private" && (form.assigneeIds||[]).length > 0)}
+            title={form.visibility==="private" && (form.assigneeIds||[]).length > 0 ? "Remove assignees before saving as Private" : undefined}>
             <Icon d={ic.check} size={14}/> {isNew?"Create Task":"Save Changes"}
           </button>
         </div>
@@ -1725,18 +1935,64 @@ const expandRecurringEvent = (event, rangeStart, rangeEnd) => {
 };
 
 // ── Event Modal ───────────────────────────────────────────────────────────────
-export function TasksPage({ projects, teamUsers, settings, tasks, onTasksChange, onNotify }) {
-  const [view, setView]           = useState("board");   // board | list
+export function TasksPage({ projects, teamUsers, settings, tasks, onTasksChange, onNotify, userId }) {
+  const [view, setView]           = useState("board");   // board | list | gantt
   const [editingTask, setEditingTask]   = useState(null);
   const [addingTask, setAddingTask]     = useState(null);
   const [confirmDel, setConfirmDel]     = useState(null);
   const [filterAssignee, setFilterAssignee] = useState("all");
-  const [myTasksOnly, setMyTasksOnly]       = useState(false);
-  const currentUserId = "__admin__";
+  const [myTasksOnly, setMyTasksOnly]       = useState(true);  // default My Tasks
+  const currentUserId = userId || "__admin__";
   const [filterPriority, setFilterPriority] = useState("all");
   const [filterProject,  setFilterProject]  = useState("all");
+  const [filterDue,      setFilterDue]       = useState("all");  // all | today | week | overdue
+  const [filterPrivate,  setFilterPrivate]   = useState(false);  // show only private tasks
   const [searchQ, setSearchQ]           = useState("");
   const [columns, setColumns]           = useState(DEFAULT_COLUMNS);
+
+  // Bulk select
+  const [bulkMode, setBulkMode]         = useState(false);
+  const [selectedIds, setSelectedIds]   = useState(new Set());
+  const [confirmBulkDel, setConfirmBulkDel] = useState(false);
+
+  // Org-level tags
+  const [orgTags, setOrgTags] = useState([]);
+  const [showTagManager, setShowTagManager] = useState(false);
+  const [newTagName, setNewTagName] = useState("");
+  const [newTagColor, setNewTagColor] = useState("#6366f1");
+
+  // Load org tags
+  useEffect(() => {
+    getTaskTags().then(tags => setOrgTags(tags)).catch(() => {});
+  }, []);
+
+  // Due-date reminder notifications on mount (tasks due today)
+  useEffect(() => {
+    if (!onNotify || !tasks.length) return;
+    const todayStr = today();
+    const dueTodayTasks = tasks.filter(t => t.dueDate === todayStr && t.status !== "done");
+    if (dueTodayTasks.length > 0) {
+      onNotify({
+        id: uid(),
+        author: "KrakenCam",
+        authorInitials: "KC",
+        authorColor: "#e8c53a",
+        action: `${dueTodayTasks.length} task${dueTodayTasks.length>1?"s":""} due today`,
+        context: dueTodayTasks.slice(0,3).map(t=>t.title).join(", "),
+        preview: `Tasks due today: ${dueTodayTasks.map(t=>t.title).join(", ")}`,
+        date: todayStr,
+        read: false,
+        type: "task",
+        recipientUserIds: ["__admin__"],
+      });
+    }
+  }, []);  // only on mount
+
+  // All photos across all projects for the photo picker
+  const allPhotos = React.useMemo(() =>
+    projects.flatMap(p => (p.photos||[]).map(ph => ({ ...ph, projectTitle: p.title }))),
+    [projects]
+  );
   const [editingCol, setEditingCol]     = useState(null);
   const [newColLabel, setNewColLabel]   = useState("");
   const [dragTask, setDragTask]         = useState(null);
@@ -1753,7 +2009,8 @@ export function TasksPage({ projects, teamUsers, settings, tasks, onTasksChange,
     const prevAssignees = exists ? (exists.assigneeIds||[]) : [];
     const newAssignees  = (t.assigneeIds||[]).filter(id => !prevAssignees.includes(id) && id !== "__admin__");
     onTasksChange(exists ? tasks.map(x=>x.id===t.id?t:x) : [...tasks, t]);
-    if (onNotify && newAssignees.length > 0) {
+    // Skip notifications for private tasks — they shouldn't have assignees
+    if (onNotify && newAssignees.length > 0 && t.visibility !== "private") {
       const authorName = `${settings.userFirstName||"Admin"} ${settings.userLastName||""}`.trim();
       newAssignees.forEach(userId => {
         onNotify({
@@ -1786,14 +2043,47 @@ export function TasksPage({ projects, teamUsers, settings, tasks, onTasksChange,
     ...teamUsers.filter(u=>u.status==="active"),
   ];
 
+  const todayStr = today();
   const filteredTasks = tasks.filter(t => {
+    if (filterPrivate && t.visibility !== "private") return false;
     if (myTasksOnly && !t.assigneeIds?.includes(currentUserId)) return false;
     if (filterAssignee !== "all" && !t.assigneeIds?.includes(filterAssignee)) return false;
     if (filterPriority !== "all" && t.priority !== filterPriority) return false;
     if (filterProject  !== "all" && t.projectId !== filterProject)  return false;
     if (searchQ && !`${t.title} ${t.description} ${(t.tags||[]).join(" ")}`.toLowerCase().includes(searchQ.toLowerCase())) return false;
+    if (filterDue === "today") {
+      if (t.dueDate !== todayStr) return false;
+    } else if (filterDue === "week") {
+      if (!t.dueDate) return false;
+      const due = new Date(t.dueDate + "T12:00:00");
+      const now = new Date();
+      const weekEnd = new Date(now); weekEnd.setDate(weekEnd.getDate() + 7);
+      if (due < now || due > weekEnd) return false;
+    } else if (filterDue === "overdue") {
+      if (!t.dueDate) return false;
+      const due = new Date(t.dueDate + "T12:00:00");
+      if (due >= new Date() || t.status === "done") return false;
+    }
     return true;
   });
+
+  const toggleSelectId = id => setSelectedIds(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredTasks.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filteredTasks.map(t=>t.id)));
+  };
+  const bulkDelete = async () => {
+    const ids = [...selectedIds];
+    onTasksChange(tasks.filter(t => !selectedIds.has(t.id)));
+    setSelectedIds(new Set());
+    setBulkMode(false);
+    setConfirmBulkDel(false);
+    try { await deleteTasks(ids); } catch(e) { console.warn("Bulk delete failed", e); }
+  };
 
   const tasksByCol = col => filteredTasks.filter(t=>t.status===col.id);
 
@@ -1830,14 +2120,15 @@ export function TasksPage({ projects, teamUsers, settings, tasks, onTasksChange,
     );
   };
 
-  const DueBadge = ({dueDate}) => {
+  const DueBadge = ({dueDate, dueTime}) => {
     if (!dueDate) return null;
     const due = new Date(dueDate+"T12:00:00");
     const diff = Math.ceil((due - new Date()) / 86400000);
     const overdue = diff < 0;
     const soon    = diff >= 0 && diff <= 2;
-    if (!overdue && !soon) return <span style={{ fontSize:10.5,color:"var(--text3)" }}>Due {formatDate(dueDate, settings)}</span>;
-    return <span style={{ fontSize:10.5,fontWeight:700,color:overdue?"#e85a3a":"#e8c53a",background:overdue?"#e85a3a18":"#e8c53a18",padding:"1px 7px",borderRadius:10 }}>{overdue?`Overdue ${Math.abs(diff)}d`:`Due in ${diff}d`}</span>;
+    const timeStr = dueTime ? ` ${dueTime}` : "";
+    if (!overdue && !soon) return <span style={{ fontSize:10.5,color:"var(--text3)" }}>Due {formatDate(dueDate, settings)}{timeStr}</span>;
+    return <span style={{ fontSize:10.5,fontWeight:700,color:overdue?"#e85a3a":"#e8c53a",background:overdue?"#e85a3a18":"#e8c53a18",padding:"1px 7px",borderRadius:10 }}>{overdue?`Overdue ${Math.abs(diff)}d`:`Due in ${diff}d`}{timeStr}</span>;
   };
 
   // Self-contained list-view checklist expander
@@ -1865,17 +2156,23 @@ export function TasksPage({ projects, teamUsers, settings, tasks, onTasksChange,
     const canFwd  = colIdx < columns.length - 1;
     const [showChecklist, setShowChecklist] = useState(false);
 
+    const isCritical = task.priority === "critical";
     return (
       <div draggable onDragStart={e=>onDragStart(e,task.id)}
-        style={{ background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-sm)",padding:"11px 13px",cursor:"grab",transition:"box-shadow .15s",userSelect:"none" }}
-        onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,.18)"}
-        onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}>
+        style={{ background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-sm)",padding:"11px 13px",cursor:"grab",transition:"box-shadow .15s",userSelect:"none",
+          borderLeft:`3px solid ${isCritical?"#e85a3a":"var(--border)"}`,
+          boxShadow:isCritical?"0 0 0 1px #e85a3a18 inset":"none" }}
+        onMouseEnter={e=>e.currentTarget.style.boxShadow=isCritical?"0 4px 16px rgba(232,90,58,.18)":"0 4px 16px rgba(0,0,0,.18)"}
+        onMouseLeave={e=>e.currentTarget.style.boxShadow=isCritical?"0 0 0 1px #e85a3a18 inset":"none"}>
 
         {/* Top row */}
         <div style={{ display:"flex",alignItems:"flex-start",gap:8,marginBottom:7 }}>
           <PriorityDot priority={task.priority} size={9} />
           <div style={{ flex:1,minWidth:0 }}>
-            <div style={{ fontSize:13,fontWeight:700,lineHeight:1.4,marginBottom:3,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical" }}>{task.title}</div>
+            <div style={{ fontSize:13,fontWeight:700,lineHeight:1.4,marginBottom:3,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical" }}>
+              {task.visibility==="private" && <span title="Private task — only visible to you" style={{ fontSize:11,marginRight:5,opacity:.8 }}>🔒</span>}
+              {task.title}
+            </div>
             {task.description && <div style={{ fontSize:11.5,color:"var(--text2)",overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",lineHeight:1.5 }}>{task.description}</div>}
           </div>
           <div style={{ display:"flex",gap:3,flexShrink:0 }}>
@@ -1923,10 +2220,16 @@ export function TasksPage({ projects, teamUsers, settings, tasks, onTasksChange,
 
         {/* Bottom row */}
         <div style={{ display:"flex",alignItems:"center",gap:8,marginTop:6,flexWrap:"wrap" }}>
+          {bulkMode && (
+            <div onClick={e=>{e.stopPropagation();toggleSelectId(task.id);}}
+              style={{ width:16,height:16,borderRadius:4,border:`2px solid ${selectedIds.has(task.id)?"var(--accent)":"var(--border)"}`,background:selectedIds.has(task.id)?"var(--accent)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,transition:"all .15s" }}>
+              {selectedIds.has(task.id) && <Icon d={ic.check} size={10} stroke="white" strokeWidth={3}/>}
+            </div>
+          )}
           <AssigneeAvatars assigneeIds={task.assigneeIds||[]} />
           <div style={{ flex:1 }} />
           {proj && <span style={{ fontSize:10,background:`${proj.color}20`,color:proj.color,borderRadius:10,padding:"1px 7px",fontWeight:600,maxWidth:90,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{proj.title}</span>}
-          <DueBadge dueDate={task.dueDate} />
+          <DueBadge dueDate={task.dueDate} dueTime={task.dueTime} />
         </div>
 
         {/* Progress controls */}
@@ -1966,8 +2269,8 @@ export function TasksPage({ projects, teamUsers, settings, tasks, onTasksChange,
         <div style={{ display:"flex",gap:8,alignItems:"center" }}>
           {/* View toggle */}
           <div style={{ display:"flex",background:"var(--surface2)",borderRadius:"var(--radius-sm)",padding:3,border:"1px solid var(--border)" }}>
-            {[{v:"board",icon:ic.kanban},{v:"list",icon:ic.clipboardList}].map(({v,icon})=>(
-              <button key={v} onClick={()=>setView(v)} className="btn btn-ghost btn-sm btn-icon"
+            {[{v:"board",icon:ic.kanban,title:"Board"},{v:"list",icon:ic.clipboardList,title:"List"},{v:"gantt",icon:"M3 12h4M3 6h8M3 18h6M9 12h12M13 6h8M11 18h10",title:"Gantt"}].map(({v,icon,title})=>(
+              <button key={v} onClick={()=>setView(v)} className="btn btn-ghost btn-sm btn-icon" title={title}
                 style={{ width:44,height:44,background:view===v?"var(--surface)":"transparent",boxShadow:view===v?"0 1px 4px rgba(0,0,0,.15)":"none",color:view===v?"var(--accent)":"var(--text2)",transition:"all .15s" }}>
                 <Icon d={icon} size={22}/>
               </button>
@@ -1980,7 +2283,7 @@ export function TasksPage({ projects, teamUsers, settings, tasks, onTasksChange,
       </div>
 
       {/* Filter bar */}
-      <div style={{ display:"flex",gap:8,marginBottom:20,flexWrap:"wrap",paddingRight:26,alignItems:"center" }}>
+      <div style={{ display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",paddingRight:26,alignItems:"center" }}>
         <input className="form-input" style={{ width:200 }} placeholder="Search tasks…" value={searchQ} onChange={e=>setSearchQ(e.target.value)} />
         <select className="form-input form-select" style={{ width:"auto" }} value={filterAssignee} onChange={e=>setFilterAssignee(e.target.value)}>
           <option value="all">All Assignees</option>
@@ -2002,13 +2305,106 @@ export function TasksPage({ projects, teamUsers, settings, tasks, onTasksChange,
             border:`1.5px solid ${myTasksOnly?"var(--accent)":"var(--border)"}` }}>
           <Icon d={ic.user} size={13}/> My Tasks
         </button>
-        {(searchQ||filterAssignee!=="all"||filterPriority!=="all"||filterProject!=="all"||myTasksOnly) && (
-          <button className="btn btn-ghost btn-sm" style={{ color:"var(--text3)" }} onClick={()=>{setSearchQ("");setFilterAssignee("all");setFilterPriority("all");setFilterProject("all");setMyTasksOnly(false);}}>✕ Clear</button>
+        <button onClick={()=>setFilterPrivate(v=>!v)}
+          className="btn btn-sm"
+          title="Show only your private tasks"
+          style={{ padding:"0 14px",height:36,fontWeight:600,fontSize:12.5,display:"flex",alignItems:"center",gap:6,
+            background:filterPrivate?"#8b5cf6":"var(--surface2)",
+            color:filterPrivate?"white":"var(--text2)",
+            border:`1.5px solid ${filterPrivate?"#8b5cf6":"var(--border)"}` }}>
+          🔒 Private
+        </button>
+        {(searchQ||filterAssignee!=="all"||filterPriority!=="all"||filterProject!=="all"||myTasksOnly||filterDue!=="all"||filterPrivate) && (
+          <button className="btn btn-ghost btn-sm" style={{ color:"var(--text3)" }} onClick={()=>{setSearchQ("");setFilterAssignee("all");setFilterPriority("all");setFilterProject("all");setMyTasksOnly(false);setFilterDue("all");setFilterPrivate(false);}}>✕ Clear</button>
         )}
         <div style={{ marginLeft:"auto",display:"flex",gap:6,alignItems:"center" }}>
           <span style={{ fontSize:12,color:"var(--text3)" }}>{filteredTasks.length} task{filteredTasks.length!==1?"s":""}</span>
+          <button className="btn btn-sm"
+            style={{ padding:"0 12px",height:36,fontSize:12,gap:6,display:"flex",alignItems:"center",
+              background:bulkMode?"#e85a3a18":"var(--surface2)",
+              color:bulkMode?"#e85a3a":"var(--text2)",
+              border:`1.5px solid ${bulkMode?"#e85a3a":"var(--border)"}` }}
+            onClick={()=>{ setBulkMode(v=>!v); setSelectedIds(new Set()); }}>
+            <Icon d={ic.check} size={13}/> {bulkMode?"Cancel Select":"Select"}
+          </button>
+          <button className="btn btn-sm btn-secondary" style={{ padding:"0 12px",height:36,fontSize:12,gap:5,display:"flex",alignItems:"center" }}
+            onClick={()=>setShowTagManager(v=>!v)}>
+            <Icon d={ic.tag} size={13}/> Tags
+          </button>
         </div>
       </div>
+
+      {/* Due date quick filter pills */}
+      <div style={{ display:"flex",gap:6,marginBottom:16,flexWrap:"wrap",paddingRight:26 }}>
+        {[{id:"all",label:"All"},
+          {id:"today",label:"Due Today",color:"#e8c53a"},
+          {id:"week",label:"Due This Week",color:"#3ab8e8"},
+          {id:"overdue",label:"Overdue",color:"#e85a3a"}
+        ].map(f=>(
+          <button key={f.id} onClick={()=>setFilterDue(f.id)} className="btn btn-sm"
+            style={{ padding:"0 12px",height:30,fontSize:12,fontWeight:filterDue===f.id?700:500,transition:"all .15s",
+              background:filterDue===f.id?(f.color||"var(--accent)"):"var(--surface2)",
+              color:filterDue===f.id?"white":(f.color||"var(--text2)"),
+              border:`1.5px solid ${filterDue===f.id?(f.color||"var(--accent)"):"var(--border)"}` }}>
+            {f.label}
+            {f.id==="today" && tasks.filter(t=>t.dueDate===todayStr&&t.status!=="done").length > 0 && (
+              <span style={{ marginLeft:4,fontSize:10,background:"rgba(255,255,255,.25)",borderRadius:8,padding:"1px 5px" }}>
+                {tasks.filter(t=>t.dueDate===todayStr&&t.status!=="done").length}
+              </span>
+            )}
+            {f.id==="overdue" && tasks.filter(t=>t.dueDate&&new Date(t.dueDate+"T12:00:00")<new Date()&&t.status!=="done").length > 0 && (
+              <span style={{ marginLeft:4,fontSize:10,background:"rgba(255,255,255,.25)",borderRadius:8,padding:"1px 5px" }}>
+                {tasks.filter(t=>t.dueDate&&new Date(t.dueDate+"T12:00:00")<new Date()&&t.status!=="done").length}
+              </span>
+            )}
+          </button>
+        ))}
+        {bulkMode && selectedIds.size > 0 && (
+          <button className="btn btn-sm" style={{ marginLeft:8,padding:"0 14px",height:30,fontSize:12,background:"#e85a3a",color:"white",border:"none",gap:5,display:"flex",alignItems:"center" }}
+            onClick={()=>setConfirmBulkDel(true)}>
+            <Icon d={ic.trash} size={12}/> Delete {selectedIds.size} selected
+          </button>
+        )}
+        {bulkMode && filteredTasks.length > 0 && (
+          <button className="btn btn-ghost btn-sm" style={{ padding:"0 10px",height:30,fontSize:12,color:"var(--text3)" }}
+            onClick={toggleSelectAll}>
+            {selectedIds.size===filteredTasks.length?"Deselect All":"Select All"}
+          </button>
+        )}
+      </div>
+
+      {/* Tag Manager */}
+      {showTagManager && (
+        <div style={{ marginBottom:16,paddingRight:26 }}>
+          <div style={{ background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:"var(--radius)",padding:"14px 16px" }}>
+            <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10 }}>
+              <span style={{ fontWeight:700,fontSize:13 }}>Manage Tags</span>
+              <button className="btn btn-ghost btn-sm btn-icon" onClick={()=>setShowTagManager(false)}><Icon d={ic.close} size={14}/></button>
+            </div>
+            <div style={{ display:"flex",flexWrap:"wrap",gap:6,marginBottom:12 }}>
+              {orgTags.map(ot=>(
+                <span key={ot.id} style={{ display:"flex",alignItems:"center",gap:5,fontSize:12,padding:"3px 10px",borderRadius:20,background:`${ot.color}18`,border:`1.5px solid ${ot.color}`,color:ot.color,fontWeight:600 }}>
+                  {ot.name}
+                  <span style={{ cursor:"pointer",marginLeft:2,opacity:.7,fontSize:13,lineHeight:1 }}
+                    onClick={async()=>{ await deleteTaskTag(ot.id); setOrgTags(prev=>prev.filter(t=>t.id!==ot.id)); }}>×</span>
+                </span>
+              ))}
+              {orgTags.length===0 && <span style={{ fontSize:12,color:"var(--text3)" }}>No org tags yet. Create some below.</span>}
+            </div>
+            <div style={{ display:"flex",gap:8,alignItems:"center" }}>
+              <input type="color" value={newTagColor} onChange={e=>setNewTagColor(e.target.value)}
+                style={{ width:32,height:32,border:"none",padding:0,borderRadius:6,cursor:"pointer",background:"none" }} />
+              <input className="form-input" style={{ flex:1 }} placeholder="Tag name…" value={newTagName} onChange={e=>setNewTagName(e.target.value)}
+                onKeyDown={async e=>{ if(e.key==="Enter"&&newTagName.trim()) {
+                  try { const t = await createTaskTag({ organization_id: tasks[0]?.organization_id, name:newTagName.trim(), color:newTagColor }); setOrgTags(prev=>[...prev,t]); setNewTagName(""); } catch(err) { console.warn(err); }
+                }}} />
+              <button className="btn btn-primary btn-sm" disabled={!newTagName.trim()} onClick={async()=>{
+                try { const t = await createTaskTag({ organization_id: tasks[0]?.organization_id, name:newTagName.trim(), color:newTagColor }); setOrgTags(prev=>[...prev,t]); setNewTagName(""); } catch(err) { console.warn(err); }
+              }}><Icon d={ic.plus} size={14}/> Add</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── BOARD VIEW ── */}
       {view==="board" && (
@@ -2105,12 +2501,20 @@ export function TasksPage({ projects, teamUsers, settings, tasks, onTasksChange,
                     const listUrgency = getDueUrgency(task.dueDate);
                     const listBg = listUrgency==="overdue"?"rgba(232,90,58,.04)":listUrgency==="soon"?"rgba(232,197,58,.04)":"transparent";
                     const listBorderL = listUrgency==="overdue"?"3px solid #e85a3a":listUrgency==="soon"?"3px solid #e8c53a":"3px solid transparent";
+                    const isCriticalRow = task.priority === "critical";
+                    const criticalBorder = isCriticalRow ? "3px solid #e85a3a" : listBorderL;
                     return (
-                      <div key={task.id} style={{ borderBottom:i<colTasks.length-1?"1px solid var(--border)":"none",padding:"10px 14px",background:listBg,borderLeft:listBorderL }}
+                      <div key={task.id} style={{ borderBottom:i<colTasks.length-1?"1px solid var(--border)":"none",padding:"10px 14px",background:isCriticalRow?"rgba(232,90,58,.04)":listBg,borderLeft:criticalBorder }}
                         onMouseEnter={e=>e.currentTarget.style.background="var(--surface2)"}
-                        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                        {/* Row 1: priority dot + title + edit/delete */}
+                        onMouseLeave={e=>e.currentTarget.style.background=isCriticalRow?"rgba(232,90,58,.04)":listBg}>
+                        {/* Row 1: bulk checkbox + priority dot + title + edit/delete */}
                         <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:6 }}>
+                          {bulkMode && (
+                            <div onClick={e=>{e.stopPropagation();toggleSelectId(task.id);}}
+                              style={{ width:16,height:16,borderRadius:4,border:`2px solid ${selectedIds.has(task.id)?"var(--accent)":"var(--border)"}`,background:selectedIds.has(task.id)?"var(--accent)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,transition:"all .15s" }}>
+                              {selectedIds.has(task.id) && <Icon d={ic.check} size={10} stroke="white" strokeWidth={3}/>}
+                            </div>
+                          )}
                           <div style={{ width:9,height:9,borderRadius:"50%",background:pri.color,flexShrink:0 }} />
                           <div style={{ flex:1,minWidth:0 }}>
                             <div style={{ fontWeight:600,fontSize:13.5,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{task.title}</div>
@@ -2121,16 +2525,20 @@ export function TasksPage({ projects, teamUsers, settings, tasks, onTasksChange,
                           </div>
                         </div>
                         {/* Row 2: meta — description, tags, project, assignees, due, status */}
-                        <div style={{ display:"flex",flexWrap:"wrap",alignItems:"center",gap:6,paddingLeft:19 }}>
+                        <div style={{ display:"flex",flexWrap:"wrap",alignItems:"center",gap:6,paddingLeft:bulkMode?35:19 }}>
                           {task.description && <span style={{ fontSize:11.5,color:"var(--text2)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:200 }}>{task.description}</span>}
-                          {(task.tags||[]).map(t=><span key={t} style={{ fontSize:10,background:"var(--surface2)",border:"1px solid var(--border)",borderRadius:10,padding:"1px 7px",color:"var(--text2)" }}>{t}</span>)}
+                          {(task.tags||[]).map(t=>{
+                            const orgT = orgTags.find(ot=>ot.name===t);
+                            return <span key={t} style={{ fontSize:10,borderRadius:10,padding:"1px 7px",background:orgT?`${orgT.color}18`:"var(--surface2)",border:`1px solid ${orgT?orgT.color:"var(--border)"}`,color:orgT?orgT.color:"var(--text2)",fontWeight:orgT?700:400 }}>{t}</span>;
+                          })}
                           {proj && <span style={{ fontSize:10.5,background:`${proj.color}20`,color:proj.color,borderRadius:10,padding:"1px 8px",fontWeight:600,maxWidth:100,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{proj.title}</span>}
                           <AssigneeAvatars assigneeIds={task.assigneeIds||[]} />
-                          <DueBadge dueDate={task.dueDate} />
+                          <DueBadge dueDate={task.dueDate} dueTime={task.dueTime} />
                           {checkTotal > 0 && <ListCheckToggle task={task} checkDone={checkDone} checkTotal={checkTotal} onToggleChecklistItem={toggleChecklistItem} />}
+                          {task.createdBy && <span style={{ fontSize:10.5,color:"var(--text3)",marginLeft:"auto" }}>by {task.createdBy==="__admin__"?(settings.userFirstName||"Admin"):task.createdBy}</span>}
                           {/* Status select */}
                           <select className="form-input form-select" value={task.status} onChange={e=>moveTask(task.id,e.target.value)}
-                            style={{ width:"auto",fontSize:11,padding:"3px 22px 3px 7px",height:"auto",marginLeft:"auto" }}>
+                            style={{ width:"auto",fontSize:11,padding:"3px 22px 3px 7px",height:"auto" }}>
                             {columns.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
                           </select>
                         </div>
@@ -2151,6 +2559,113 @@ export function TasksPage({ projects, teamUsers, settings, tasks, onTasksChange,
         </div>
       )}
 
+      {/* ── GANTT VIEW ── */}
+      {view==="gantt" && (
+        <div style={{ paddingRight:26, overflowX:"auto" }}>
+          {(() => {
+            const ganttTasks = filteredTasks.filter(t => t.dueDate);
+            if (ganttTasks.length === 0) return (
+              <div style={{ textAlign:"center",padding:"60px 20px",color:"var(--text3)" }}>
+                <Icon d="M3 12h4M3 6h8M3 18h6M9 12h12M13 6h8M11 18h10" size={40} stroke="var(--text3)"/>
+                <div style={{ fontSize:16,fontWeight:700,marginTop:14,color:"var(--text2)" }}>No tasks with due dates</div>
+                <div style={{ fontSize:13,marginTop:6 }}>Add due dates to tasks to see them on the Gantt chart.</div>
+              </div>
+            );
+
+            // Date range: from today-7d to max due date + 14d
+            const now = new Date();
+            const minD = new Date(now); minD.setDate(minD.getDate() - 7);
+            const maxD = ganttTasks.reduce((acc, t) => {
+              const d = new Date(t.dueDate + "T12:00:00");
+              return d > acc ? d : acc;
+            }, new Date(now));
+            maxD.setDate(maxD.getDate() + 14);
+
+            const totalDays = Math.ceil((maxD - minD) / 86400000);
+            const DAY_W = 28;
+            const ROW_H = 44;
+            const LABEL_W = 180;
+
+            const daysBetween = (a, b) => Math.ceil((b - a) / 86400000);
+
+            // Group by status column color
+            const sortedGantt = [...ganttTasks].sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+
+            return (
+              <div style={{ background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius)",overflow:"hidden" }}>
+                {/* Header: day labels */}
+                <div style={{ display:"flex",borderBottom:"2px solid var(--border)",background:"var(--surface2)" }}>
+                  <div style={{ width:LABEL_W,flexShrink:0,padding:"8px 12px",fontSize:11,fontWeight:700,color:"var(--text3)",borderRight:"1px solid var(--border)" }}>Task</div>
+                  <div style={{ flex:1,overflowX:"hidden",position:"relative",height:34 }}>
+                    <div style={{ width:totalDays*DAY_W,display:"flex" }}>
+                      {Array.from({length:totalDays},(_, i)=>{
+                        const d = new Date(minD); d.setDate(d.getDate()+i);
+                        const isToday = d.toISOString().slice(0,10)===todayStr;
+                        const isWeekend = d.getDay()===0||d.getDay()===6;
+                        const showLabel = i===0||d.getDate()===1||(i>0&&new Date(minD.getTime()+(i-1)*86400000).getDay()===0);
+                        return (
+                          <div key={i} style={{ width:DAY_W,flexShrink:0,textAlign:"center",fontSize:9,color:isToday?"var(--accent)":isWeekend?"var(--text3)":"var(--text3)",fontWeight:isToday?800:400,padding:"4px 0",background:isToday?"var(--accent-glow)":isWeekend?"rgba(0,0,0,.03)":"transparent",borderRight:"1px solid var(--border)",lineHeight:1.3 }}>
+                            {showLabel ? <>{d.toLocaleDateString("en-US",{month:"short"})}<br/></> : ""}
+                            {d.getDate()}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rows */}
+                {sortedGantt.map((task, rowI)=>{
+                  const col = columns.find(c=>c.id===task.status) || columns[1];
+                  const pri = TASK_PRIORITIES.find(p=>p.id===task.priority)||TASK_PRIORITIES[2];
+                  const dueD = new Date(task.dueDate+"T12:00:00");
+                  const startD = task.createdAt ? new Date(task.createdAt) : new Date(dueD.getTime()-2*86400000);
+                  const barStart = Math.max(0, daysBetween(minD, startD));
+                  const barEnd   = Math.min(totalDays, daysBetween(minD, dueD)+1);
+                  const barW = Math.max(1, barEnd-barStart);
+                  const isOverdue = dueD < now && task.status !== "done";
+
+                  return (
+                    <div key={task.id} style={{ display:"flex",borderBottom:rowI<sortedGantt.length-1?"1px solid var(--border)":"none",height:ROW_H,alignItems:"center" }}
+                      onMouseEnter={e=>e.currentTarget.style.background="var(--surface2)"}
+                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                      {/* Label */}
+                      <div style={{ width:LABEL_W,flexShrink:0,padding:"0 12px",overflow:"hidden",borderRight:"1px solid var(--border)",height:"100%",display:"flex",alignItems:"center",gap:7,cursor:"pointer" }}
+                        onClick={()=>setEditingTask(task)}>
+                        <div style={{ width:7,height:7,borderRadius:"50%",background:pri.color,flexShrink:0 }} />
+                        <div style={{ overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12.5,fontWeight:600 }}>{task.title}</div>
+                      </div>
+                      {/* Bar area */}
+                      <div style={{ flex:1,position:"relative",height:"100%",overflowX:"hidden" }}>
+                        <div style={{ width:totalDays*DAY_W,height:"100%",position:"relative" }}>
+                          {/* Weekend shading */}
+                          {Array.from({length:totalDays},(_,i)=>{
+                            const d=new Date(minD);d.setDate(d.getDate()+i);
+                            return (d.getDay()===0||d.getDay()===6)
+                              ? <div key={i} style={{ position:"absolute",left:i*DAY_W,top:0,width:DAY_W,height:"100%",background:"rgba(0,0,0,.025)",pointerEvents:"none" }} />
+                              : null;
+                          })}
+                          {/* Today line */}
+                          <div style={{ position:"absolute",left:daysBetween(minD,now)*DAY_W,top:0,width:2,height:"100%",background:"var(--accent)",opacity:.5,pointerEvents:"none" }} />
+                          {/* Task bar */}
+                          <div style={{ position:"absolute",left:barStart*DAY_W+2,top:"50%",transform:"translateY(-50%)",width:barW*DAY_W-4,height:22,borderRadius:6,
+                            background:isOverdue?"#e85a3a":task.status==="done"?"#3dba7e":`${col.color}cc`,
+                            display:"flex",alignItems:"center",paddingLeft:6,overflow:"hidden",cursor:"pointer",
+                            boxShadow:isOverdue?"0 0 0 1px #e85a3a":"none" }}
+                            onClick={()=>setEditingTask(task)}>
+                            <span style={{ fontSize:10.5,fontWeight:600,color:"white",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{task.title}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
       {/* ── MODALS ── */}
       {(addingTask || editingTask) && (
         <TaskModal
@@ -2161,6 +2676,9 @@ export function TasksPage({ projects, teamUsers, settings, tasks, onTasksChange,
           onSave={saveTask}
           onNotify={onNotify}
           onClose={()=>{ setEditingTask(null); setAddingTask(null); }}
+          orgTags={orgTags}
+          allPhotos={allPhotos}
+          userId={userId}
         />
       )}
 
@@ -2180,6 +2698,29 @@ export function TasksPage({ projects, teamUsers, settings, tasks, onTasksChange,
               <button className="btn btn-secondary" onClick={()=>setConfirmDel(null)}>Cancel</button>
               <button className="btn btn-primary" style={{ background:"#e85a3a",borderColor:"#e85a3a" }} onClick={()=>deleteTask(confirmDel.id)}>
                 <Icon d={ic.trash} size={14}/> Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk delete confirmation */}
+      {confirmBulkDel && (
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setConfirmBulkDel(false)}>
+          <div className="modal fade-in" style={{ maxWidth:420 }}>
+            <div className="modal-header">
+              <div className="modal-title">Delete {selectedIds.size} Tasks</div>
+              <button className="btn btn-ghost btn-sm btn-icon" onClick={()=>setConfirmBulkDel(false)}><Icon d={ic.close} size={16}/></button>
+            </div>
+            <div className="modal-body">
+              <div style={{ fontSize:13.5,color:"var(--text2)",lineHeight:1.7 }}>
+                Delete <strong style={{ color:"var(--text)" }}>{selectedIds.size} selected task{selectedIds.size!==1?"s":""}</strong>? This cannot be undone.
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={()=>setConfirmBulkDel(false)}>Cancel</button>
+              <button className="btn btn-primary" style={{ background:"#e85a3a",borderColor:"#e85a3a" }} onClick={bulkDelete}>
+                <Icon d={ic.trash} size={14}/> Delete All
               </button>
             </div>
           </div>

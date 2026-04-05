@@ -9,6 +9,19 @@ import { TEMPLATES } from "../utils/constants.js";
 import { AIProjectOverview } from "./SketchEditor.jsx";
 import { getAuthHeaders } from "../lib/supabase.js";
 
+// Lazy-load PropertyMapTab to keep initial bundle small
+const PropertyMapTabLazy = React.lazy(() =>
+  import("./PropertyMapTab.jsx").then(m => ({ default: m.PropertyMapTab }))
+);
+// Lazy-load JobsiteEquipmentTab
+const JobsiteEquipmentTab = React.lazy(() =>
+  import("./JobsiteEquipmentTab.jsx").then(m => ({ default: m.JobsiteEquipmentTab }))
+);
+// Lazy-load AssistantTab
+const AssistantTab = React.lazy(() =>
+  import("./AssistantTab.jsx").then(m => ({ default: m.AssistantTab }))
+);
+
 // ── Camera Component ───────────────────────────────────────────────────────────
 function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRef, addUploadedPhotos, settings, teamUsers = [], chats = [], onSendPhotoToChat }) {
   const photos    = project.photos    || [];
@@ -18,6 +31,11 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
   const [filterRoom,    setFilterRoom]    = useState("all");
   const [filterFloor,   setFilterFloor]   = useState("all");
   const [filterTag,     setFilterTag]     = useState("all");
+  const [filterSource,  setFilterSource]  = useState("all");
+  const [searchQuery,   setSearchQuery]   = useState("");
+  const [photoDetail,   setPhotoDetail]   = useState(null); // photo for detail modal
+  const [bulkTagInput,  setBulkTagInput]  = useState("");
+  const [showBulkTag,   setShowBulkTag]   = useState(false);
   const [editingTag,    setEditingTag]    = useState(null);
   const [addingTag,     setAddingTag]     = useState(false);
   const [newTagInput,   setNewTagInput]   = useState("");
@@ -115,6 +133,31 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
     setSelectedPhotoIds(new Set());
     setSelectMode(false);
   };
+
+  const bulkAddTag = (tag) => {
+    if (!tag.trim()) return;
+    onUpdateProject({ ...project, photos: photos.map(p =>
+      selectedPhotoIds.has(p.id)
+        ? { ...p, tags: Array.from(new Set([...(p.tags||[]), tag.trim()])) }
+        : p
+    )});
+    setBulkTagInput(""); setShowBulkTag(false);
+  };
+
+  const downloadSelected = () => {
+    const sel = photos.filter(p => selectedPhotoIds.has(p.id) && p.dataUrl);
+    sel.forEach((p, i) => {
+      setTimeout(() => {
+        const a = document.createElement("a");
+        a.href = p.dataUrl;
+        a.download = `${(p.name||"photo").replace(/[^a-z0-9]/gi,"_")}.jpg`;
+        a.rel = "noopener";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }, i * 300);
+    });
+  };
   const toggleSelect = (id) => setSelectedPhotoIds(prev => {
     const n = new Set(prev);
     n.has(id) ? n.delete(id) : n.add(id);
@@ -153,15 +196,51 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
   // Collect unique floor values from photos that have one
   const floors = [...new Set(photos.map(p => p.floor).filter(Boolean))].sort();
 
+  const sources = [...new Set(photos.map(p => p.source).filter(Boolean))].sort();
+
   const filtered = photos.filter(p => {
-    if (filterRoom  !== "all" && p.room  !== filterRoom)                    return false;
-    if (filterFloor !== "all" && p.floor !== filterFloor)                   return false;
-    if (filterTag   !== "all" && !(p.tags||[]).includes(filterTag))         return false;
+    if (filterRoom   !== "all" && p.room   !== filterRoom)                  return false;
+    if (filterFloor  !== "all" && p.floor  !== filterFloor)                 return false;
+    if (filterTag    !== "all" && !(p.tags||[]).includes(filterTag))        return false;
+    if (filterSource !== "all" && p.source !== filterSource)                return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const match = (p.name||"").toLowerCase().includes(q)
+        || (p.room||"").toLowerCase().includes(q)
+        || (p.notes||"").toLowerCase().includes(q)
+        || (p.tags||[]).some(t => t.toLowerCase().includes(q));
+      if (!match) return false;
+    }
     return true;
   });
 
+  const hasActiveFilter = filterRoom !== "all" || filterFloor !== "all" || filterTag !== "all" || filterSource !== "all" || searchQuery.trim();
+
   return (
     <div>
+      {/* ── Search bar ── */}
+      <div style={{ display:"flex",gap:8,marginBottom:10,alignItems:"center" }}>
+        <div style={{ flex:1, position:"relative" }}>
+          <input
+            className="form-input"
+            placeholder="🔍 Search photos by name, room, tag, notes…"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            style={{ paddingLeft:12, paddingRight: searchQuery ? 30 : 12 }}
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery("")}
+              style={{ position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:"var(--text3)",fontSize:16,lineHeight:1 }}>×</button>
+          )}
+        </div>
+        {hasActiveFilter && (
+          <button className="btn btn-ghost btn-sm" style={{ whiteSpace:"nowrap",color:"var(--text3)",fontSize:12 }}
+            onClick={() => { setSearchQuery(""); setFilterRoom("all"); setFilterFloor("all"); setFilterTag("all"); setFilterSource("all"); }}>
+            × Clear all filters
+          </button>
+        )}
+      </div>
+
       {/* Top bar */}
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,gap:10,flexWrap:"wrap" }}>
         <div style={{ display:"flex",alignItems:"center",gap:10 }}>
@@ -170,17 +249,36 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
             <span style={{ fontSize:12,fontWeight:700,color:"var(--accent)" }}>{selectedPhotoIds.size} selected</span>
           )}
         </div>
-        <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
+        <div style={{ display:"flex",gap:8,flexWrap:"wrap",alignItems:"center" }}>
           {selectMode ? (<>
             <button className="btn btn-secondary btn-sm" onClick={() => {
-              setSelectMode(false); setSelectedPhotoIds(new Set());
+              setSelectMode(false); setSelectedPhotoIds(new Set()); setShowBulkTag(false);
             }}>Cancel</button>
-            {selectedPhotoIds.size > 0 && (
+            {selectedPhotoIds.size > 0 && (<>
+              {/* Bulk tag */}
+              {showBulkTag ? (
+                <div style={{ display:"flex",gap:6,alignItems:"center" }}>
+                  <input className="form-input" style={{ height:30,padding:"0 8px",fontSize:12,width:130 }}
+                    placeholder="Tag name…" value={bulkTagInput}
+                    onChange={e => setBulkTagInput(e.target.value)}
+                    onKeyDown={e => { if (e.key==="Enter") bulkAddTag(bulkTagInput); if (e.key==="Escape") setShowBulkTag(false); }}
+                    autoFocus />
+                  <button className="btn btn-primary btn-sm" onClick={() => bulkAddTag(bulkTagInput)}>Add</button>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setShowBulkTag(false)}>✕</button>
+                </div>
+              ) : (
+                <button className="btn btn-secondary btn-sm" onClick={() => setShowBulkTag(true)}>
+                  🏷 Tag {selectedPhotoIds.size}
+                </button>
+              )}
+              <button className="btn btn-secondary btn-sm" onClick={downloadSelected}>
+                ⬇ Download {selectedPhotoIds.size}
+              </button>
               <button className="btn btn-sm" style={{ background:"#e85a3a",color:"white",border:"none" }}
                 onClick={() => setConfirmDelete("batch")}>
                 <Icon d={ic.trash} size={13} /> Delete {selectedPhotoIds.size}
               </button>
-            )}
+            </>)}
           </>) : (<>
             {photos.length > 0 && (
               <button className="btn btn-secondary btn-sm" onClick={() => setSelectMode(true)}>
@@ -202,6 +300,22 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
         </div>
       </div>
       <input ref={fileRef} type="file" multiple accept="image/*" style={{ display:"none" }} onChange={e => addUploadedPhotos(e.target.files)} />
+
+      {/* Source filter — only shown when multiple sources exist */}
+      {sources.length > 1 && (
+        <div style={{ display:"flex",alignItems:"center",flexWrap:"wrap",gap:7,marginBottom:10,padding:"8px 14px",background:"var(--surface2)",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)" }}>
+          <span style={{ fontSize:11,fontWeight:700,color:"var(--text3)",textTransform:"uppercase",letterSpacing:".05em",whiteSpace:"nowrap" }}>📤 Source:</span>
+          {["all", ...sources].map(s => (
+            <span key={s} onClick={() => setFilterSource(s)}
+              style={{ fontSize:12,padding:"3px 10px",borderRadius:20,cursor:"pointer",fontWeight:600,userSelect:"none",
+                background:filterSource===s?"var(--accent)":"var(--surface3)",
+                color:filterSource===s?"white":"var(--text2)",
+                border:`1.5px solid ${filterSource===s?"var(--accent)":"var(--border)"}`,transition:"all .15s" }}>
+              {s==="all" ? "All Sources" : s}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Floor filter — only shown when photos have floor data */}
       {floors.length > 0 && (
@@ -287,7 +401,8 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
         <div className="empty" style={{ padding:"32px 0" }}>
           <div className="empty-icon"><Icon d={ic.image} size={24} stroke="var(--text3)" /></div>
           <h3>No photos match</h3>
-          <p>Try a different room or tag filter.</p>
+          <p>Try a different search term, room, or filter.</p>
+          <button className="btn btn-secondary btn-sm" onClick={() => { setSearchQuery(""); setFilterRoom("all"); setFilterFloor("all"); setFilterTag("all"); setFilterSource("all"); }}>Clear Filters</button>
         </div>
       ) : (
         <div className="grid-4">
@@ -318,15 +433,15 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
                 <div style={{ position:"absolute",top:6,right:6,opacity:0,transition:"opacity .15s",display:"flex",gap:6 }} className="photo-actions">
                   <button className="btn btn-sm btn-icon photo-action-btn"
                     style={{ background:"rgba(20,22,30,0.85)",border:"1px solid var(--border)",color:"var(--text2)",width:36,height:36 }}
-                    title="Edit photo"
-                    onClick={e => { e.stopPropagation(); onEditPhoto(photo); }}>
-                    <Icon d={ic.edit} size={15} />
+                    title="Photo details &amp; metadata"
+                    onClick={e => { e.stopPropagation(); setPhotoDetail(photo); }}>
+                    ℹ️
                   </button>
                   <button className="btn btn-sm btn-icon photo-action-btn"
                     style={{ background:"rgba(20,22,30,0.85)",border:"1px solid var(--border)",color:"var(--text2)",width:36,height:36 }}
-                    title="Photo settings"
-                    onClick={e => { e.stopPropagation(); setSettingsPhoto(photo); }}>
-                    <Icon d={ic.settings} size={16} />
+                    title="Edit photo (annotate)"
+                    onClick={e => { e.stopPropagation(); onEditPhoto(photo); }}>
+                    <Icon d={ic.edit} size={15} />
                   </button>
                   <button className="btn btn-sm btn-icon photo-action-btn"
                     style={{ background:"rgba(20,22,30,0.85)",border:"1px solid var(--border)",color:"var(--text2)",width:36,height:36,opacity:canSharePhotos?1:0.45 }}
@@ -589,6 +704,19 @@ function PhotosTab({ project, onUpdateProject, onEditPhoto, onOpenCamera, fileRe
           photoTags={photoTags}
           onSave={patch => updatePhoto(settingsPhoto.id, patch)}
           onClose={() => setSettingsPhoto(null)}
+        />
+      )}
+
+      {/* ── Photo Detail Modal (full metadata editor) ── */}
+      {photoDetail && (
+        <PhotoDetailModal
+          photo={photoDetail}
+          rooms={rooms}
+          photoTags={photoTags}
+          onSave={patch => { updatePhoto(photoDetail.id, patch); setPhotoDetail(prev => ({ ...prev, ...patch })); }}
+          onClose={() => setPhotoDetail(null)}
+          onEditMarkup={() => { onEditPhoto(photoDetail); setPhotoDetail(null); }}
+          onDelete={() => { deletePhoto(photoDetail.id); setPhotoDetail(null); }}
         />
       )}
 
@@ -990,6 +1118,159 @@ const MOISTURE_COLORS = [
 const STROKE_COLORS = ["#000000","#e86c3a","#4a90d9","#3dba7e","#e8c53a","#e85a3a","#8b7cf8","#ffffff"];
 const REPORT_EMAIL_FEATURE_VISIBLE = false;
 
+// ── Photo Detail Modal ─────────────────────────────────────────────────────────
+function PhotoDetailModal({ photo, rooms, photoTags, onSave, onClose, onEditMarkup, onDelete }) {
+  const [form, setForm] = useState({
+    name:  photo.name  || "",
+    room:  photo.room  || "",
+    floor: photo.floor || "",
+    notes: photo.notes || "",
+    tags:  [...(photo.tags || [])],
+    tagInput: "",
+  });
+  const [confirmDel, setConfirmDel] = useState(false);
+
+  const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
+  const save = (patch) => onSave(patch || { name: form.name, room: form.room, floor: form.floor, notes: form.notes, tags: form.tags });
+
+  const addTag = () => {
+    const t = form.tagInput.trim();
+    if (!t || form.tags.includes(t)) { set("tagInput", ""); return; }
+    const next = [...form.tags, t];
+    set("tags", next);
+    set("tagInput", "");
+  };
+  const removeTag = (tag) => set("tags", form.tags.filter(t => t !== tag));
+
+  const roomList = rooms.map(r => r.name);
+
+  const download = () => {
+    if (!photo.dataUrl) return;
+    const a = document.createElement("a");
+    a.href = photo.dataUrl;
+    a.download = `${(form.name || "photo").replace(/[^a-z0-9]/gi,"_")}.jpg`;
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal fade-in" style={{ maxWidth:560 }}>
+        <div className="modal-header">
+          <div className="modal-title">ℹ️ Photo Details</div>
+          <button className="btn btn-ghost btn-sm btn-icon" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body" style={{ display:"grid", gap:14 }}>
+
+          {/* Preview */}
+          {photo.dataUrl && (
+            <div style={{ display:"flex", gap:14, alignItems:"flex-start" }}>
+              <div style={{ width:100, height:80, borderRadius:8, overflow:"hidden", flexShrink:0, background:"var(--surface2)" }}>
+                <img src={photo.dataUrl} alt={form.name} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+              </div>
+              <div style={{ flex:1, fontSize:11.5, color:"var(--text2)", lineHeight:1.7 }}>
+                {photo.date && <div>📅 {photo.date}{photo.time ? ` ${photo.time}` : ""}</div>}
+                {photo.gps  && <div>🌐 {photo.gps.lat}, {photo.gps.lng}</div>}
+                {photo.source && <div>📤 Source: {photo.source}</div>}
+                <div style={{ display:"flex", gap:8, marginTop:6 }}>
+                  <button className="btn btn-secondary btn-sm" onClick={download}>⬇ Download</button>
+                  <button className="btn btn-secondary btn-sm" onClick={onEditMarkup}>✏️ Annotate</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Name */}
+          <div>
+            <div className="form-label">Photo Name</div>
+            <input className="form-input" value={form.name} onChange={e => set("name", e.target.value)} placeholder="Photo name…" />
+          </div>
+
+          {/* Room + Floor */}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+            <div>
+              <div className="form-label">Room</div>
+              {roomList.length > 0 ? (
+                <select className="form-input form-select" value={form.room} onChange={e => set("room", e.target.value)}>
+                  <option value="">— No room —</option>
+                  {roomList.map(r => <option key={r}>{r}</option>)}
+                </select>
+              ) : (
+                <input className="form-input" value={form.room} onChange={e => set("room", e.target.value)} placeholder="Room / area…" />
+              )}
+            </div>
+            <div>
+              <div className="form-label">Floor</div>
+              <input className="form-input" value={form.floor} onChange={e => set("floor", e.target.value)}
+                placeholder="Main Floor…" list="detail-floor-opts" />
+              <datalist id="detail-floor-opts">
+                {["Basement","Lower Level","Main Floor","Second Floor","Third Floor","Attic","Roof","Exterior"].map(f => <option key={f} value={f} />)}
+              </datalist>
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <div className="form-label">Notes</div>
+            <textarea className="form-input form-textarea" value={form.notes} onChange={e => set("notes", e.target.value)}
+              placeholder="Add notes about this photo…" style={{ minHeight:64 }} />
+          </div>
+
+          {/* Tags */}
+          <div>
+            <div className="form-label">Tags</div>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:8 }}>
+              {form.tags.map(tag => (
+                <span key={tag} style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:11, padding:"3px 9px", borderRadius:12, fontWeight:600, background:"var(--accent)", color:"white" }}>
+                  {tag}
+                  <button onClick={() => removeTag(tag)} style={{ background:"none", border:"none", color:"rgba(255,255,255,.8)", cursor:"pointer", fontSize:13, lineHeight:1, padding:0 }}>×</button>
+                </span>
+              ))}
+              {photoTags.filter(t => !form.tags.includes(t)).map(t => (
+                <span key={t} onClick={() => set("tags", [...form.tags, t])}
+                  style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:11, padding:"3px 9px", borderRadius:12, fontWeight:600, background:"var(--surface2)", color:"var(--text2)", border:"1px solid var(--border)", cursor:"pointer" }}>
+                  + {t}
+                </span>
+              ))}
+            </div>
+            <div style={{ display:"flex", gap:6 }}>
+              <input className="form-input" style={{ flex:1, height:30, padding:"0 10px", fontSize:12 }}
+                placeholder="New tag…" value={form.tagInput}
+                onChange={e => set("tagInput", e.target.value)}
+                onKeyDown={e => { if (e.key==="Enter") addTag(); }} />
+              <button className="btn btn-secondary btn-sm" onClick={addTag}>Add</button>
+            </div>
+          </div>
+
+          {/* Delete confirm */}
+          {confirmDel && (
+            <div style={{ background:"rgba(239,68,68,.08)", border:"1px solid rgba(239,68,68,.25)", borderRadius:8, padding:"12px 14px" }}>
+              <div style={{ fontSize:13, color:"#f87171", fontWeight:600, marginBottom:8 }}>Delete this photo permanently?</div>
+              <div style={{ display:"flex", gap:8 }}>
+                <button className="btn btn-secondary btn-sm" onClick={() => setConfirmDel(false)}>Cancel</button>
+                <button className="btn btn-sm" style={{ background:"#e85a3a", color:"white", border:"none" }} onClick={onDelete}>Yes, Delete</button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="modal-footer" style={{ display:"flex", justifyContent:"space-between" }}>
+          <button className="btn btn-sm" style={{ background:"rgba(239,68,68,.12)", color:"#f87171", border:"1px solid rgba(239,68,68,.3)" }}
+            onClick={() => setConfirmDel(true)}>
+            🗑 Delete Photo
+          </button>
+          <div style={{ display:"flex", gap:8 }}>
+            <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+            <button className="btn btn-primary" onClick={() => { save(); onClose(); }}>Save Changes</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onEdit, onOpenCamera, onEditPhoto, onUpdateProject, onOpenReportCreator, onSendVoiceNoteToChat, onSendFileToChat, onSendPhotoToChat, settings, onSettingsChange, orgId, userId }) {
 
   const _tabKey = `kc_tab_${project?.id}`;
@@ -1080,15 +1361,18 @@ export function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onE
 
   const TABS = [
     { id:"overview",   label:"Overview",                                          icon:ic.activity },
-    { id:"photos",     label:`Photos (${project.photos?.length||0})`,             icon:ic.camera   },
-    { id:"videos",     label:`Videos (${project.videos?.length||0})`,             icon:ic.video    },
-    { id:"voicenotes", label:`Voice Notes (${project.voiceNotes?.length||0})`,    icon:ic.mic      },
     { id:"rooms",      label:`Rooms (${project.rooms?.length||0})`,               icon:ic.rooms    },
+    { id:"photos",     label:`Photos (${project.photos?.length||0})`,             icon:ic.camera   },
+    { id:"maps",       label:"Maps",                                               icon:ic.mapPin   },
     { id:"sketches",   label:`Sketches (${project.sketches?.length||0})`,         icon:ic.sketch   },
-    { id:"files",      label:`Files (${project.files?.length||0})`,               icon:ic.folder   },
-    { id:"portal",     label:"Client Portal",                                      icon:ic.eye, desktopOnly:true },
-    { id:"reports",    label:`Reports (${project.reports?.length||0})`,           icon:ic.reports,  desktopOnly:true },
+    { id:"voicenotes", label:`Voice Notes (${project.voiceNotes?.length||0})`,    icon:ic.mic      },
     { id:"checklists", label:`Checklists (${project.checklists?.length||0})`,     icon:ic.check    },
+    { id:"videos",     label:`Videos (${project.videos?.length||0})`,             icon:ic.video    },
+    { id:"files",      label:`Files (${project.files?.length||0})`,               icon:ic.folder   },
+    { id:"reports",    label:`Reports (${project.reports?.length||0})`,           icon:ic.reports,  desktopOnly:true },
+    { id:"assistant",  label:"Assistant",                                           icon:ic.sparkle  },
+    { id:"portal",     label:"Client Portal",                                      icon:ic.eye, desktopOnly:true },
+    { id:"equipment",  label:"Equipment",                                          icon:ic.wrench   },
     { id:"activity",   label:"Activity",                                           icon:ic.activity },
   ];
 
@@ -1237,7 +1521,7 @@ export function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onE
       </div>
 
       {/* Tabs — horizontally scrollable, compact labels */}
-      <div style={{ overflowX:"auto", WebkitOverflowScrolling:"touch", scrollbarWidth:"none", marginBottom:20, borderBottom:"1px solid var(--border)" }}>
+      <div style={{ overflowX:"auto", WebkitOverflowScrolling:"touch", scrollbarWidth:"thin", scrollbarColor:"var(--border) transparent", marginBottom:20, borderBottom:"1px solid var(--border)", paddingBottom:2 }}>
         <div style={{ display:"flex", gap:0, minWidth:"max-content" }}>
           {TABS.map(t => {
             // Shorten labels for desktop display
@@ -1434,6 +1718,19 @@ export function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onE
         />
       )}
 
+      {/* Maps tab */}
+      {tab === "maps" && (
+        <React.Suspense fallback={<div style={{ padding:32, textAlign:"center", color:"var(--text2)", fontSize:13 }}>Loading maps…</div>}>
+          <PropertyMapTabLazy
+            project={project}
+            orgId={orgId}
+            userId={userId}
+            onUpdateProject={onUpdateProject}
+            settings={settings}
+          />
+        </React.Suspense>
+      )}
+
       {/* Videos tab */}
       {tab === "videos" && (
         <VideosTab
@@ -1441,6 +1738,8 @@ export function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onE
           onUpdateProject={onUpdateProject}
           onOpenCamera={onOpenCamera}
           orgId={orgId}
+          userId={userId}
+          teamUsers={teamUsers}
         />
       )}
 
@@ -1523,6 +1822,23 @@ export function ProjectDetail({ project, teamUsers = [], chats = [], onBack, onE
       )}
       {tab === "checklists" && (
         <ChecklistsTab project={project} onUpdateProject={onUpdateProject} />
+      )}
+      {tab === "equipment" && (
+        <React.Suspense fallback={<div style={{ padding:40,textAlign:"center",color:"var(--text3)" }}>Loading…</div>}>
+          <JobsiteEquipmentTab project={project} orgId={orgId} userId={userId} />
+        </React.Suspense>
+      )}
+      {tab === "assistant" && (
+        <React.Suspense fallback={<div style={{ padding:40,textAlign:"center",color:"var(--text3)" }}>Loading…</div>}>
+          <AssistantTab
+            project={project}
+            orgId={orgId}
+            userId={userId}
+            settings={settings}
+            onSettingsChange={onSettingsChange}
+            teamUsers={teamUsers}
+          />
+        </React.Suspense>
       )}
       {tab === "activity" && (
         <ProjectActivityFeed project={project} onUpdateProject={onUpdateProject} settings={settings} userId={userId} />
@@ -1731,7 +2047,7 @@ function SketchesTab({ project, onUpdateProject, onNewSketch, onEditSketch }) {
   );
 }
 
-export function TemplatesPage({ projects, onUseTemplate, templates: templatesProp, onTemplatesChange }) {
+export function TemplatesPage({ projects, onUseTemplate, templates: templatesProp, onTemplatesChange, orgId, supabaseUrl, getAuthHeaders }) {
   const [templates, setTemplatesLocal] = useState(templatesProp || TEMPLATES);
   const setTemplates = (updater) => {
     setTemplatesLocal(prev => {
@@ -1789,12 +2105,30 @@ export function TemplatesPage({ projects, onUseTemplate, templates: templatesPro
           </div>
         )}
         <input ref={el => imgRefs.current[tmplId] = el} type="file" accept="image/*" style={{ display:"none" }}
-          onChange={e => {
+          onChange={async e => {
             const file = e.target.files?.[0]; if (!file) return;
-            const reader = new FileReader();
-            reader.onload = ev => onImgChange(ev.target.result);
-            reader.readAsDataURL(file);
             e.target.value = "";
+            // Show base64 preview immediately
+            const reader = new FileReader();
+            reader.onload = async ev => {
+              onImgChange(ev.target.result); // immediate local preview
+              // Upload to Supabase Storage and replace with persistent URL
+              if (orgId && supabaseUrl && getAuthHeaders) {
+                try {
+                  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+                  const headers = await getAuthHeaders({ 'Content-Type': file.type, 'x-upsert': 'true' });
+                  const path = `templates/${orgId}/${tmplId}/cover.${ext}`;
+                  const res = await fetch(`${supabaseUrl}/storage/v1/object/project-photos/${path}`, {
+                    method: 'POST', headers, body: file,
+                  });
+                  if (res.ok) {
+                    const url = `${supabaseUrl}/storage/v1/object/public/project-photos/${path}`;
+                    onImgChange(url); // replace preview with storage URL
+                  }
+                } catch { /* keep base64 preview — user can retry */ }
+              }
+            };
+            reader.readAsDataURL(file);
           }} />
       </div>
     </div>
@@ -1839,7 +2173,7 @@ export function TemplatesPage({ projects, onUseTemplate, templates: templatesPro
       if (!name.trim()) return;
       const saved = {
         ...base,
-        id: isNew ? uid() : base.id,
+        id: isNew ? (crypto.randomUUID ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`) : base.id,
         name: name.trim(), type, desc, recipient,
         color: colorForType(type),
         sections: Object.fromEntries(ALL_SECTIONS.map(s => [s, { enabled: secEnabled[s], text: secText[s]||"" }])),
@@ -1999,7 +2333,12 @@ export function TemplatesPage({ projects, onUseTemplate, templates: templatesPro
         {templates.map(t => (
           <div key={t.id} className="template-card">
             <TP color={t.color} img={t.coverImg || null} tmplId={t.id}
-              onImgChange={img => setTemplates(prev => prev.map(x => x.id===t.id ? { ...x, coverImg: img } : x))} />
+              onImgChange={img => {
+                const updated = templates.map(x => x.id===t.id ? { ...x, coverImg: img } : x);
+                setTemplates(updated);
+                // Save to Supabase once we have a storage URL (not base64)
+                if (img === null || (img && !img.startsWith('data:'))) onTemplatesChange(updated);
+              }} />
             <div className="template-info">
               <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:8, marginBottom:5 }}>
                 <div className="template-name">{t.name}</div>

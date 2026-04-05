@@ -332,6 +332,8 @@
   .rp-photo-caption{padding:5px 7px;font-size:9.5px;color:#555;background:#fafafa;border-top:1px solid #eee;line-height:1.4;}
   .rp-photo-meta{display:flex;gap:8px;font-size:8.5px;color:#aaa;margin-top:2px;}
   .rp-text-block{font-size:12.5px;line-height:1.7;color:#333;white-space:pre-wrap;}
+  .rp-text-content ul,.rp-text-content ol{padding-left:22px;margin:4px 0;}
+  .rp-text-content li{margin-bottom:2px;}
   /* ── Report Table ── */
   .rp-table-wrap{padding:18px 36px 22px;}
   .rp-table-title{font-size:14px;font-weight:800;color:#111;margin-bottom:3px;}
@@ -353,16 +355,26 @@
   .rp-page-break-line{width:100%;height:1px;border-top:2px dashed #444;opacity:.4;}
 
   /* ── MOBILE BOTTOM NAV ── */
-  .mob-nav{display:none;position:fixed;bottom:0;left:0;width:100vw;height:58px;background:var(--surface);border-top:1px solid var(--border);z-index:500;}
+  .mob-nav{display:none;position:fixed;bottom:0;left:0;width:100%;background:var(--surface);border-top:1px solid var(--border);z-index:500;padding-bottom:env(safe-area-inset-bottom,0px);}
   .mob-nav.hidden{display:none!important;}
-  .mob-nav-inner{display:flex;height:100%;align-items:center;justify-content:space-evenly;padding:0 8px;}
-  .mob-nav-item{display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text3);transition:color .15s;position:relative;padding:10px 12px;border-radius:12px;}
+  /* Inner row: fixed 58px tall, full width, items spread evenly — no padding so flex handles all spacing */
+  .mob-nav-inner{display:flex;height:58px;width:100%;align-items:center;justify-content:space-evenly;}
+  /* Every slot gets equal space, content centered — no fixed padding or margins */
+  .mob-nav-item{flex:1;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text3);transition:color .15s,transform .12s;position:relative;height:100%;}
+  .mob-nav-item:active{transform:scale(.88);}
   .mob-nav-item.active{color:var(--accent);}
   .mob-nav-item.active svg{filter:drop-shadow(0 0 5px var(--accent));}
-  .mob-nav-cam-wrap{display:flex;align-items:center;justify-content:center;padding:0 4px;}
-  .mob-nav-cam{background:var(--accent);border-radius:50%;width:44px;height:44px;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 12px rgba(43,127,232,.5);transition:transform .15s;flex-shrink:0;}
-  .mob-nav-cam:active{transform:scale(.91);}
+  /* Active indicator — small accent dot below the icon */
+  .mob-nav-item.active::after{content:'';position:absolute;bottom:7px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--accent);}
+  /* Camera button — center slot, slightly lifted and 14% larger for visual priority */
+  .mob-nav-cam-wrap{flex:1;display:flex;align-items:center;justify-content:center;cursor:pointer;height:100%;}
+  .mob-nav-cam{background:var(--accent);border-radius:50%;width:50px;height:50px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(43,127,232,.55);transition:transform .15s,box-shadow .15s;flex-shrink:0;transform:translateY(-5px);}
+  .mob-nav-cam:active{transform:translateY(-5px) scale(.9);box-shadow:0 2px 8px rgba(43,127,232,.35);}
   .mob-badge{background:var(--accent);color:white;font-size:9px;font-weight:700;min-width:15px;height:15px;padding:0 3px;border-radius:20px;display:flex;align-items:center;justify-content:center;position:absolute;top:4px;right:4px;}
+
+  /* ── Jobsite card — overdue badge mobile/desktop visibility ── */
+  /* On mobile the badge moves to the card footer; hidden from top row */
+  .proj-overdue-bot{display:none;}
 
   /* ── DESKTOP-ONLY (reports, templates) ── */
   .desktop-only{}
@@ -429,6 +441,15 @@
     .projects-grid{grid-template-columns:1fr!important;}
     .project-card-body{padding:14px 16px;}
     .project-card-footer{padding:9px 16px;}
+
+    /* ─ Jobsite filter bar: stacked on mobile so pills get a full row ─ */
+    .proj-filter-bar{flex-direction:column;align-items:stretch!important;gap:6px!important;}
+    .proj-filter-pills{flex:unset!important;width:100%;}
+    .proj-filter-actions{justify-content:flex-end;}
+
+    /* ─ Overdue badge: hide from crowded top row, show at card bottom ─ */
+    .proj-overdue-top{display:none!important;}
+    .proj-overdue-bot{display:inline-flex;align-items:center;}
 
     /* ─ Project detail hero ─ */
     .project-hero-body{padding:16px;}

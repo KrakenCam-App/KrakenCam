@@ -4,7 +4,9 @@ import { PLAN_VIDEO_LIMIT_SECS } from "../utils/constants.js";
 import { uid, today, parseTagInput, ROLE_META, getExifOrientation, drawImageWithOrientation
 } from "../utils/helpers.js";
 
-export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) {
+const PRESET_TAGS = ["Before","During","After","Damage","Clean","Concern","Hidden"];
+
+export function CameraPage({ project, defaultRoom, onSave, onClose, settings, onUpdateProject }) {
   const videoRef     = useRef(null);
   const canvasRef    = useRef(null);
   const flashRef     = useRef(null);
@@ -33,11 +35,39 @@ export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) 
   const [selRoom,     setSelRoom]     = useState(defaultRoom || (project?.rooms?.[0]?.name) || "General");
   const [photoName,   setPhotoName]   = useState("");
   const [roomMenuOpen,setRoomMenuOpen]= useState(false);
+  const [addRoomInput, setAddRoomInput] = useState(""); // text for inline "Add room" input
   const [batchRoom,   setBatchRoom]   = useState(defaultRoom || (project?.rooms?.[0]?.name) || "General");
   const [batchFloor,  setBatchFloor]  = useState("");
   const [batchNotes,  setBatchNotes]  = useState("");
   const [batchTagsInput, setBatchTagsInput] = useState("");
   const [showApplyAll, setShowApplyAll] = useState(false);
+
+  // Single-photo extra metadata fields
+  const [photoFloor,     setPhotoFloor]     = useState("");
+  const [photoTagsInput, setPhotoTagsInput] = useState("");
+
+  // Preset tag chips (multi-select) for single take and batch
+  const [photoPresetTags, setPhotoPresetTags] = useState(() => new Set());
+  const [batchPresetTags, setBatchPresetTags] = useState(() => new Set());
+
+  // Ghost Mode: semi-transparent "before" photo overlay on viewfinder
+  const [ghostMode,       setGhostMode]       = useState(false);
+  const [ghostPhoto,      setGhostPhoto]      = useState(null);
+  const [ghostOpacity,    setGhostOpacity]    = useState(0.4);
+  const [ghostPickerOpen, setGhostPickerOpen] = useState(false);
+  const [ghostFilterBefore, setGhostFilterBefore] = useState(true);
+
+  // Capture mode: "single" = one shot → save immediately | "batch" = accumulate then save all
+  const [captureMode, setCaptureMode] = useState(() => localStorage.getItem("kc_capture_mode") || "batch");
+  useEffect(() => { localStorage.setItem("kc_capture_mode", captureMode); }, [captureMode]);
+
+  // Timestamp overlay toggle (persisted across sessions)
+  const [showTimestamp,  setShowTimestamp]  = useState(() => {
+    const s = localStorage.getItem("kc_timestamp_overlay");
+    return s === null ? true : s === "1";
+  });
+  const showTimestampRef = useRef(showTimestamp);
+  useEffect(() => { showTimestampRef.current = showTimestamp; localStorage.setItem("kc_timestamp_overlay", showTimestamp ? "1" : "0"); }, [showTimestamp]);
 
   // Flash mode state ("off" | "on")
   const [flashMode,      setFlashMode]      = useState("off");
@@ -70,6 +100,7 @@ export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) 
       setBatchFloor("");
       setBatchNotes("");
       setBatchTagsInput("");
+      setBatchPresetTags(new Set());
       setShowApplyAll(false);
     }
   }, [session.length, selRoom]);
@@ -176,6 +207,7 @@ export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) 
     const maxRes = resMap[settings?.photoQuality] ?? 2560;
 
     const drawOverlay = (cvs) => {
+      if (!showTimestampRef.current) return;
       const ctx = cvs.getContext("2d");
       ctx.fillStyle = "rgba(0,0,0,0.52)";
       ctx.fillRect(10, cvs.height - 58, 480, 46);
@@ -210,7 +242,15 @@ export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) 
           const ctx = canvas.getContext("2d");
           ctx.drawImage(orientC, 0, 0, canvas.width, canvas.height);
           drawOverlay(canvas);
-          setReviewImg(canvas.toDataURL("image/jpeg", jpegQuality));
+          const _dataUrl1 = canvas.toDataURL("image/jpeg", jpegQuality);
+          if (captureMode === "batch") {
+            const _autoName1 = `${selRoom} — ${new Date().toLocaleTimeString()}`;
+            const _autoTags1 = batchPresetTags.size > 0 ? Array.from(batchPresetTags) : ["live capture"];
+            if (settings?.saveToCameraRoll) triggerDeviceDownload(_dataUrl1, `KrakenCam_${(selRoom||"photo").replace(/[^a-z0-9]/gi,"_")}_${Date.now()}.jpg`);
+            setSession(prev => [...prev, { id: uid(), dataUrl: _dataUrl1, room: selRoom, name: _autoName1, date: today(), tags: _autoTags1, gps, floor: batchFloor || "", source: "camera" }]);
+          } else {
+            setReviewImg(_dataUrl1);
+          }
           setTimeout(() => setFiring(false), 200);
           return;
         } catch (e) {
@@ -259,9 +299,17 @@ export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) 
     }
 
     drawOverlay(canvas);
-    setReviewImg(canvas.toDataURL("image/jpeg", jpegQuality));
+    const _dataUrl2 = canvas.toDataURL("image/jpeg", jpegQuality);
+    if (captureMode === "batch") {
+      const _autoName2 = `${selRoom} — ${new Date().toLocaleTimeString()}`;
+      const _autoTags2 = batchPresetTags.size > 0 ? Array.from(batchPresetTags) : ["live capture"];
+      if (settings?.saveToCameraRoll) triggerDeviceDownload(_dataUrl2, `KrakenCam_${(selRoom||"photo").replace(/[^a-z0-9]/gi,"_")}_${Date.now()}.jpg`);
+      setSession(prev => [...prev, { id: uid(), dataUrl: _dataUrl2, room: selRoom, name: _autoName2, date: today(), tags: _autoTags2, gps, floor: batchFloor || "", source: "camera" }]);
+    } else {
+      setReviewImg(_dataUrl2);
+    }
     setTimeout(() => setFiring(false), 200);
-  }, [facing, gps, selRoom, project, settings?.photoQuality, flashMode]);
+  }, [facing, gps, selRoom, project, settings?.photoQuality, settings?.saveToCameraRoll, flashMode, captureMode, batchFloor, batchPresetTags, triggerDeviceDownload]);
 
   const handleShutter = () => {
     if (timerSec === 0) { doSnap(); return; }
@@ -270,10 +318,22 @@ export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) 
   };
 
   const acceptPhoto = () => {
-    const name = photoName.trim() || `${selRoom} — ${new Date().toLocaleTimeString()}`;
+    const name  = photoName.trim() || `${selRoom} — ${new Date().toLocaleTimeString()}`;
+    const typedTags = parseTagInput(photoTagsInput);
+    const allTags   = Array.from(new Set([...typedTags, ...Array.from(photoPresetTags)]));
+    const tags      = allTags.length > 0 ? allTags : ["live capture"];
+    const floor = photoFloor.trim();
     if (shouldSaveToDevice && reviewImg) triggerDeviceDownload(reviewImg, `KrakenCam_${name.replace(/[^a-z0-9]/gi,"_")}.jpg`);
-    setSession(prev => [...prev, { id: uid(), dataUrl: reviewImg, room: selRoom, name, date: today(), tags: ["live capture"], gps }]);
-    setReviewImg(null); setPhotoName("");
+    const photoItem = { id: uid(), dataUrl: reviewImg, room: selRoom, name, date: today(), tags, gps, floor, source: "camera" };
+    setReviewImg(null); setPhotoName(""); setPhotoTagsInput(""); setPhotoFloor(""); setPhotoPresetTags(new Set());
+    if (captureMode === "single") {
+      // Single Take: save immediately and return to caller
+      onSave([photoItem]);
+      onClose();
+    } else {
+      // Batch: accumulate in session, keep floor filled for fast multi-shot
+      setSession(prev => [...prev, photoItem]);
+    }
   };
 
   // ── Video recording ──
@@ -317,7 +377,7 @@ export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) 
 
   const acceptVideo = () => {
     if (!reviewVideo) return;
-    const name = videoName.trim() || `${selRoom} — Video ${new Date().toLocaleTimeString()}`;
+    const name = videoName.trim() || `${selRoom} — Video`;
     if (shouldSaveToDevice) triggerDeviceDownload(reviewVideo.url, `KrakenCam_${name.replace(/[^a-z0-9]/gi,"_")}.webm`);
     // Create a fresh persistent object URL for the session item (do NOT revoke the review URL
     // until after the session item has its own URL, otherwise playback breaks)
@@ -345,16 +405,28 @@ export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) 
   const flipCam = () => { setFacing(prev => prev === "environment" ? "user" : "environment"); };
   const cycleTimer = () => setTimerSec(t => t === 0 ? 3 : t === 3 ? 10 : 0);
 
-  const roomList = project?.rooms?.map(r => r.name) || ["General"];
+  // Always ensure at least "General" so the selector is never blank
+  const roomList = (project?.rooms?.length > 0) ? project.rooms.map(r => r.name) : ["General"];
+
+  const addRoom = (name) => {
+    const trimmed = name.trim();
+    if (!trimmed || roomList.includes(trimmed)) return;
+    const newRoom = { id: uid(), name: trimmed };
+    if (onUpdateProject) onUpdateProject({ ...project, rooms: [...(project?.rooms || []), newRoom] });
+    setSelRoom(trimmed);
+    setAddRoomInput("");
+    setRoomMenuOpen(false);
+  };
   const floorOptions = ["Basement","Lower Level","Main Floor","Second Floor","Third Floor","Attic","Roof","Exterior"];
   const batchTags = parseTagInput(batchTagsInput);
   const finalizeSessionSave = (useBatchOverrides = false) => {
+    const mergedBatchTags = [...batchTags, ...Array.from(batchPresetTags)];
     onSave(session.map(item => ({
       ...item,
       room: useBatchOverrides ? (batchRoom || item.room || selRoom) : item.room,
       floor: useBatchOverrides ? (batchFloor || item.floor || "") : (item.floor || ""),
       notes: useBatchOverrides ? (batchNotes.trim() || item.notes || "") : (item.notes || ""),
-      tags: useBatchOverrides ? Array.from(new Set([...(item.tags || []), ...batchTags])) : (item.tags || []),
+      tags: useBatchOverrides ? Array.from(new Set([...(item.tags || []), ...mergedBatchTags])) : (item.tags || []),
     })));
   };
 
@@ -424,22 +496,58 @@ export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) 
         <div className="review-overlay">
           <img src={reviewImg} alt="preview" />
           <div className="review-meta">
-            <div style={{ display:"flex",gap:12,marginBottom:12,alignItems:"flex-end" }}>
+            {/* Row 1: Name + Room */}
+            <div style={{ display:"flex",gap:10,marginBottom:10,alignItems:"flex-end" }}>
               <div style={{ flex:1 }}>
                 <div className="form-label">Photo Name</div>
                 <input className="form-input" placeholder={`${selRoom} photo…`} value={photoName} onChange={e => setPhotoName(e.target.value)} autoFocus />
               </div>
-              <div style={{ minWidth:150 }}>
+              <div style={{ minWidth:130 }}>
                 <div className="form-label">Room</div>
-                <select className="form-input form-select" value={selRoom} onChange={e => setSelRoom(e.target.value)}>
-                  {roomList.map(r => <option key={r}>{r}</option>)}
+                <select className="form-input form-select" value={selRoom} onChange={e => {
+                  if (e.target.value === "__add__") {
+                    const name = prompt("New room name:");
+                    if (name) addRoom(name);
+                  } else { setSelRoom(e.target.value); }
+                }}>
+                  {roomList.map(r => <option key={r} value={r}>{r}</option>)}
+                  <option value="__add__">➕ Add room…</option>
                 </select>
               </div>
             </div>
-            {gps && <div style={{ display:"flex",alignItems:"center",gap:5,fontSize:11.5,color:"var(--green)",marginBottom:12 }}><Icon d={ic.mapPin} size={12} stroke="var(--green)" />GPS: {gps.lat}, {gps.lng}</div>}
+            {/* Row 2: Floor + Tags */}
+            <div style={{ display:"flex",gap:10,marginBottom:10,alignItems:"flex-end" }}>
+              <div style={{ minWidth:130 }}>
+                <div className="form-label">Floor</div>
+                <input className="form-input" placeholder="Main Floor" value={photoFloor} onChange={e => setPhotoFloor(e.target.value)} list="cam-review-floor-opts" />
+                <datalist id="cam-review-floor-opts">
+                  {floorOptions.map(f => <option key={f} value={f} />)}
+                </datalist>
+              </div>
+              <div style={{ flex:1 }}>
+                <div className="form-label">Tags</div>
+                <input className="form-input" placeholder="damage, moisture… (comma separated)" value={photoTagsInput} onChange={e => setPhotoTagsInput(e.target.value)} />
+              </div>
+            </div>
+            {/* Preset tag chips */}
+            <div style={{ display:"flex",flexWrap:"wrap",gap:6,marginBottom:10 }}>
+              {PRESET_TAGS.map(tag => {
+                const active = photoPresetTags.has(tag);
+                return (
+                  <button key={tag} type="button" onClick={() => setPhotoPresetTags(prev => { const n = new Set(prev); active ? n.delete(tag) : n.add(tag); return n; })}
+                    style={{ padding:"4px 11px",borderRadius:20,fontSize:11.5,fontWeight:600,border:`1px solid ${active?"var(--accent)":"rgba(255,255,255,.25)"}`,background:active?"var(--accent-glow)":"rgba(255,255,255,.06)",color:active?"var(--accent)":"rgba(255,255,255,.65)",cursor:"pointer",transition:"all .13s" }}>
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
+            {/* GPS */}
+            {gps && <div style={{ display:"flex",alignItems:"center",gap:5,fontSize:11.5,color:"var(--green)",marginBottom:10 }}><Icon d={ic.mapPin} size={12} stroke="var(--green)" />GPS: {gps.lat}, {gps.lng}</div>}
             <div style={{ display:"flex",gap:10 }}>
               <button className="btn btn-secondary" style={{ flex:1 }} onClick={() => setReviewImg(null)}>Retake</button>
-              <button className="btn btn-primary" style={{ flex:2 }} onClick={acceptPhoto}><Icon d={ic.check} size={15} /> Accept Photo</button>
+              <button className="btn btn-primary" style={{ flex:2 }} onClick={acceptPhoto}>
+                <Icon d={ic.check} size={15} /> {captureMode === "single" ? "Save Photo" : "Add to Batch"}
+              </button>
             </div>
           </div>
         </div>
@@ -483,8 +591,14 @@ export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) 
             <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10,marginBottom:10 }}>
               <div>
                 <div className="form-label">Room</div>
-                <select className="form-input form-select" value={batchRoom} onChange={e => setBatchRoom(e.target.value)}>
-                  {roomList.map(r => <option key={r}>{r}</option>)}
+                <select className="form-input form-select" value={batchRoom} onChange={e => {
+                  if (e.target.value === "__add__") {
+                    const name = prompt("New room name:");
+                    if (name) { addRoom(name); setBatchRoom(name.trim()); }
+                  } else { setBatchRoom(e.target.value); }
+                }}>
+                  {roomList.map(r => <option key={r} value={r}>{r}</option>)}
+                  <option value="__add__">➕ Add room…</option>
                 </select>
               </div>
               <div>
@@ -499,6 +613,18 @@ export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) 
               <div>
                 <div className="form-label">Tags</div>
                 <input className="form-input" value={batchTagsInput} onChange={e => setBatchTagsInput(e.target.value)} placeholder="Tags, comma separated" />
+                {/* Preset tag chips */}
+                <div style={{ display:"flex",flexWrap:"wrap",gap:6,marginTop:8 }}>
+                  {PRESET_TAGS.map(tag => {
+                    const active = batchPresetTags.has(tag);
+                    return (
+                      <button key={tag} type="button" onClick={() => setBatchPresetTags(prev => { const n = new Set(prev); active ? n.delete(tag) : n.add(tag); return n; })}
+                        style={{ padding:"4px 11px",borderRadius:20,fontSize:11.5,fontWeight:600,border:`1px solid ${active?"var(--accent)":"rgba(255,255,255,.25)"}`,background:active?"var(--accent-glow)":"rgba(255,255,255,.06)",color:active?"var(--accent)":"rgba(255,255,255,.65)",cursor:"pointer",transition:"all .13s" }}>
+                        {tag}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
               <div>
                 <div className="form-label">Notes</div>
@@ -534,6 +660,75 @@ export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) 
             opacity: camState === "live" ? 1 : 0,
             transition:"opacity .3s" }} />
         <div ref={flashRef} className="cam-flash" />
+
+        {/* ── Ghost Mode overlay — semi-transparent "before" photo on viewfinder ── */}
+        {ghostMode && ghostPhoto && (ghostPhoto.dataUrl || ghostPhoto.url) && (
+          <img
+            src={ghostPhoto.dataUrl || ghostPhoto.url}
+            alt="Ghost overlay"
+            style={{ position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",opacity:ghostOpacity,pointerEvents:"none",zIndex:6,userSelect:"none" }}
+          />
+        )}
+        {/* Ghost opacity slider — sits above grid lines when active */}
+        {ghostMode && ghostPhoto && (
+          <div style={{ position:"absolute",bottom:14,left:14,right:14,zIndex:9,display:"flex",alignItems:"center",gap:8,background:"rgba(0,0,0,.55)",borderRadius:10,padding:"6px 12px",backdropFilter:"blur(4px)" }}>
+            <span style={{ fontSize:11.5,color:"rgba(255,255,255,.7)",whiteSpace:"nowrap" }}>👻 Ghost</span>
+            <input type="range" min="0.1" max="0.8" step="0.05" value={ghostOpacity} onChange={e => setGhostOpacity(+e.target.value)} style={{ flex:1,accentColor:"var(--accent)" }} />
+            <span style={{ fontSize:11.5,color:"rgba(255,255,255,.7)",minWidth:32,textAlign:"right" }}>{Math.round(ghostOpacity*100)}%</span>
+            <button onClick={() => { setGhostMode(false); setGhostPhoto(null); }} style={{ background:"none",border:"1px solid rgba(255,255,255,.3)",color:"rgba(255,255,255,.7)",borderRadius:6,padding:"2px 8px",fontSize:11,cursor:"pointer" }}>Off</button>
+          </div>
+        )}
+
+        {/* ── Ghost picker overlay ── */}
+        {ghostPickerOpen && (() => {
+          const allPhotos = (project?.photos || []).filter(p => p.dataUrl || p.url);
+          const shown = ghostFilterBefore ? allPhotos.filter(p => (p.tags||[]).some(t => t.toLowerCase().includes("before"))) : allPhotos;
+          return (
+            <div style={{ position:"absolute",inset:0,zIndex:25,background:"rgba(0,0,0,.94)",display:"flex",flexDirection:"column",padding:"16px 14px",overflowY:"auto" }}>
+              <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:10 }}>
+                <span style={{ fontSize:22 }}>👻</span>
+                <div>
+                  <div style={{ color:"white",fontWeight:800,fontSize:16 }}>Ghost Mode</div>
+                  <div style={{ color:"rgba(255,255,255,.55)",fontSize:12 }}>Overlay a reference photo on the viewfinder. Never saved.</div>
+                </div>
+              </div>
+              {/* Filter row */}
+              <div style={{ display:"flex",gap:8,marginBottom:12 }}>
+                {[{v:true,label:"Before photos"},{v:false,label:"All photos"}].map(({v,label}) => (
+                  <button key={String(v)} onClick={() => setGhostFilterBefore(v)}
+                    style={{ padding:"5px 14px",borderRadius:16,fontSize:12,fontWeight:700,border:`1px solid ${ghostFilterBefore===v?"var(--accent)":"rgba(255,255,255,.2)"}`,background:ghostFilterBefore===v?"var(--accent-glow)":"transparent",color:ghostFilterBefore===v?"var(--accent)":"rgba(255,255,255,.55)",cursor:"pointer" }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {shown.length === 0 ? (
+                <div style={{ flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:10,color:"rgba(255,255,255,.45)",textAlign:"center",fontSize:13 }}>
+                  <span style={{ fontSize:36 }}>📷</span>
+                  <div style={{ fontWeight:600 }}>{ghostFilterBefore ? "No Before photos found" : "No photos available"}</div>
+                  <div style={{ fontSize:11.5,maxWidth:240,lineHeight:1.55 }}>
+                    {ghostFilterBefore ? "Take a photo tagged 'Before' first, then use Ghost Mode when shooting 'After' photos." : "Photos are available once captured and tagged in this session."}
+                  </div>
+                  {ghostFilterBefore && <button onClick={() => setGhostFilterBefore(false)} style={{ padding:"6px 16px",borderRadius:12,background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",fontSize:12,cursor:"pointer" }}>Show all photos</button>}
+                </div>
+              ) : (
+                <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,flex:1,overflowY:"auto" }}>
+                  {shown.map(p => (
+                    <div key={p.id} onClick={() => { setGhostPhoto(p); setGhostMode(true); setGhostPickerOpen(false); }}
+                      style={{ cursor:"pointer",borderRadius:8,overflow:"hidden",border:`2px solid ${ghostPhoto?.id===p.id?"var(--accent)":"transparent"}`,aspectRatio:"1",background:"#111",position:"relative" }}>
+                      <img src={p.dataUrl||p.url} alt={p.name||"photo"} style={{ width:"100%",height:"100%",objectFit:"cover" }} />
+                      {p.name && <div style={{ position:"absolute",bottom:0,left:0,right:0,background:"rgba(0,0,0,.65)",fontSize:9.5,color:"rgba(255,255,255,.8)",padding:"3px 5px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{p.name}</div>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ display:"flex",gap:10,marginTop:12,flexShrink:0 }}>
+                {ghostMode && <button className="btn btn-secondary" style={{ flex:1 }} onClick={() => { setGhostMode(false); setGhostPhoto(null); setGhostPickerOpen(false); }}>Turn Off</button>}
+                <button className="btn btn-secondary" style={{ flex:1 }} onClick={() => setGhostPickerOpen(false)}>Cancel</button>
+              </div>
+            </div>
+          );
+        })()}
+
         {gridOn && camState === "live" && mode === "photo" && (
           <svg className="cam-grid-svg" style={{ opacity:.22 }}>
             <line x1="33.33%" y1="0" x2="33.33%" y2="100%" stroke="white" strokeWidth="1" />
@@ -589,13 +784,33 @@ export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) 
         </div>
 
         {roomMenuOpen && (
-          <div style={{ position:"absolute",top:60,right:14,background:"rgba(13,15,20,.97)",border:"1px solid var(--border)",borderRadius:12,padding:"6px 0",zIndex:15,minWidth:170,maxHeight:300,overflowY:"auto" }}>
+          <div style={{ position:"absolute",top:60,right:14,background:"rgba(13,15,20,.97)",border:"1px solid var(--border)",borderRadius:12,padding:"6px 0",zIndex:15,minWidth:190,maxHeight:320,overflowY:"auto" }}>
             {roomList.map(r => (
               <div key={r} onClick={() => { setSelRoom(r); setRoomMenuOpen(false); }}
                 style={{ padding:"8px 16px",cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",gap:8,background:selRoom===r?"var(--accent-glow)":"transparent",color:selRoom===r?"var(--accent)":"var(--text)" }}>
                 <RoomIcon name={r} size={13} stroke={selRoom===r?"var(--accent)":"var(--text2)"} /> {r}
               </div>
             ))}
+            {/* Add Room inline */}
+            <div style={{ borderTop:"1px solid var(--border)",margin:"4px 0",padding:"8px 10px" }}>
+              <div style={{ fontSize:11,color:"rgba(255,255,255,.4)",marginBottom:5 }}>ADD ROOM</div>
+              <div style={{ display:"flex",gap:6 }}>
+                <input
+                  className="form-input"
+                  placeholder="Room name…"
+                  value={addRoomInput}
+                  onChange={e => setAddRoomInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") addRoom(addRoomInput); }}
+                  style={{ flex:1,fontSize:12,padding:"5px 8px",background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.15)",color:"white",borderRadius:6 }}
+                  onClick={e => e.stopPropagation()}
+                />
+                <button
+                  onClick={e => { e.stopPropagation(); addRoom(addRoomInput); }}
+                  style={{ padding:"5px 10px",borderRadius:6,background:"var(--accent)",border:"none",color:"#000",fontWeight:700,fontSize:12,cursor:"pointer" }}>
+                  +
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -624,18 +839,55 @@ export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) 
           </div>
         )}
 
-        {/* Mode toggle — Photo / Video */}
-        <div style={{ display:"flex",justifyContent:"center",marginBottom:14 }}>
-          <div style={{ display:"flex",background:"rgba(0,0,0,.5)",borderRadius:20,padding:3,border:"1px solid rgba(255,255,255,.15)" }}>
-            {[{v:"photo",label:"📷 Photo"},{v:"video",label:"🎬 Video"}].map(({v,label})=>(
-              <button key={v} disabled={recState==="recording"}
-                onClick={()=>{ if(recState!=="recording") setMode(v); }}
-                style={{ padding:"6px 18px",borderRadius:16,fontSize:12.5,fontWeight:700,border:"none",cursor:recState==="recording"?"not-allowed":"pointer",background:mode===v?"white":"transparent",color:mode===v?"#111":"rgba(255,255,255,.7)",transition:"all .15s" }}>
-                {label}
-              </button>
-            ))}
+        {/* Mode toggle — Photo / Ghost / Video */}
+        {(() => {
+          const activeToggle = ghostMode ? "ghost" : mode;
+          const pills = [{v:"photo",label:"📷 Photo"},{v:"ghost",label:"👻 Ghost"},{v:"video",label:"🎬 Video"}];
+          return (
+            <div style={{ display:"flex",justifyContent:"center",marginBottom:8 }}>
+              <div style={{ display:"flex",background:"rgba(0,0,0,.5)",borderRadius:22,padding:3,border:"1px solid rgba(255,255,255,.15)",gap:3 }}>
+                {pills.map(({v,label}) => {
+                  const active = activeToggle === v;
+                  return (
+                    <button key={v} disabled={recState==="recording"}
+                      onClick={() => {
+                        if (recState==="recording") return;
+                        if (v==="ghost") { setMode("photo"); if (!ghostPhoto) setGhostPickerOpen(true); setGhostMode(true); }
+                        else { setMode(v); setGhostMode(false); setGhostPickerOpen(false); }
+                      }}
+                      style={{ padding:"6px 16px",borderRadius:17,fontSize:12.5,fontWeight:700,border:"none",cursor:recState==="recording"?"not-allowed":"pointer",
+                        background: active ? (v==="ghost" ? "rgba(180,150,255,.92)" : "white") : "transparent",
+                        color: active ? (v==="ghost" ? "#fff" : "#111") : "rgba(255,255,255,.65)",
+                        transition:"all .15s" }}>
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Capture mode toggle — Single Take / Batch (photo mode only) */}
+        {mode === "photo" && (
+          <div style={{ display:"flex",justifyContent:"center",marginBottom:14,gap:8,alignItems:"center" }}>
+            <div style={{ display:"flex",background:"rgba(0,0,0,.45)",borderRadius:20,padding:3,border:"1px solid rgba(255,255,255,.12)" }}>
+              {[{v:"single",label:"1× Single Take"},{v:"batch",label:"⊕ Batch"}].map(({v,label})=>(
+                <button key={v}
+                  onClick={() => setCaptureMode(v)}
+                  style={{ padding:"5px 16px",borderRadius:16,fontSize:12,fontWeight:700,border:"none",cursor:"pointer",
+                    background: captureMode===v ? (v==="single" ? "var(--accent)" : "#fff") : "transparent",
+                    color: captureMode===v ? (v==="single" ? "#fff" : "#111") : "rgba(255,255,255,.6)",
+                    transition:"all .15s" }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize:11,color:"rgba(255,255,255,.4)",maxWidth:120,lineHeight:1.35,textAlign:"left" }}>
+              {captureMode === "single" ? "1 photo → saves immediately" : "Capture many → save all at once"}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Save session button — own row so it's never clipped on mobile */}
         {session.length > 0 && (
@@ -649,15 +901,20 @@ export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) 
           </div>
         )}
 
-        <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",gap:12 }}>
-          {/* Left controls */}
-          <div style={{ display:"flex",gap:10,alignItems:"center",minWidth:0 }}>
+        <div style={{ display:"flex",alignItems:"center",gap:0 }}>
+          {/* Left controls — flex:1.25 nudges shutter right, splitting the diff between centered and space-between */}
+          <div style={{ flex:1.25,display:"flex",gap:10,alignItems:"center",justifyContent:"flex-start",minWidth:0 }}>
             {mode === "photo" && (
               <>
                 <div className="cam-icon-btn" title="Self-timer" onClick={cycleTimer}>
                   {timerSec > 0 ? <span style={{ fontWeight:700,fontSize:13 }}>{timerSec}s</span> : <Icon d={ic.timer} size={18} />}
                 </div>
                 <div className={`cam-icon-btn ${gridOn?"lit":""}`} title="Grid" onClick={() => setGridOn(g => !g)}><Icon d={ic.grid} size={18} /></div>
+                <div
+                  className={`cam-icon-btn ${showTimestamp?"lit":""}`}
+                  title={showTimestamp ? "Timestamp overlay: ON" : "Timestamp overlay: OFF"}
+                  onClick={() => setShowTimestamp(t => !t)}
+                  style={{ fontSize:13, fontWeight:700 }}>⏱</div>
               </>
             )}
             {mode === "video" && recState === "idle" && (
@@ -677,8 +934,8 @@ export function CameraPage({ project, defaultRoom, onSave, onClose, settings }) 
               </div>
           }
 
-          {/* Right controls */}
-          <div style={{ display:"flex",flexDirection:"column",gap:10,alignItems:"center",minWidth:0 }}>
+          {/* Right controls — flex:1 so shutter stays truly centered */}
+          <div style={{ flex:1,display:"flex",flexDirection:"column",gap:10,alignItems:"flex-end",minWidth:0 }}>
             <div style={{ display:"flex",gap:10,alignItems:"center" }}>
               {facing === "environment" && mode === "photo" && (
                 <div

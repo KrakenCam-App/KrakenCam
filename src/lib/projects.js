@@ -83,6 +83,8 @@ function toDbRow(p) {
     client_name:           [p.clientFirstName, p.clientLastName].filter(Boolean).join(' ') || p.clientName || '',
     client_email:          p.clientEmail           || '',
     client_phone:          p.clientPhone           || '',
+    client_cell_phone:     p.clientCellPhone       || '',
+    client_business_name:  p.clientBusinessName    || '',
     client_relationship:   p.clientRelationship    || '',
     occupancy_status:      p.occupancyStatus       || '',
 
@@ -178,6 +180,8 @@ function fromDbRow(row) {
                             : (row.client_name || ''),
     clientEmail:          row.client_email          || '',
     clientPhone:          row.client_phone          || '',
+    clientCellPhone:      row.client_cell_phone     || '',
+    clientBusinessName:   row.client_business_name  || '',
     clientRelationship:   row.client_relationship   || '',
     occupancyStatus:      row.occupancy_status      || '',
 
@@ -345,4 +349,60 @@ export async function getPictureUrl(storagePath, expiresIn = 3600) {
   const { data, error } = await supabase.storage.from('project-photos').createSignedUrl(storagePath, expiresIn);
   if (error) throw error;
   return data.signedUrl;
+}
+
+// ── Subcontractors ────────────────────────────────────────────────────────────
+
+export async function getProjectSubcontractors(projectId) {
+  const { data, error } = await supabase
+    .from('jobsite_subcontractors')
+    .select('*')
+    .eq('jobsite_id', projectId)
+    .order('sort_order', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data || []).map(r => ({
+    id:                 r.id,
+    companyName:        r.company_name        || '',
+    contactName:        r.contact_name        || '',
+    phoneNumber:        r.phone_number        || '',
+    serviceDescription: r.service_description || '',
+    notes:              r.notes               || '',
+    sortOrder:          r.sort_order,
+  }));
+}
+
+/**
+ * Full replace: delete all existing subcontractors for a jobsite and insert the new list.
+ * Skips rows where companyName is blank (unfilled empty rows).
+ */
+export async function upsertProjectSubcontractors(projectId, orgId, subcontractors = []) {
+  // Delete all existing rows for this jobsite
+  const { error: delError } = await supabase
+    .from('jobsite_subcontractors')
+    .delete()
+    .eq('jobsite_id', projectId);
+  if (delError) throw delError;
+
+  // Filter out blank rows (company_name is required)
+  const valid = subcontractors.filter(s => s.companyName && s.companyName.trim());
+  if (valid.length === 0) return [];
+
+  const rows = valid.map((s, i) => ({
+    jobsite_id:          projectId,
+    organization_id:     orgId,
+    company_name:        s.companyName.trim(),
+    contact_name:        s.contactName        || null,
+    phone_number:        s.phoneNumber        || null,
+    service_description: s.serviceDescription || null,
+    notes:               s.notes              || null,
+    sort_order:          i,
+  }));
+
+  const { data, error } = await supabase
+    .from('jobsite_subcontractors')
+    .insert(rows)
+    .select();
+  if (error) throw error;
+  return data || [];
 }

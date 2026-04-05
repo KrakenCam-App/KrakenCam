@@ -1,7 +1,14 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { supabase } from "../lib/supabase";
 import { uploadVoiceNote as dbUploadVoiceNote, deleteVoiceNote as dbDeleteVoiceNote } from "../lib/voiceNotes.js";
-import { deleteVideo as dbDeleteVideo } from "../lib/videos.js";
+import {
+  deleteVideo as dbDeleteVideo,
+  updateVideo as dbUpdateVideo,
+  getChapterMarkers as dbGetChapterMarkers,
+  addChapterMarker as dbAddChapterMarker,
+  updateChapterMarker as dbUpdateChapterMarker,
+  deleteChapterMarker as dbDeleteChapterMarker,
+} from "../lib/videos.js";
 import { deleteProjectFile as dbDeleteProjectFile } from "../lib/projectFiles.js";
 import { Icon, ic } from "../utils/icons.jsx";
 import { hasPermissionLevel, getEffectivePermissions, DEFAULT_CL_TEMPLATES, getPermissionPolicies, FIELD_TYPES } from "../utils/constants.js";
@@ -1559,75 +1566,395 @@ function SendEmailModal({ project, reports, settings, onClose, onSent }) {
 }
 
 // ── Videos Tab ────────────────────────────────────────────────────────────────
-export function VideosTab({ project, onUpdateProject, onOpenCamera, orgId }) {
+// ── Video thumbnail: lazy canvas frame capture ────────────────────────────────
+function VideoThumb({ src, style }) {
+  const canvasRef = useRef(null);
+  const [loaded,  setLoaded]  = useState(false);
+  const [failed,  setFailed]  = useState(false);
+
+  useEffect(() => {
+    if (!src) { setFailed(true); return; }
+    let cancelled = false;
+    const vid = document.createElement("video");
+    vid.crossOrigin = "anonymous";
+    vid.preload = "metadata";
+    vid.muted = true;
+    vid.src = src;
+    vid.onloadeddata = () => {
+      if (cancelled) return;
+      vid.currentTime = Math.min(0.5, vid.duration * 0.1 || 0.5);
+    };
+    vid.onseeked = () => {
+      if (cancelled) return;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      try {
+        canvas.width  = vid.videoWidth  || 320;
+        canvas.height = vid.videoHeight || 180;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
+        setLoaded(true);
+      } catch { setFailed(true); }
+    };
+    vid.onerror = () => { if (!cancelled) setFailed(true); };
+    return () => { cancelled = true; vid.src = ""; };
+  }, [src]);
+
+  if (failed || !src) {
+    return (
+      <div style={{ ...style, display:"flex",alignItems:"center",justifyContent:"center",background:"#0d0f14",flexDirection:"column",gap:6 }}>
+        <Icon d={ic.video} size={28} stroke="rgba(255,255,255,.3)"/>
+      </div>
+    );
+  }
+  return (
+    <>
+      <canvas ref={canvasRef} style={{ ...style, display:loaded?"block":"none",objectFit:"cover",width:"100%",height:"100%" }}/>
+      {!loaded && (
+        <div style={{ ...style, display:"flex",alignItems:"center",justifyContent:"center",background:"#0d0f14" }}>
+          <Icon d={ic.video} size={28} stroke="rgba(255,255,255,.3)"/>
+        </div>
+      )}
+    </>
+  );
+}
+
+const VID_PRESET_TAGS = ["Before","During","After","Damage","Clean","Concern","Hidden"];
+
+export function VideosTab({ project, onUpdateProject, onOpenCamera, orgId, userId, teamUsers = [] }) {
   const videos = project.videos || [];
-  const [playing,      setPlaying]      = useState(null);
-  const [editingVid,   setEditingVid]   = useState(null);
-  const [confirmDel,   setConfirmDel]   = useState(null); // null | video obj | "batch"
+
+  // ── filter / search state ──────────────────────────────────────────────────
+  const [search,       setSearch]       = useState("");
   const [filterRoom,   setFilterRoom]   = useState("all");
+  const [filterTag,    setFilterTag]    = useState("all");
+  const [hasNotesOnly, setHasNotesOnly] = useState(false);
+  const [viewMode,     setViewMode]     = useState("grid"); // "grid" | "timeline"
+
+  // ── select / delete state ──────────────────────────────────────────────────
   const [selectMode,   setSelectMode]   = useState(false);
   const [selectedIds,  setSelectedIds]  = useState(new Set());
+  const [confirmDel,   setConfirmDel]   = useState(null);
+
+  // ── detail / player modal ──────────────────────────────────────────────────
+  const [detailVid,    setDetailVid]    = useState(null); // the video being viewed/edited
+  const [detailSaving, setDetailSaving] = useState(false);
+  const [playerOpen,   setPlayerOpen]   = useState(false);
+  const playerRef = useRef(null);
+
+  // ── chapter markers state (loaded per video) ───────────────────────────────
+  const [chapters,     setChapters]     = useState([]);
+  const [chaptersLoading, setChaptersLoading] = useState(false);
+  const [newChap,      setNewChap]      = useState({ label:"", timestampSeconds:0 });
+  const [editingChap,  setEditingChap]  = useState(null);
 
   const rooms = ["all", ...(project.rooms?.map(r => r.name) || [])];
-  const filtered = filterRoom === "all" ? videos : videos.filter(v => v.room === filterRoom);
 
+  // ── helpers ────────────────────────────────────────────────────────────────
   const fmtTime = s => {
-    if (!s && s !== 0) return "";
-    return `${String(Math.floor(s/60)).padStart(2,"0")}:${String(Math.floor(s%60)).padStart(2,"0")}`;
+    if (s == null || s === "") return "";
+    const total = Math.round(Number(s));
+    return `${String(Math.floor(total/60)).padStart(2,"0")}:${String(total%60).padStart(2,"0")}`;
   };
 
-  const toggleSelect = id => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const fmtDate = dt => {
+    if (!dt) return "";
+    try { return new Date(dt).toLocaleDateString(undefined, { month:"short", day:"numeric", year:"numeric" }); }
+    catch { return dt?.slice?.(0,10) || ""; }
+  };
 
-  const deleteVideo = (id) => {
+  const fmtDateTime = dt => {
+    if (!dt) return "";
+    try { return new Date(dt).toLocaleString(undefined, { month:"short", day:"numeric", year:"numeric", hour:"numeric", minute:"2-digit" }); }
+    catch { return dt?.slice?.(0,16) || ""; }
+  };
+
+  const userNameById = id => {
+    if (!id) return null;
+    const u = teamUsers.find(u => u.user_id === id || u.id === id);
+    return u ? (`${u.first_name||""} ${u.last_name||""}`.trim() || u.email || null) : null;
+  };
+
+  const toggleSelect = id => setSelectedIds(prev => {
+    const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
+  });
+
+  // ── filtered & searched videos ─────────────────────────────────────────────
+  const filtered = useMemo(() => {
+    let list = [...videos];
+    const q = search.trim().toLowerCase();
+    if (q) list = list.filter(v =>
+      (v.name||"").toLowerCase().includes(q) ||
+      (v.notes||"").toLowerCase().includes(q) ||
+      (v.room||"").toLowerCase().includes(q)
+    );
+    if (filterRoom !== "all") list = list.filter(v => v.room === filterRoom);
+    if (filterTag  !== "all") list = list.filter(v => (v.tags||[]).includes(filterTag));
+    if (hasNotesOnly) list = list.filter(v => v.notes?.trim());
+    // sort by recordedAt desc
+    list.sort((a,b) => {
+      const da = a.recordedAt || a.date || "";
+      const db_ = b.recordedAt || b.date || "";
+      return da < db_ ? 1 : da > db_ ? -1 : 0;
+    });
+    return list;
+  }, [videos, search, filterRoom, filterTag, hasNotesOnly]);
+
+  // ── Timeline grouping ──────────────────────────────────────────────────────
+  const timelineGroups = useMemo(() => {
+    if (viewMode !== "timeline") return [];
+    const groups = [];
+    const seen = {};
+    filtered.forEach(v => {
+      const day = (v.recordedAt || v.date || "Unknown")?.slice(0,10);
+      if (!seen[day]) { seen[day] = true; groups.push({ day, items:[] }); }
+      groups[groups.length-1].items.push(v);
+    });
+    return groups;
+  }, [filtered, viewMode]);
+
+  // ── Delete ─────────────────────────────────────────────────────────────────
+  const handleDelete = id => {
     const vid = videos.find(v => v.id === id);
     onUpdateProject({ ...project, videos: videos.filter(v => v.id !== id) });
-    if (playing === id) setPlaying(null);
+    if (detailVid?.id === id) { setDetailVid(null); setPlayerOpen(false); }
     setConfirmDel(null);
-    // Remove from Supabase
-    if (vid?.supabaseId) dbDeleteVideo(vid.supabaseId, vid.storagePath).catch(() => {});
+    if (vid?.supabaseId) dbDeleteVideo(vid.supabaseId, vid.storagePath).catch(()=>{});
   };
 
   const deleteBatch = () => {
     const toDelete = videos.filter(v => selectedIds.has(v.id));
     onUpdateProject({ ...project, videos: videos.filter(v => !selectedIds.has(v.id)) });
-    if (selectedIds.has(playing)) setPlaying(null);
-    toDelete.forEach(v => { if (v.supabaseId) dbDeleteVideo(v.supabaseId, v.storagePath).catch(() => {}); });
+    toDelete.forEach(v => { if (v.supabaseId) dbDeleteVideo(v.supabaseId, v.storagePath).catch(()=>{}); });
     setSelectedIds(new Set());
     setSelectMode(false);
     setConfirmDel(null);
   };
 
-  const saveEdit = () => {
-    if (!editingVid) return;
-    onUpdateProject({ ...project, videos: videos.map(v => v.id === editingVid.id ? { ...v, name: editingVid.name, room: editingVid.room } : v) });
-    setEditingVid(null);
+  // ── Open detail modal ──────────────────────────────────────────────────────
+  const openDetail = useCallback((vid, startPlaying = false) => {
+    setDetailVid({
+      ...vid,
+      tags:     Array.isArray(vid.tags) ? [...vid.tags] : [],
+      notes:    vid.notes || "",
+      name:     vid.name  || "",
+      room:     vid.room  || "",
+      trimStart: vid.trimStart ?? null,
+      trimEnd:   vid.trimEnd   ?? null,
+    });
+    setChapters([]);
+    setNewChap({ label:"", timestampSeconds:0 });
+    setEditingChap(null);
+    setPlayerOpen(startPlaying);
+
+    if (vid.supabaseId) {
+      setChaptersLoading(true);
+      dbGetChapterMarkers(vid.supabaseId).then(rows => {
+        setChapters(rows);
+        setChaptersLoading(false);
+      }).catch(() => setChaptersLoading(false));
+    }
+  }, []);
+
+  // ── Save detail edits ──────────────────────────────────────────────────────
+  const saveDetail = async () => {
+    if (!detailVid) return;
+    setDetailSaving(true);
+    try {
+      const updates = {
+        title:              detailVid.name,
+        room:               detailVid.room,
+        tags:               detailVid.tags,
+        notes:              detailVid.notes,
+        trim_start_seconds: detailVid.trimStart ?? null,
+        trim_end_seconds:   detailVid.trimEnd   ?? null,
+      };
+      // Persist to Supabase if we have a server ID
+      if (detailVid.supabaseId) {
+        await dbUpdateVideo(detailVid.supabaseId, updates);
+      }
+      // Update local project state
+      onUpdateProject({
+        ...project,
+        videos: videos.map(v => v.id === detailVid.id ? {
+          ...v,
+          name:     detailVid.name,
+          room:     detailVid.room,
+          tags:     detailVid.tags,
+          notes:    detailVid.notes,
+          trimStart: detailVid.trimStart ?? null,
+          trimEnd:   detailVid.trimEnd   ?? null,
+        } : v),
+      });
+      setDetailVid(null);
+    } catch(e) {
+      console.warn("[KrakenCam] Video save failed:", e);
+    } finally {
+      setDetailSaving(false);
+    }
   };
 
-  const playingVid = videos.find(v => v.id === playing);
+  // ── Tag toggle in detail ───────────────────────────────────────────────────
+  const toggleDetailTag = tag => {
+    setDetailVid(v => {
+      const tags = v.tags.includes(tag) ? v.tags.filter(t=>t!==tag) : [...v.tags, tag];
+      return { ...v, tags };
+    });
+  };
+
+  // ── Chapter: add ──────────────────────────────────────────────────────────
+  const addChapter = async () => {
+    if (!newChap.label.trim() || !detailVid?.supabaseId) return;
+    try {
+      const row = await dbAddChapterMarker({
+        videoId:          detailVid.supabaseId,
+        projectId:        project.id,
+        orgId,
+        timestampSeconds: Number(newChap.timestampSeconds) || 0,
+        label:            newChap.label.trim(),
+        notes:            newChap.notes || null,
+        createdByUserId:  userId || null,
+      });
+      setChapters(prev => [...prev, row].sort((a,b)=>a.timestamp_seconds-b.timestamp_seconds));
+      setNewChap({ label:"", timestampSeconds: playerRef.current?.currentTime || 0 });
+    } catch(e) { console.warn("[KrakenCam] Add chapter failed:", e); }
+  };
+
+  const saveChapter = async () => {
+    if (!editingChap) return;
+    try {
+      const row = await dbUpdateChapterMarker(editingChap.id, {
+        label:            editingChap.label,
+        notes:            editingChap.notes,
+        timestamp_seconds: Number(editingChap.timestamp_seconds),
+      });
+      setChapters(prev => prev.map(c => c.id===row.id ? row : c).sort((a,b)=>a.timestamp_seconds-b.timestamp_seconds));
+      setEditingChap(null);
+    } catch(e) { console.warn("[KrakenCam] Update chapter failed:", e); }
+  };
+
+  const deleteChapter = async id => {
+    try {
+      await dbDeleteChapterMarker(id);
+      setChapters(prev => prev.filter(c => c.id !== id));
+    } catch(e) { console.warn("[KrakenCam] Delete chapter failed:", e); }
+  };
+
+  const jumpToChapter = ts => {
+    if (playerRef.current) { playerRef.current.currentTime = Number(ts); playerRef.current.play().catch(()=>{}); }
+  };
+
+  // ── Capture current player time for new chapter ────────────────────────────
+  const captureTime = () => {
+    const t = playerRef.current?.currentTime || 0;
+    setNewChap(prev => ({ ...prev, timestampSeconds: Math.round(t*10)/10 }));
+  };
+
+  // ── Card renderer (shared between grid and timeline) ───────────────────────
+  const renderCard = (v) => (
+    <div key={v.id}
+      style={{ background:"var(--surface)",border:`1px solid ${selectedIds.has(v.id)?"var(--accent)":"var(--border)"}`,borderRadius:"var(--radius)",overflow:"hidden",transition:"box-shadow .15s",position:"relative" }}
+      onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 18px rgba(0,0,0,.18)"}
+      onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}>
+
+      {selectMode && (
+        <div style={{ position:"absolute",top:8,left:8,zIndex:10 }} onClick={e=>{e.stopPropagation();toggleSelect(v.id);}}>
+          <div style={{ width:22,height:22,borderRadius:6,border:`2px solid ${selectedIds.has(v.id)?"var(--accent)":"rgba(255,255,255,0.7)"}`,
+            background:selectedIds.has(v.id)?"var(--accent)":"rgba(0,0,0,0.4)",
+            display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer" }}>
+            {selectedIds.has(v.id) && <Icon d="M20 6L9 17l-5-5" size={13} stroke="white" strokeWidth={2.5}/>}
+          </div>
+        </div>
+      )}
+
+      {/* Thumbnail */}
+      <div style={{ position:"relative",aspectRatio:"16/9",background:"#0d0f14",cursor:"pointer",overflow:"hidden" }}
+        onClick={()=>selectMode ? toggleSelect(v.id) : openDetail(v, true)}>
+        <VideoThumb src={v.dataUrl} style={{ position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover" }}/>
+        {/* Play overlay */}
+        <div style={{ position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.25)" }}>
+          <div style={{ width:46,height:46,borderRadius:"50%",background:"rgba(0,0,0,.55)",border:"2px solid rgba(255,255,255,.5)",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)" }}>
+            <Icon d="M5 3l14 9-14 9V3z" size={18} stroke="white" fill="white"/>
+          </div>
+        </div>
+        {v.duration != null && (
+          <span style={{ position:"absolute",bottom:6,right:7,fontSize:10.5,fontWeight:700,background:"rgba(0,0,0,.78)",color:"white",padding:"1px 6px",borderRadius:5,letterSpacing:".03em" }}>
+            {fmtTime(v.duration)}
+          </span>
+        )}
+        {(v.trimStart != null || v.trimEnd != null) && (
+          <span style={{ position:"absolute",bottom:6,left:7,fontSize:10,background:"rgba(255,160,0,.85)",color:"white",padding:"1px 6px",borderRadius:5,fontWeight:700 }}>✂ trimmed</span>
+        )}
+        <span style={{ position:"absolute",top:7,left:7,fontSize:10,background:"rgba(0,0,0,.6)",color:"rgba(255,255,255,.85)",padding:"2px 7px",borderRadius:5 }}>
+          🎬 {v.room || "General"}
+        </span>
+      </div>
+
+      {/* Meta */}
+      <div style={{ padding:"10px 12px" }}>
+        <div style={{ fontWeight:700,fontSize:13.5,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{v.name || "Video"}</div>
+        <div style={{ display:"flex",alignItems:"center",gap:5,fontSize:11,color:"var(--text3)",marginBottom:6,flexWrap:"wrap" }}>
+          <Icon d={ic.clockIcon} size={10}/><span>{fmtDate(v.recordedAt || v.date)}</span>
+          {v.recordedAt && <><span>·</span><span>{new Date(v.recordedAt).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}</span></>}
+          {v.gps && <><span>·</span><Icon d={ic.mapPin} size={10} stroke="#3dba7e"/><span style={{ color:"#3dba7e" }}>GPS</span></>}
+          {userNameById(v.recordedByUserId) && <><span>·</span><span style={{ color:"var(--text2)" }}>{userNameById(v.recordedByUserId)}</span></>}
+        </div>
+        {/* Tags */}
+        {(v.tags||[]).length > 0 && (
+          <div style={{ display:"flex",gap:4,flexWrap:"wrap",marginBottom:6 }}>
+            {v.tags.map(t=>(
+              <span key={t} style={{ fontSize:10,padding:"1px 7px",borderRadius:10,background:"var(--accent-dim,rgba(61,186,126,.15))",color:"var(--accent)",border:"1px solid rgba(61,186,126,.25)",fontWeight:600 }}>{t}</span>
+            ))}
+          </div>
+        )}
+        {/* Notes preview */}
+        {v.notes?.trim() && (
+          <div style={{ fontSize:11,color:"var(--text3)",marginBottom:6,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",lineHeight:1.4 }}>
+            📝 {v.notes}
+          </div>
+        )}
+        <div style={{ display:"flex",gap:5,marginTop:4 }}>
+          <button className="btn btn-ghost btn-sm" style={{ flex:1,justifyContent:"center" }} onClick={()=>openDetail(v,true)}>
+            <Icon d="M5 3l14 9-14 9V3z" size={12} fill="var(--accent)" stroke="var(--accent)"/> Play
+          </button>
+          <button className="btn btn-ghost btn-sm btn-icon" style={{ width:28 }} onClick={()=>openDetail(v,false)} title="Edit">
+            <Icon d={ic.edit} size={12}/>
+          </button>
+          <button className="btn btn-ghost btn-sm btn-icon" style={{ width:28,color:"#e85a3a" }} onClick={()=>setConfirmDel(v)} title="Delete">
+            <Icon d={ic.trash} size={12}/>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18,flexWrap:"wrap",gap:10 }}>
+      {/* ── Header ── */}
+      <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:10 }}>
         <div style={{ display:"flex",alignItems:"center",gap:10 }}>
           <div className="section-title" style={{ marginBottom:0 }}>Videos</div>
           <span style={{ fontSize:12,color:"var(--text3)",padding:"2px 9px",background:"var(--surface2)",borderRadius:10,border:"1px solid var(--border)" }}>{videos.length} clip{videos.length!==1?"s":""}</span>
         </div>
-        <div style={{ display:"flex",gap:8,alignItems:"center",flexWrap:"wrap" }}>
-          {rooms.length > 2 && (
-            <select className="form-input form-select" value={filterRoom} onChange={e=>setFilterRoom(e.target.value)} style={{ width:"auto",fontSize:12.5,padding:"5px 28px 5px 10px",height:"auto" }}>
-              {rooms.map(r=><option key={r} value={r}>{r==="all"?"All Rooms":r}</option>)}
-            </select>
-          )}
+        <div style={{ display:"flex",gap:7,alignItems:"center",flexWrap:"wrap" }}>
+          {/* View toggle */}
+          <div style={{ display:"flex",border:"1px solid var(--border)",borderRadius:8,overflow:"hidden" }}>
+            {[["grid","⊞ Grid"],["timeline","☰ Timeline"]].map(([v,lbl])=>(
+              <button key={v} className="btn btn-ghost btn-sm"
+                style={{ borderRadius:0,borderRight:v==="grid"?"1px solid var(--border)":"none",padding:"4px 10px",
+                  background:viewMode===v?"var(--surface2)":"transparent",fontWeight:viewMode===v?700:400 }}
+                onClick={()=>setViewMode(v)}>{lbl}</button>
+            ))}
+          </div>
           {selectMode ? (<>
             {selectedIds.size > 0 && (
-              <button className="btn btn-sm" style={{ background:"#e85a3a",color:"white",border:"none" }} onClick={() => setConfirmDel("batch")}>
+              <button className="btn btn-sm" style={{ background:"#e85a3a",color:"white",border:"none" }} onClick={()=>setConfirmDel("batch")}>
                 <Icon d={ic.trash} size={13}/> Delete {selectedIds.size}
               </button>
             )}
-            <button className="btn btn-secondary btn-sm" onClick={() => { setSelectMode(false); setSelectedIds(new Set()); }}>Cancel</button>
+            <button className="btn btn-secondary btn-sm" onClick={()=>{ setSelectMode(false); setSelectedIds(new Set()); }}>Cancel</button>
           </>) : (<>
-            {videos.length > 0 && <button className="btn btn-secondary btn-sm" onClick={() => setSelectMode(true)}>☑ Select</button>}
+            {videos.length > 0 && <button className="btn btn-secondary btn-sm" onClick={()=>setSelectMode(true)}>☑ Select</button>}
             <button className="btn btn-primary btn-sm" onClick={()=>onOpenCamera(project)}>
               <Icon d={ic.video} size={14}/> Record Video
             </button>
@@ -1635,7 +1962,28 @@ export function VideosTab({ project, onUpdateProject, onOpenCamera, orgId }) {
         </div>
       </div>
 
-      {/* Empty state */}
+      {/* ── Search + Filters ── */}
+      {videos.length > 0 && (
+        <div style={{ display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center" }}>
+          <input className="form-input" placeholder="Search title, notes, room…" value={search} onChange={e=>setSearch(e.target.value)}
+            style={{ flex:"1 1 200px",fontSize:12.5,padding:"5px 10px",height:"auto" }}/>
+          {rooms.length > 2 && (
+            <select className="form-input form-select" value={filterRoom} onChange={e=>setFilterRoom(e.target.value)} style={{ width:"auto",fontSize:12.5,padding:"5px 26px 5px 10px",height:"auto",flex:"0 0 auto" }}>
+              {rooms.map(r=><option key={r} value={r}>{r==="all"?"All Rooms":r}</option>)}
+            </select>
+          )}
+          <select className="form-input form-select" value={filterTag} onChange={e=>setFilterTag(e.target.value)} style={{ width:"auto",fontSize:12.5,padding:"5px 26px 5px 10px",height:"auto",flex:"0 0 auto" }}>
+            <option value="all">All Tags</option>
+            {VID_PRESET_TAGS.map(t=><option key={t} value={t}>{t}</option>)}
+          </select>
+          <button className="btn btn-secondary btn-sm" onClick={()=>setHasNotesOnly(p=>!p)}
+            style={{ background:hasNotesOnly?"var(--accent)":"",color:hasNotesOnly?"white":"",border:hasNotesOnly?"1px solid var(--accent)":"" }}>
+            📝 Has Notes
+          </button>
+        </div>
+      )}
+
+      {/* ── Empty state ── */}
       {videos.length === 0 && (
         <div style={{ textAlign:"center",padding:"70px 20px",color:"var(--text3)" }}>
           <Icon d={ic.video} size={48} stroke="var(--text3)"/>
@@ -1645,109 +1993,218 @@ export function VideosTab({ project, onUpdateProject, onOpenCamera, orgId }) {
         </div>
       )}
 
-      {/* Grid */}
-      {filtered.length > 0 && (
+      {/* ── No results ── */}
+      {videos.length > 0 && filtered.length === 0 && (
+        <div style={{ textAlign:"center",padding:"40px",color:"var(--text3)",fontSize:13 }}>No videos match your filters.</div>
+      )}
+
+      {/* ── Grid view ── */}
+      {viewMode === "grid" && filtered.length > 0 && (
         <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:14 }}>
-          {filtered.map(v => (
-            <div key={v.id} style={{ background:"var(--surface)",border:`1px solid ${selectedIds.has(v.id)?"var(--accent)":"var(--border)"}`,borderRadius:"var(--radius)",overflow:"hidden",transition:"box-shadow .15s",position:"relative" }}
-              onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 18px rgba(0,0,0,.18)"}
-              onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}>
-              {selectMode && (
-                <div style={{ position:"absolute",top:8,left:8,zIndex:10 }} onClick={e=>{e.stopPropagation();toggleSelect(v.id);}}>
-                  <div style={{ width:22,height:22,borderRadius:6,border:`2px solid ${selectedIds.has(v.id)?"var(--accent)":"rgba(255,255,255,0.7)"}`,
-                    background:selectedIds.has(v.id)?"var(--accent)":"rgba(0,0,0,0.4)",
-                    display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer" }}>
-                    {selectedIds.has(v.id) && <Icon d="M20 6L9 17l-5-5" size={13} stroke="white" strokeWidth={2.5}/>}
-                  </div>
-                </div>
-              )}
-              {/* Thumbnail / play area */}
-              <div style={{ position:"relative",aspectRatio:"16/9",background:"#0d0f14",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center" }}
-                onClick={()=>selectMode ? toggleSelect(v.id) : setPlaying(v.id)}>
-                <div style={{ width:52,height:52,borderRadius:"50%",background:"rgba(255,255,255,.12)",border:"2px solid rgba(255,255,255,.3)",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)",transition:"transform .15s" }}
-                  onMouseEnter={e=>e.currentTarget.style.transform="scale(1.1)"}
-                  onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>
-                  <Icon d="M5 3l14 9-14 9V3z" size={22} stroke="white" fill="white"/>
-                </div>
-                {v.duration != null && (
-                  <span style={{ position:"absolute",bottom:8,right:8,fontSize:11,fontWeight:700,background:"rgba(0,0,0,.75)",color:"white",padding:"2px 7px",borderRadius:6,letterSpacing:".03em" }}>
-                    {fmtTime(v.duration)}
-                  </span>
-                )}
-                <span style={{ position:"absolute",top:8,left:8,fontSize:10.5,background:"rgba(0,0,0,.6)",color:"rgba(255,255,255,.85)",padding:"2px 8px",borderRadius:6 }}>
-                  🎬 {v.room || "General"}
-                </span>
+          {filtered.map(renderCard)}
+        </div>
+      )}
+
+      {/* ── Timeline view ── */}
+      {viewMode === "timeline" && timelineGroups.length > 0 && (
+        <div style={{ display:"flex",flexDirection:"column",gap:24 }}>
+          {timelineGroups.map(({ day, items }) => (
+            <div key={day}>
+              <div style={{ fontSize:12,fontWeight:700,color:"var(--text3)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:10,paddingBottom:6,borderBottom:"1px solid var(--border)" }}>
+                {day === "Unknown" ? "Unknown Date" : fmtDate(day)}
               </div>
-              {/* Meta */}
-              <div style={{ padding:"11px 13px" }}>
-                <div style={{ fontWeight:700,fontSize:13.5,marginBottom:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{v.name}</div>
-                <div style={{ display:"flex",alignItems:"center",gap:6,fontSize:11.5,color:"var(--text3)",marginBottom:10 }}>
-                  <Icon d={ic.clockIcon} size={11}/>{v.date}
-                  {v.gps && <><span>·</span><Icon d={ic.mapPin} size={11} stroke="#3dba7e"/><span style={{ color:"#3dba7e" }}>GPS</span></>}
-                </div>
-                <div style={{ display:"flex",gap:6 }}>
-                  <button className="btn btn-ghost btn-sm" style={{ flex:1,justifyContent:"center" }} onClick={()=>setPlaying(v.id)}>
-                    <Icon d="M5 3l14 9-14 9V3z" size={12} fill="var(--accent)" stroke="var(--accent)"/> Play
-                  </button>
-                  <button className="btn btn-ghost btn-sm btn-icon" style={{ width:30 }} onClick={()=>setEditingVid({ id:v.id, name:v.name, room:v.room||"General" })}>
-                    <Icon d={ic.edit} size={13}/>
-                  </button>
-                  <button className="btn btn-ghost btn-sm btn-icon" style={{ width:30,color:"#e85a3a" }} onClick={()=>setConfirmDel(v)} title="Delete">
-                    <Icon d={ic.trash} size={13}/>
-                  </button>
-                </div>
+              <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:14 }}>
+                {items.map(renderCard)}
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {filtered.length === 0 && videos.length > 0 && (
-        <div style={{ textAlign:"center",padding:"40px",color:"var(--text3)",fontSize:13 }}>No videos in "{filterRoom}"</div>
-      )}
-
-      {/* Lightbox player */}
-      {playing && playingVid && (
-        <div className="modal-overlay" onClick={e=>{ if(e.target===e.currentTarget) setPlaying(null); }} style={{ zIndex:150 }}>
-          <div style={{ background:"#000",borderRadius:"var(--radius)",overflow:"hidden",width:"min(90vw,900px)",boxShadow:"0 24px 80px rgba(0,0,0,.7)" }}>
-            <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",background:"#111",borderBottom:"1px solid #222" }}>
-              <div style={{ fontWeight:700,fontSize:14,color:"white" }}>{playingVid.name}</div>
-              <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-                <span style={{ fontSize:11.5,color:"rgba(255,255,255,.5)" }}>{playingVid.room} · {playingVid.date}{playingVid.duration!=null?` · ${fmtTime(playingVid.duration)}`:""}</span>
-                <button className="btn btn-ghost btn-icon" style={{ color:"white",width:30,height:30 }} onClick={()=>setPlaying(null)}><Icon d={ic.close} size={16}/></button>
+      {/* ── Detail / Edit Modal ── */}
+      {detailVid && (
+        <div className="modal-overlay" onClick={e=>{ if(e.target===e.currentTarget){ setDetailVid(null); setPlayerOpen(false); } }} style={{ zIndex:150 }}>
+          <div className="modal" style={{ maxWidth:640,width:"95vw",maxHeight:"90vh",overflowY:"auto",padding:0 }}>
+            {/* Header */}
+            <div className="modal-header" style={{ padding:"12px 16px",position:"sticky",top:0,background:"var(--surface)",zIndex:10,borderBottom:"1px solid var(--border)" }}>
+              <div className="modal-title" style={{ fontSize:14 }}>
+                <Icon d={ic.video} size={14}/> {playerOpen ? "Playing" : "Edit"} Video
+              </div>
+              <div style={{ display:"flex",gap:6 }}>
+                <button className="btn btn-ghost btn-sm btn-icon" onClick={()=>setPlayerOpen(p=>!p)} title={playerOpen?"Hide Player":"Show Player"}>
+                  <Icon d="M5 3l14 9-14 9V3z" size={14} fill={playerOpen?"var(--accent)":""} stroke={playerOpen?"var(--accent)":"currentColor"}/>
+                </button>
+                <button className="btn btn-ghost btn-icon" onClick={()=>{ setDetailVid(null); setPlayerOpen(false); }}><Icon d={ic.close} size={16}/></button>
               </div>
             </div>
-            <video src={playingVid.dataUrl} controls autoPlay style={{ width:"100%",display:"block",background:"#000",maxHeight:"75vh" }} />
+
+            {/* Video player (collapsible) */}
+            {playerOpen && detailVid.dataUrl && (
+              <div style={{ background:"#000",position:"relative" }}>
+                <video
+                  ref={playerRef}
+                  src={detailVid.dataUrl}
+                  controls autoPlay
+                  style={{ width:"100%",display:"block",maxHeight:"42vh",background:"#000" }}
+                  onTimeUpdate={()=>{
+                    // keep newChap timestamp fresh while paused seeking
+                  }}
+                />
+                {/* Trim boundaries overlay note */}
+                {(detailVid.trimStart != null || detailVid.trimEnd != null) && (
+                  <div style={{ position:"absolute",top:8,left:8,fontSize:10.5,background:"rgba(255,160,0,.9)",color:"white",padding:"2px 8px",borderRadius:5,fontWeight:700 }}>
+                    ✂ Trim: {fmtTime(detailVid.trimStart??0)} – {fmtTime(detailVid.trimEnd??detailVid.duration)}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div style={{ padding:"16px" }}>
+              {/* ─ Metadata fields ─ */}
+              <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14 }}>
+                <div>
+                  <div className="form-label">Video Name</div>
+                  <input className="form-input" value={detailVid.name} onChange={e=>setDetailVid(v=>({...v,name:e.target.value}))} />
+                </div>
+                <div>
+                  <div className="form-label">Room</div>
+                  <select className="form-input form-select" value={detailVid.room} onChange={e=>setDetailVid(v=>({...v,room:e.target.value}))}>
+                    <option value="">General</option>
+                    {(project.rooms||[]).map(r=><option key={r.id} value={r.name}>{r.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Read-only info row */}
+              <div style={{ display:"flex",gap:12,flexWrap:"wrap",fontSize:12,color:"var(--text3)",marginBottom:14,padding:"8px 10px",background:"var(--surface2)",borderRadius:8,border:"1px solid var(--border)" }}>
+                {detailVid.recordedAt && <span>📅 {fmtDateTime(detailVid.recordedAt)}</span>}
+                {detailVid.duration!=null && <span>⏱ {fmtTime(detailVid.duration)}</span>}
+                {userNameById(detailVid.recordedByUserId) && <span>👤 {userNameById(detailVid.recordedByUserId)}</span>}
+                {detailVid.gps && <span style={{ color:"#3dba7e" }}>📍 GPS</span>}
+              </div>
+
+              {/* Tags */}
+              <div style={{ marginBottom:14 }}>
+                <div className="form-label">Tags</div>
+                <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
+                  {VID_PRESET_TAGS.map(t => {
+                    const on = detailVid.tags.includes(t);
+                    return (
+                      <button key={t} onClick={()=>toggleDetailTag(t)}
+                        style={{ fontSize:11.5,padding:"3px 12px",borderRadius:14,border:`1px solid ${on?"var(--accent)":"var(--border)"}`,
+                          background:on?"var(--accent)":"transparent",color:on?"white":"var(--text2)",cursor:"pointer",fontWeight:on?700:400,transition:"all .12s" }}>
+                        {t}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div style={{ marginBottom:14 }}>
+                <div className="form-label">Notes / Description</div>
+                <textarea className="form-input" rows={3} value={detailVid.notes}
+                  onChange={e=>setDetailVid(v=>({...v,notes:e.target.value}))}
+                  placeholder="Add notes about this video…"
+                  style={{ resize:"vertical",minHeight:64 }}/>
+              </div>
+
+              {/* ─ Trim ─ */}
+              <div style={{ marginBottom:16 }}>
+                <div className="form-label" style={{ marginBottom:6 }}>✂ Trim (metadata only — does not re-encode)</div>
+                <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
+                  <div>
+                    <div style={{ fontSize:11,color:"var(--text3)",marginBottom:3 }}>Start (seconds)</div>
+                    <input type="number" className="form-input" min={0} max={detailVid.duration||9999} step={0.1}
+                      value={detailVid.trimStart ?? ""}
+                      placeholder="0"
+                      onChange={e=>setDetailVid(v=>({...v,trimStart:e.target.value===""?null:Number(e.target.value)}))}/>
+                  </div>
+                  <div>
+                    <div style={{ fontSize:11,color:"var(--text3)",marginBottom:3 }}>End (seconds)</div>
+                    <input type="number" className="form-input" min={0} max={detailVid.duration||9999} step={0.1}
+                      value={detailVid.trimEnd ?? ""}
+                      placeholder={detailVid.duration ? String(Math.round(detailVid.duration)) : "end"}
+                      onChange={e=>setDetailVid(v=>({...v,trimEnd:e.target.value===""?null:Number(e.target.value)}))}/>
+                  </div>
+                </div>
+                {(detailVid.trimStart!=null||detailVid.trimEnd!=null) && (
+                  <button className="btn btn-ghost btn-sm" style={{ marginTop:6,fontSize:11.5,color:"var(--text3)" }}
+                    onClick={()=>setDetailVid(v=>({...v,trimStart:null,trimEnd:null}))}>✕ Clear trim</button>
+                )}
+              </div>
+
+              {/* ─ Chapter Markers ─ */}
+              {detailVid.supabaseId && (
+                <div style={{ marginBottom:14 }}>
+                  <div className="form-label" style={{ marginBottom:8 }}>🔖 Chapter Markers</div>
+                  {chaptersLoading && <div style={{ fontSize:12,color:"var(--text3)" }}>Loading…</div>}
+                  {!chaptersLoading && chapters.length === 0 && (
+                    <div style={{ fontSize:12,color:"var(--text3)",marginBottom:8 }}>No chapters yet. {playerOpen ? "Play the video and click 'Add at current time'." : "Open the player to add chapters."}</div>
+                  )}
+                  {!chaptersLoading && chapters.map(c => (
+                    <div key={c.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"5px 8px",borderRadius:7,background:"var(--surface2)",border:"1px solid var(--border)",marginBottom:5 }}>
+                      {editingChap?.id === c.id ? (<>
+                        <input className="form-input" value={editingChap.label} onChange={e=>setEditingChap(p=>({...p,label:e.target.value}))}
+                          style={{ flex:1,fontSize:12,padding:"3px 8px",height:"auto" }}/>
+                        <input type="number" className="form-input" value={editingChap.timestamp_seconds} step={0.1}
+                          onChange={e=>setEditingChap(p=>({...p,timestamp_seconds:e.target.value}))}
+                          style={{ width:70,fontSize:12,padding:"3px 8px",height:"auto" }}/>
+                        <button className="btn btn-primary btn-sm" onClick={saveChapter} style={{ padding:"3px 8px",fontSize:11 }}>Save</button>
+                        <button className="btn btn-ghost btn-sm" onClick={()=>setEditingChap(null)} style={{ padding:"3px 6px",fontSize:11 }}>✕</button>
+                      </>) : (<>
+                        <button onClick={()=>jumpToChapter(c.timestamp_seconds)}
+                          style={{ background:"none",border:"none",cursor:"pointer",color:"var(--accent)",fontSize:11.5,fontWeight:700,fontFamily:"monospace",minWidth:38 }}>
+                          {fmtTime(c.timestamp_seconds)}
+                        </button>
+                        <span style={{ flex:1,fontSize:12.5,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{c.label}</span>
+                        {c.notes && <span style={{ fontSize:11,color:"var(--text3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:100 }}>📝 {c.notes}</span>}
+                        <button className="btn btn-ghost btn-sm btn-icon" style={{ width:26,height:26 }} onClick={()=>setEditingChap({...c})}><Icon d={ic.edit} size={11}/></button>
+                        <button className="btn btn-ghost btn-sm btn-icon" style={{ width:26,height:26,color:"#e85a3a" }} onClick={()=>deleteChapter(c.id)}><Icon d={ic.trash} size={11}/></button>
+                      </>)}
+                    </div>
+                  ))}
+                  {/* Add chapter */}
+                  <div style={{ display:"flex",gap:6,marginTop:8,flexWrap:"wrap" }}>
+                    <input className="form-input" placeholder="Chapter label…" value={newChap.label}
+                      onChange={e=>setNewChap(p=>({...p,label:e.target.value}))}
+                      style={{ flex:"1 1 140px",fontSize:12,padding:"4px 9px",height:"auto" }}/>
+                    <input type="number" className="form-input" placeholder="Time (s)" value={newChap.timestampSeconds}
+                      onChange={e=>setNewChap(p=>({...p,timestampSeconds:e.target.value}))}
+                      style={{ width:80,fontSize:12,padding:"4px 9px",height:"auto" }}/>
+                    {playerOpen && (
+                      <button className="btn btn-ghost btn-sm" onClick={captureTime} style={{ fontSize:11.5 }} title="Use current player time">
+                        ⏱ Now
+                      </button>
+                    )}
+                    <button className="btn btn-secondary btn-sm" onClick={addChapter} disabled={!newChap.label.trim()}>+ Add</button>
+                  </div>
+                </div>
+              )}
+              {!detailVid.supabaseId && (
+                <div style={{ fontSize:11.5,color:"var(--text3)",marginBottom:14,padding:"6px 10px",background:"var(--surface2)",borderRadius:7,border:"1px solid var(--border)" }}>
+                  💡 Save the session to Supabase to unlock chapter markers.
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="modal-footer" style={{ padding:"12px 16px",borderTop:"1px solid var(--border)",position:"sticky",bottom:0,background:"var(--surface)" }}>
+              <button className="btn btn-secondary btn-sm" style={{ color:"#e85a3a",borderColor:"#e85a3a" }}
+                onClick={()=>{ setConfirmDel(detailVid); setDetailVid(null); setPlayerOpen(false); }}>
+                <Icon d={ic.trash} size={12}/> Delete
+              </button>
+              <div style={{ flex:1 }}/>
+              <button className="btn btn-secondary" onClick={()=>{ setDetailVid(null); setPlayerOpen(false); }}>Cancel</button>
+              <button className="btn btn-primary" onClick={saveDetail} disabled={detailSaving}>
+                <Icon d={ic.check} size={14}/> {detailSaving?"Saving…":"Save"}
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Edit modal */}
-      {editingVid && (
-        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setEditingVid(null)}>
-          <div className="modal" style={{ maxWidth:400 }}>
-            <div className="modal-header"><div className="modal-title">Edit Video</div><button className="btn btn-ghost btn-icon" onClick={()=>setEditingVid(null)}><Icon d={ic.close} size={16}/></button></div>
-            <div className="modal-body" style={{ display:"flex",flexDirection:"column",gap:14 }}>
-              <div>
-                <div className="form-label">Video Name</div>
-                <input className="form-input" value={editingVid.name} onChange={e=>setEditingVid(v=>({...v,name:e.target.value}))} />
-              </div>
-              <div>
-                <div className="form-label">Room</div>
-                <select className="form-input form-select" value={editingVid.room} onChange={e=>setEditingVid(v=>({...v,room:e.target.value}))}>
-                  {(project.rooms||[]).map(r=><option key={r.id}>{r.name}</option>)}
-                </select>
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={()=>setEditingVid(null)}>Cancel</button>
-              <button className="btn btn-primary" onClick={saveEdit}><Icon d={ic.check} size={14}/> Save</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Confirm delete */}
+      {/* ── Confirm delete ── */}
       {confirmDel && (
         <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setConfirmDel(null)}>
           <div className="modal" style={{ maxWidth:380 }}>
@@ -1765,7 +2222,7 @@ export function VideosTab({ project, onUpdateProject, onOpenCamera, orgId }) {
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={()=>setConfirmDel(null)}>Cancel</button>
               <button className="btn btn-sm" style={{ background:"#e85a3a",color:"white",border:"none" }}
-                onClick={()=>confirmDel==="batch" ? deleteBatch() : deleteVideo(confirmDel.id)}>
+                onClick={()=>confirmDel==="batch" ? deleteBatch() : handleDelete(confirmDel.id)}>
                 <Icon d={ic.trash} size={14}/> Delete
               </button>
             </div>
@@ -2054,8 +2511,416 @@ export function VoiceNotesTab({ project, teamUsers = [], settings = {}, onUpdate
   );
 }
 
+// ── PDF Annotation Viewer ─────────────────────────────────────────────────────
+// Full-screen PDF viewer powered by PDF.js with persistent draw / highlight /
+// text-note annotations stored in the file_annotations Supabase table.
+function PdfAnnotationViewer({ fileUrl, fileName, supabaseId, orgId, settings, onClose }) {
+  const PDFJS_SRC    = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+  const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+  const [pdfReady,  setPdfReady]  = useState(false);
+  const [pdfDoc,    setPdfDoc]    = useState(null);
+  const [numPages,  setNumPages]  = useState(0);
+  const [page,      setPage]      = useState(1);
+  const [scale,     setScale]     = useState(1.25);
+  const [tool,      setTool]      = useState("pen");   // pen | highlight | note | eraser
+  const [color,     setColor]     = useState("#e53935");
+  const [lineWidth, setLineWidth] = useState(3);
+  const [strokes,   setStrokes]   = useState({});      // { "pageNum": [stroke,...] }
+  const [notes,     setNotes]     = useState([]);      // [{ id,page,x,y,text,color }]
+  const [editNote,  setEditNote]  = useState(null);
+  const [dirty,     setDirty]     = useState(false);
+  const [saving,    setSaving]    = useState(false);
+  const [loading,   setLoading]   = useState(true);
+  const [loadErr,   setLoadErr]   = useState(null);
+
+  const pdfCanvasRef  = useRef(null);
+  const annotRef      = useRef(null);
+  const isDown        = useRef(false);
+  const pts           = useRef([]);
+  const hlStart       = useRef(null);
+  const renderTask    = useRef(null);
+
+  // ── Load PDF.js from CDN once ──────────────────────────────────────────────
+  useEffect(() => {
+    if (window.pdfjsLib) { setPdfReady(true); return; }
+    const s = document.createElement("script");
+    s.src = PDFJS_SRC;
+    s.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER; setPdfReady(true); };
+    s.onerror = () => setLoadErr("PDF.js failed to load.");
+    document.head.appendChild(s);
+  }, []);
+
+  // ── Load the PDF document ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (!pdfReady || !fileUrl) return;
+    setLoading(true); setLoadErr(null);
+    window.pdfjsLib.getDocument({ url: fileUrl, withCredentials: false }).promise
+      .then(doc => { setPdfDoc(doc); setNumPages(doc.numPages); setLoading(false); })
+      .catch(e  => { setLoadErr("Could not load PDF: " + (e.message || e)); setLoading(false); });
+  }, [pdfReady, fileUrl]);
+
+  // ── Load saved annotations from Supabase ──────────────────────────────────
+  useEffect(() => {
+    if (!supabaseId) return;
+    const load = async () => {
+      const supaUrl = import.meta.env.VITE_SUPABASE_URL;
+      const headers = await getAuthHeaders({ "Content-Type": "application/json" });
+      const res = await fetch(
+        `${supaUrl}/rest/v1/file_annotations?project_file_id=eq.${supabaseId}&limit=1`,
+        { headers }
+      );
+      if (!res.ok) return;
+      const rows = await res.json();
+      if (rows[0]) {
+        setStrokes(rows[0].strokes || {});
+        setNotes(rows[0].notes   || []);
+      }
+    };
+    load().catch(() => {});
+  }, [supabaseId]);
+
+  // ── Render the current PDF page + overlay saved annotations ───────────────
+  useEffect(() => {
+    if (!pdfDoc) return;
+    let cancelled = false;
+    const render = async () => {
+      try {
+        const pg  = await pdfDoc.getPage(page);
+        const vp  = pg.getViewport({ scale });
+        const pc  = pdfCanvasRef.current;
+        const ac  = annotRef.current;
+        if (!pc || !ac || cancelled) return;
+        pc.width = ac.width  = vp.width;
+        pc.height = ac.height = vp.height;
+        if (renderTask.current) { renderTask.current.cancel(); }
+        renderTask.current = pg.render({ canvasContext: pc.getContext("2d"), viewport: vp });
+        await renderTask.current.promise;
+        if (!cancelled) redrawAnnotations(ac, strokes[page] || []);
+      } catch (e) { if (e?.name !== "RenderingCancelledException") console.warn(e); }
+    };
+    render();
+    return () => { cancelled = true; };
+  }, [pdfDoc, page, scale]);
+
+  // ── Re-render annotation overlay when strokes change ──────────────────────
+  useEffect(() => {
+    const ac = annotRef.current;
+    if (ac) redrawAnnotations(ac, strokes[page] || []);
+  }, [strokes, page]);
+
+  // ── Canvas drawing helpers ─────────────────────────────────────────────────
+  const redrawAnnotations = (canvas, pageStrokes) => {
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    pageStrokes.forEach(s => {
+      if (s.type === "highlight") {
+        ctx.save();
+        ctx.globalAlpha = 0.32;
+        ctx.fillStyle = s.color || "#FFEB3B";
+        ctx.fillRect(s.x, s.y, s.w, s.h);
+        ctx.restore();
+      } else if (s.type === "pen") {
+        ctx.save();
+        ctx.strokeStyle = s.color || "#e53935";
+        ctx.lineWidth   = s.lw || 3;
+        ctx.lineCap     = "round";
+        ctx.lineJoin    = "round";
+        ctx.beginPath();
+        (s.pts || []).forEach((pt, i) => i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y));
+        ctx.stroke();
+        ctx.restore();
+      }
+    });
+  };
+
+  const getPos = (e, canvas) => {
+    const r  = canvas.getBoundingClientRect();
+    const sx = canvas.width  / r.width;
+    const sy = canvas.height / r.height;
+    return { x: (e.clientX - r.left) * sx, y: (e.clientY - r.top) * sy };
+  };
+
+  const onMouseDown = e => {
+    const ac = annotRef.current;
+    const pos = getPos(e, ac);
+    if (tool === "note") {
+      const id = (crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`);
+      const w  = ac.width, h = ac.height;
+      setNotes(prev => [...prev, { id, page, x: pos.x / w, y: pos.y / h, text: "", color: "#FFEB3B" }]);
+      setEditNote(id);
+      setDirty(true);
+      return;
+    }
+    isDown.current = true;
+    if (tool === "pen")      { pts.current = [pos]; }
+    if (tool === "highlight") { hlStart.current = pos; }
+  };
+
+  const onMouseMove = e => {
+    if (!isDown.current) return;
+    const ac  = annotRef.current;
+    const pos = getPos(e, ac);
+    const ctx = ac.getContext("2d");
+    if (tool === "pen") {
+      const prev = pts.current[pts.current.length - 1];
+      pts.current.push(pos);
+      ctx.strokeStyle = color; ctx.lineWidth = lineWidth; ctx.lineCap = "round"; ctx.lineJoin = "round";
+      ctx.beginPath(); ctx.moveTo(prev.x, prev.y); ctx.lineTo(pos.x, pos.y); ctx.stroke();
+    } else if (tool === "highlight" && hlStart.current) {
+      redrawAnnotations(ac, strokes[page] || []);
+      ctx.save(); ctx.globalAlpha = 0.32; ctx.fillStyle = color;
+      ctx.fillRect(hlStart.current.x, hlStart.current.y, pos.x - hlStart.current.x, pos.y - hlStart.current.y);
+      ctx.restore();
+    } else if (tool === "eraser") {
+      ctx.save(); ctx.globalCompositeOperation = "destination-out";
+      ctx.beginPath(); ctx.arc(pos.x, pos.y, 14, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+  };
+
+  const onMouseUp = e => {
+    if (!isDown.current) return;
+    isDown.current = false;
+    const ac  = annotRef.current;
+    const pos = getPos(e, ac);
+    if (tool === "pen" && pts.current.length > 1) {
+      const stroke = { type:"pen", pts:[...pts.current], color, lw: lineWidth };
+      setStrokes(prev => ({ ...prev, [page]: [...(prev[page]||[]), stroke] }));
+      setDirty(true);
+    } else if (tool === "highlight" && hlStart.current) {
+      const w = pos.x - hlStart.current.x, h = pos.y - hlStart.current.y;
+      if (Math.abs(w) > 4 && Math.abs(h) > 4) {
+        const stroke = { type:"highlight", x:hlStart.current.x, y:hlStart.current.y, w, h, color };
+        setStrokes(prev => ({ ...prev, [page]: [...(prev[page]||[]), stroke] }));
+        setDirty(true);
+      }
+      hlStart.current = null;
+    }
+    pts.current = [];
+  };
+
+  const undo = () => {
+    setStrokes(prev => {
+      const pg = prev[page] || [];
+      if (!pg.length) return prev;
+      return { ...prev, [page]: pg.slice(0, -1) };
+    });
+    setDirty(true);
+  };
+
+  const clearPage = () => {
+    if (!window.confirm("Clear all drawings and highlights on this page?")) return;
+    setStrokes(prev => ({ ...prev, [page]: [] }));
+    setDirty(true);
+  };
+
+  // ── Save annotations to Supabase ──────────────────────────────────────────
+  const save = async () => {
+    if (!supabaseId) { alert("This file must be uploaded to KrakenCam before annotations can be saved."); return; }
+    setSaving(true);
+    try {
+      const supaUrl = import.meta.env.VITE_SUPABASE_URL;
+      const author  = `${settings?.userFirstName||""} ${settings?.userLastName||""}`.trim() || "Admin";
+      const headers = await getAuthHeaders({
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal,resolution=merge-duplicates",
+      });
+      const body = JSON.stringify({
+        project_file_id: supabaseId,
+        organization_id: orgId,
+        strokes,
+        notes,
+        updated_by_name: author,
+      });
+      const res = await fetch(`${supaUrl}/rest/v1/file_annotations`, { method:"POST", headers, body });
+      if (res.ok) setDirty(false);
+      else { const t = await res.text(); console.warn("[KrakenCam] annotation save failed:", t); }
+    } catch (err) {
+      console.warn("[KrakenCam] annotation save error:", err.message);
+    }
+    setSaving(false);
+  };
+
+  // ── UI constants ──────────────────────────────────────────────────────────
+  const TOOLS = [
+    { id:"pen",       icon:"✏️", label:"Pen",       title:"Freehand draw" },
+    { id:"highlight", icon:"🖊",  label:"Highlight",  title:"Highlight rectangle" },
+    { id:"note",      icon:"📝", label:"Note",       title:"Click to place a text note" },
+    { id:"eraser",    icon:"⌫",  label:"Eraser",     title:"Erase pen / highlight (drag)" },
+  ];
+  const COLORS = ["#e53935","#1565C0","#2E7D32","#F57F17","#6A1B9A","#000000","#FFEB3B","#FF6F00","#FFFFFF"];
+  const btnBase = { padding:"5px 11px", fontSize:12, border:"none", borderRadius:6, cursor:"pointer", fontWeight:500 };
+
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:9999, background:"#1a1a2e", display:"flex", flexDirection:"column" }}>
+      {/* ── Top toolbar ── */}
+      <div style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 12px", background:"#0f1b35", borderBottom:"1px solid #1e3a6e", flexWrap:"wrap", flexShrink:0 }}>
+        {/* File name */}
+        <div style={{ fontWeight:700, color:"#e0e0e0", fontSize:13, maxWidth:220, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", marginRight:4 }} title={fileName}>{fileName}</div>
+
+        {/* Tool buttons */}
+        {TOOLS.map(t => (
+          <button key={t.id} title={t.title} onClick={() => setTool(t.id)}
+            style={{ ...btnBase, background: tool===t.id ? "#2b7fe8" : "#1e3a6e", color:"white" }}>
+            {t.icon} {t.label}
+          </button>
+        ))}
+
+        {/* Color swatches */}
+        <div style={{ display:"flex", gap:3, alignItems:"center", marginLeft:2 }}>
+          {COLORS.map(c => (
+            <div key={c} onClick={() => setColor(c)} title={c}
+              style={{ width:17, height:17, borderRadius:"50%", background:c, cursor:"pointer",
+                border: color===c ? "2.5px solid #7ec8e3" : "2px solid #333", boxSizing:"border-box" }} />
+          ))}
+        </div>
+
+        {/* Pen width (pen mode only) */}
+        {tool==="pen" && (
+          <select value={lineWidth} onChange={e => setLineWidth(+e.target.value)}
+            style={{ padding:"3px 6px", borderRadius:4, border:"none", fontSize:12, background:"#1e3a6e", color:"white" }}>
+            {[1,2,3,5,8,12].map(w => <option key={w} value={w}>{w}px</option>)}
+          </select>
+        )}
+
+        {/* Divider */}
+        <div style={{ width:1, height:22, background:"#1e3a6e", margin:"0 4px" }} />
+
+        {/* Page nav */}
+        <button onClick={() => setPage(p => Math.max(1,p-1))} disabled={page<=1 || loading}
+          style={{ ...btnBase, background:"#1e3a6e", color:"white", opacity:page<=1?0.4:1 }}>◀</button>
+        <span style={{ color:"#ccc", fontSize:12, minWidth:58, textAlign:"center" }}>
+          {loading ? "Loading…" : `${page} / ${numPages}`}
+        </span>
+        <button onClick={() => setPage(p => Math.min(numPages,p+1))} disabled={page>=numPages || loading}
+          style={{ ...btnBase, background:"#1e3a6e", color:"white", opacity:page>=numPages?0.4:1 }}>▶</button>
+
+        {/* Zoom */}
+        <button onClick={() => setScale(s => Math.max(0.4, parseFloat((s-0.15).toFixed(2))))}
+          style={{ ...btnBase, background:"#1e3a6e", color:"white" }} title="Zoom out">−</button>
+        <span style={{ color:"#ccc", fontSize:11, minWidth:36, textAlign:"center" }}>{Math.round(scale*100)}%</span>
+        <button onClick={() => setScale(s => Math.min(3.5, parseFloat((s+0.15).toFixed(2))))}
+          style={{ ...btnBase, background:"#1e3a6e", color:"white" }} title="Zoom in">+</button>
+
+        {/* Divider */}
+        <div style={{ width:1, height:22, background:"#1e3a6e", margin:"0 4px" }} />
+
+        {/* Undo / Clear page */}
+        <button onClick={undo} title="Undo last stroke"
+          style={{ ...btnBase, background:"#1e3a6e", color:"white" }}>↩ Undo</button>
+        <button onClick={clearPage} title="Clear this page's drawings"
+          style={{ ...btnBase, background:"#1e3a6e", color:"#f87171" }}>🗑 Clear page</button>
+
+        <div style={{ flex:1 }} />
+
+        {/* Save */}
+        <button onClick={save} disabled={saving}
+          style={{ ...btnBase, background: dirty ? "#2b7fe8" : "#1e3a6e", color:"white",
+            fontWeight:700, opacity: saving ? 0.6 : 1, minWidth:90 }}>
+          {saving ? "Saving…" : dirty ? "💾 Save" : "✓ Saved"}
+        </button>
+
+        {/* Close */}
+        <button onClick={onClose}
+          style={{ ...btnBase, background:"#c0392b", color:"white", marginLeft:4 }}>✕ Close</button>
+      </div>
+
+      {/* ── Canvas area ── */}
+      <div style={{ flex:1, overflow:"auto", display:"flex", justifyContent:"center", alignItems:"flex-start", padding:20, boxSizing:"border-box" }}>
+        {loading ? (
+          <div style={{ color:"#aaa", marginTop:80, fontSize:15 }}>Loading PDF…</div>
+        ) : loadErr ? (
+          <div style={{ color:"#f87171", marginTop:80, fontSize:14, textAlign:"center" }}>
+            <div style={{ fontSize:40, marginBottom:12 }}>⚠️</div>
+            <div>{loadErr}</div>
+            <a href={fileUrl} target="_blank" rel="noopener noreferrer"
+              style={{ color:"#60a5fa", display:"inline-block", marginTop:16 }}>Open in new tab instead</a>
+          </div>
+        ) : (
+          <div style={{ position:"relative", display:"inline-block", boxShadow:"0 4px 32px #0009", userSelect:"none" }}>
+            {/* PDF render canvas */}
+            <canvas ref={pdfCanvasRef} style={{ display:"block" }} />
+
+            {/* Annotation overlay canvas */}
+            <canvas ref={annotRef}
+              style={{
+                position:"absolute", inset:0, touchAction:"none",
+                cursor: tool==="pen"?"crosshair" : tool==="highlight"?"cell" : tool==="note"?"copy" : tool==="eraser"?"cell" : "default",
+              }}
+              onMouseDown={onMouseDown}
+              onMouseMove={onMouseMove}
+              onMouseUp={onMouseUp}
+              onMouseLeave={() => { isDown.current=false; hlStart.current=null; pts.current=[]; }}
+            />
+
+            {/* Text notes pinned on the PDF */}
+            {notes.filter(n => n.page === page).map(n => (
+              <div key={n.id}
+                style={{ position:"absolute", left:`${n.x*100}%`, top:`${n.y*100}%`, zIndex:20, transform:"translate(-12px,-12px)" }}>
+                {editNote === n.id ? (
+                  <div style={{ background:"#FFEB3B", padding:"8px 10px", borderRadius:8, boxShadow:"0 4px 16px #0007", minWidth:180, border:"2px solid #F57F17" }}>
+                    <textarea autoFocus
+                      value={n.text}
+                      onChange={e => { setNotes(prev => prev.map(x => x.id===n.id ? {...x, text:e.target.value} : x)); setDirty(true); }}
+                      style={{ width:170, height:80, border:"none", background:"transparent", resize:"both", fontSize:13, outline:"none", fontFamily:"inherit", lineHeight:1.4 }}
+                      placeholder="Type your note here…"
+                    />
+                    <div style={{ display:"flex", justifyContent:"space-between", marginTop:6, gap:6 }}>
+                      <button onClick={() => setEditNote(null)}
+                        style={{ fontSize:11, padding:"3px 10px", background:"#333", color:"white", border:"none", borderRadius:4, cursor:"pointer" }}>Done</button>
+                      <button onClick={() => { setNotes(prev => prev.filter(x => x.id!==n.id)); setEditNote(null); setDirty(true); }}
+                        style={{ fontSize:11, padding:"3px 10px", background:"#c0392b", color:"white", border:"none", borderRadius:4, cursor:"pointer" }}>Delete</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div onClick={() => setEditNote(n.id)} title="Click to edit note"
+                    style={{ background:n.color||"#FFEB3B", padding:"5px 9px", borderRadius:6, cursor:"pointer",
+                      fontSize:12, maxWidth:200, whiteSpace:"pre-wrap", wordBreak:"break-word",
+                      boxShadow:"0 2px 8px #0005", border:"1.5px solid rgba(0,0,0,0.15)", lineHeight:1.4 }}>
+                    <span style={{ fontWeight:700, marginRight:4 }}>📝</span>
+                    {n.text || <em style={{ color:"#888" }}>Empty — click to edit</em>}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Help hint ── */}
+      <div style={{ textAlign:"center", color:"#555", fontSize:11, padding:"4px 0 6px", flexShrink:0 }}>
+        {tool==="pen" && "Draw freehand — release to finish a stroke. Use Undo to remove the last stroke."}
+        {tool==="highlight" && "Click and drag to draw a highlight rectangle."}
+        {tool==="note" && "Click anywhere on the PDF to place a text note."}
+        {tool==="eraser" && "Click and drag to erase pen strokes and highlights."}
+        {" · Annotations are saved per file and restored when you re-open. "}
+        <strong style={{ color: dirty ? "#f59e0b" : "#4ade80" }}>{dirty ? "Unsaved changes — click Save." : "All changes saved."}</strong>
+      </div>
+    </div>
+  );
+}
+
 export function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpdateProject, onSendFileToDirectMessage, orgId }) {
   const files = (project.files || []).map(normaliseProjectFile);
+
+  // Defensive URL resolver: if dataUrl is missing but storagePath is present,
+  // reconstruct the public Supabase Storage URL on-the-fly.
+  // This handles the race condition where a stale-closure DB write lost the dataUrl.
+  const getFileUrl = (file) => {
+    if (file?.dataUrl) return file.dataUrl;
+    if (file?.storagePath) {
+      const supaUrl = import.meta.env.VITE_SUPABASE_URL;
+      return `${supaUrl}/storage/v1/object/public/project-photos/${file.storagePath}`;
+    }
+    return null;
+  };
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  useEffect(() => {
+    const h = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', h);
+    return () => window.removeEventListener('resize', h);
+  }, []);
   const uploadRef = useRef(null);
   const [viewerFile, setViewerFile] = useState(null);
   const [search, setSearch] = useState("");
@@ -2077,10 +2942,14 @@ export function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpda
   const imgPanStart = useRef(null);
   const [pdfBlobUrl, setPdfBlobUrl] = useState(null);
   const pdfBlobRef = useRef(null); // tracks the current blob URL for cleanup
+  const [annotViewerFile, setAnnotViewerFile] = useState(null); // file open in PdfAnnotationViewer
+  // Always-current project ref — used inside async callbacks to avoid stale closure
+  const projectRef = useRef(project);
+  useEffect(() => { projectRef.current = project; }, [project]);
 
   // Fetch storage-URL PDFs as blob so browsers (Brave, Safari) can render them inline
   useEffect(() => {
-    const vUrl = viewerFile?.dataUrl || "";
+    const vUrl = (viewerFile ? getFileUrl(viewerFile) : null) || "";
     const isStoragePdf = viewerFile
       && vUrl.startsWith("http")
       && (viewerFile.type === "application/pdf" || getFileExtension(viewerFile.name) === "pdf");
@@ -2156,10 +3025,10 @@ export function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpda
   const handleUpload = (e) => {
     const selected = Array.from(e.target.files || []);
     if (!selected.length) return;
-    const maxSize = 10 * 1024 * 1024;
+    const maxSize = 20 * 1024 * 1024;
     const tooBig = selected.find(f => f.size > maxSize);
     if (tooBig) {
-      alert(`"${tooBig.name}" is too large. Please keep files under 10 MB.`);
+      alert(`"${tooBig.name}" is too large. Please keep files under 20 MB.`);
       e.target.value = "";
       return;
     }
@@ -2208,12 +3077,22 @@ export function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpda
                 body: JSON.stringify({ organization_id: orgId, project_id: project.id, name: file.name, storage_path: storagePath, file_size: file.size || null, mime_type: file.type || null }),
               });
               const dbRow = dbRes.ok ? (await dbRes.json())[0] : null;
-              // Tag the local file object with its Storage URL and DB id in-place
-              // Do NOT call patchFiles here — it would use a stale snapshot and wipe the file
-              // Instead, update only the specific file via onUpdateProject with the latest project state
+              // Tag the local file object (for fallback reference)
               newFile.dataUrl = publicUrl;
               newFile.storagePath = storagePath;
               if (dbRow?.id) newFile.supabaseId = dbRow.id;
+              // Write storage URL back to React state using the latest project from ref.
+              // We CANNOT use the stale `project` closure (it predates patchFiles) — but
+              // projectRef.current is always kept in sync with the rendered prop.
+              const latestProject = projectRef.current;
+              const latestFiles = (latestProject.files || []).map(normaliseProjectFile);
+              if (latestFiles.find(f => f.id === fileId)) {
+                const updatedFiles = latestFiles.map(f => f.id === fileId
+                  ? { ...f, dataUrl: publicUrl, storagePath, supabaseId: dbRow?.id || f.supabaseId }
+                  : f
+                );
+                onUpdateProject({ ...latestProject, files: updatedFiles });
+              }
             }
           } catch (err) {
             console.error('[KrakenCam] Project file upload failed:', err.message || err);
@@ -2226,7 +3105,7 @@ export function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpda
   };
 
   const openFile = (file) => {
-    const url = file.dataUrl;
+    const url = getFileUrl(file);
     if (!url) { alert("File URL unavailable."); return; }
     const w = window.open(url, "_blank", "noopener,noreferrer");
     if (!w) alert("Please allow pop-ups to open files.");
@@ -2235,7 +3114,7 @@ export function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpda
   // Download a file — uses fetch→blob for cross-origin Storage URLs so the
   // browser actually saves the file instead of just opening it in a new tab.
   const downloadFile = async (file) => {
-    const url = file.dataUrl;
+    const url = getFileUrl(file);
     if (!url) { alert("File URL unavailable."); return; }
     try {
       if (url.startsWith("http")) {
@@ -2356,7 +3235,7 @@ export function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpda
             </div>
             <div style={{ fontSize:12,color:"var(--text3)" }}>{files.length} file{files.length!==1?"s":""}</div>
           </div>
-          <div style={{ display:"grid",gridTemplateColumns:"minmax(180px,1fr) minmax(180px,1fr)",gap:10 }}>
+          <div style={{ display:"grid",gridTemplateColumns: isMobile ? "1fr" : "minmax(180px,1fr) minmax(180px,1fr)",gap:10 }}>
             <div>
               <div style={{ fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".06em",color:"var(--text3)",marginBottom:6 }}>Category</div>
               <input className="form-input" value={uploadCategory} onChange={e => setUploadCategory(e.target.value)} placeholder="General" />
@@ -2379,8 +3258,8 @@ export function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpda
 
       {files.length > 0 && (
         <div className="card">
-          <div className="card-body" style={{ display:"grid",gridTemplateColumns:"minmax(220px,1.5fr) repeat(3,minmax(140px,1fr))",gap:10 }}>
-            <input className="form-input" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search files, tags, category, uploader" />
+          <div className="card-body" style={{ display:"grid",gridTemplateColumns: isMobile ? "1fr 1fr" : "minmax(220px,1.5fr) repeat(3,minmax(140px,1fr))",gap:10 }}>
+            <input className="form-input" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search files, tags, category, uploader" style={{ gridColumn: isMobile ? "1 / -1" : "auto" }} />
             <select className="form-select" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
               {categoryOptions.map(opt => <option key={opt} value={opt}>{opt === "All" ? "All categories" : opt}</option>)}
             </select>
@@ -2429,7 +3308,7 @@ export function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpda
                       ? <img src={file.dataUrl} alt={file.name} style={{ width:"100%",height:"100%",objectFit:"cover" }} />
                       : ext}
                   </div>
-                  <div style={{ flex:1,minWidth:220 }}>
+                  <div style={{ flex:1,minWidth: isMobile ? 0 : 220 }}>
                     <div style={{ fontSize:13.5,fontWeight:700,marginBottom:4,wordBreak:"break-word" }}>{file.name}</div>
                     <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:6 }}>
                       <span className="tag tag-blue">{file.category || "General"}</span>
@@ -2445,11 +3324,19 @@ export function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpda
                     </div>
                   </div>
                   {!selectMode && (
-                  <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,max-content))",gap:8,justifyContent:"end" }}>
+                  <div style={{ display:"flex",flexWrap:"wrap",gap: isMobile ? 6 : 8,justifyContent: isMobile ? "flex-start" : "flex-end",width: isMobile ? "100%" : "auto" }}>
                     {/* Single Preview button — opens in new tab for all types, or shows inline viewer for supported types */}
                     <button className="btn btn-secondary btn-sm" onClick={() => {
-                      if (previewable) setViewerFile(file);
-                      else openFile(file);
+                      const resolvedUrl = getFileUrl(file);
+                      if (!resolvedUrl) { alert("File URL unavailable. Try re-uploading the file."); return; }
+                      const fileForViewer = resolvedUrl !== file.dataUrl ? { ...file, dataUrl: resolvedUrl } : file;
+                      const isPdf = file.type === "application/pdf" || getFileExtension(file.name) === "pdf";
+                      const isStoragePdf = isPdf && resolvedUrl.startsWith("http");
+                      // Storage PDFs → annotation viewer (PDF.js + draw/highlight/notes)
+                      if (isStoragePdf) { setAnnotViewerFile(fileForViewer); return; }
+                      // Everything else → existing inline viewer
+                      if (previewable) setViewerFile(fileForViewer);
+                      else openFile(fileForViewer);
                     }}><Icon d={ic.eye} size={13} /> Preview</button>
                     {availableUsers.length > 0 && <button className="btn btn-secondary btn-sm" onClick={() => { if (!canShareToDm) return; setShareFileId(file.id); setShareTargetId(availableUsers[0]?.id || ""); }} disabled={!canShareToDm}><Icon d={ic.message} size={13} /> Send to DM</button>}
                     {reports.length > 0 && <button className="btn btn-secondary btn-sm" onClick={() => { setReportFileId(file.id); setReportTargetId(reports[0]?.id || ""); }}><Icon d={ic.reports} size={13} /> Add to Report</button>}
@@ -2459,7 +3346,7 @@ export function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpda
                     <button className="btn btn-ghost btn-sm btn-icon" title="Delete" style={{ color:"#e85a3a" }} onClick={() => canDeleteFiles && setConfirmDel(file.id)} disabled={!canDeleteFiles}><Icon d={ic.trash} size={14} /></button>
                   </div>
                   )}
-                  <div style={{ width:"100%",display:"grid",gridTemplateColumns:"minmax(180px,220px) minmax(220px,1fr)",gap:10,paddingTop:8,borderTop:"1px solid var(--border)" }}>
+                  <div style={{ width:"100%",display:"grid",gridTemplateColumns: isMobile ? "1fr" : "minmax(180px,220px) minmax(220px,1fr)",gap:10,paddingTop:8,borderTop:"1px solid var(--border)" }}>
                     <input className="form-input" value={file.category || ""} onChange={e => updateFileMeta(file.id, { category: e.target.value || "General" })} placeholder="Category" disabled={!canUploadFiles} />
                     <input
                       className="form-input"
@@ -2510,15 +3397,30 @@ export function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpda
         </div>
       )}
 
+      {/* ── PDF Annotation Viewer (storage PDFs) ── */}
+      {annotViewerFile && (
+        <PdfAnnotationViewer
+          key={annotViewerFile.id}
+          fileUrl={getFileUrl(annotViewerFile)}
+          fileName={annotViewerFile.name}
+          supabaseId={annotViewerFile.supabaseId}
+          orgId={orgId}
+          settings={settings}
+          onClose={() => setAnnotViewerFile(null)}
+        />
+      )}
+
       {viewerFile && (() => {
-        const vUrl       = viewerFile.dataUrl || "";
+        const vUrl       = getFileUrl(viewerFile) || "";
         const vIsStorage = vUrl.startsWith("http");
         const vIsImg        = viewerFile.type?.startsWith("image/");
         // PDFs: detect by MIME type OR .pdf extension (Supabase-loaded files may lack type)
         const _vIsPdf       = viewerFile.type === "application/pdf" || getFileExtension(viewerFile.name) === "pdf";
-        const vIsPdfIframe  = _vIsPdf && vIsStorage;
-        const vIsPdfInline  = _vIsPdf && !vIsStorage;
-        const vIsText       = (viewerFile.type?.startsWith("text/") || ["txt","csv","json","md"].includes(getFileExtension(viewerFile.name))) && !vIsStorage;
+        const vIsPdfIframe  = _vIsPdf && vIsStorage && !!vUrl;
+        // vIsPdfInline MUST require a non-empty vUrl — <object data=""> with empty src
+        // renders as a solid black box in Chrome/Brave instead of showing fallback content.
+        const vIsPdfInline  = _vIsPdf && !vIsStorage && !!vUrl;
+        const vIsText       = (viewerFile.type?.startsWith("text/") || ["txt","csv","json","md"].includes(getFileExtension(viewerFile.name))) && !vIsStorage && !!vUrl;
         const onImgDown  = e => { e.preventDefault(); imgPanStart.current = { mx:e.clientX, my:e.clientY, px:imgPan.x, py:imgPan.y }; };
         const onImgMove  = e => { if (!imgPanStart.current) return; setImgPan({ x:imgPanStart.current.px+e.clientX-imgPanStart.current.mx, y:imgPanStart.current.py+e.clientY-imgPanStart.current.my }); };
         const onImgUp    = () => { imgPanStart.current = null; };
@@ -2536,13 +3438,19 @@ export function ProjectFilesTab({ project, teamUsers = [], settings = {}, onUpda
                   <span style={{ color:"rgba(255,255,255,.6)",fontSize:12,minWidth:44,textAlign:"center" }}>{Math.round(imgZoom*100)}%</span>
                   <button className="btn btn-sm btn-secondary" onClick={() => setImgZoom(z => Math.max(0.2,z*0.77))} style={{ minWidth:32 }}>−</button>
                 </>}
-                <button className="btn btn-sm btn-secondary" onClick={() => openFile(viewerFile)}><Icon d={ic.arrowUpRight} size={13}/> Open</button>
                 <button className="btn btn-ghost btn-sm btn-icon" style={{ color:"white" }} onClick={closeViewer}><Icon d={ic.close} size={20}/></button>
               </div>
             </div>
             {/* Content */}
             <div style={{ flex:1,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center" }}>
-              {vIsImg ? (
+              {!vUrl ? (
+                /* No URL available — file needs to be re-uploaded */
+                <div style={{ textAlign:"center",color:"rgba(255,255,255,.7)",padding:40 }}>
+                  <div style={{ fontSize:56,marginBottom:16 }}>📄</div>
+                  <div style={{ fontSize:15,fontWeight:600,color:"white",marginBottom:8 }}>{viewerFile.name}</div>
+                  <div style={{ fontSize:13,color:"rgba(255,255,255,.5)" }}>File URL is unavailable. Please re-upload this file.</div>
+                </div>
+              ) : vIsImg ? (
                 <div style={{ width:"100%",height:"100%",overflow:"hidden",cursor:imgZoom>1?"grab":"zoom-in",userSelect:"none",display:"flex",alignItems:"center",justifyContent:"center" }}
                   onMouseDown={onImgDown} onMouseMove={onImgMove} onMouseUp={onImgUp} onMouseLeave={onImgUp} onWheel={onImgWheel}>
                   <img src={vUrl} alt={viewerFile.name} draggable={false}

@@ -245,8 +245,8 @@ const DEFAULT_COLUMNS = [
 // ── Task skeleton ────────────────────────────────────────────────────────────
 const EMPTY_TASK = {
   id:"", title:"", description:"", priority:"medium", status:"todo",
-  assigneeIds:[], projectId:"", dueDate:"", tags:[], checklist:[],
-  createdBy:"admin", createdAt:"", comments:[],
+  assigneeIds:[], projectId:"", dueDate:"", dueTime:"", tags:[], checklist:[],
+  createdBy:"admin", createdByUserId:null, visibility:"shared", createdAt:"", comments:[],
   repeatEnabled: false, repeatType:"days", repeatValue:1, repeatDay:1, repeatWeekday:1,
   attachments:[],
 };

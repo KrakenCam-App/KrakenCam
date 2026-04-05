@@ -4,8 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { supabase } from '../../lib/supabase'
-import { adminRpc, adminInsert, adminUpdate } from '../../lib/adminFetch'
+import { adminRpc, adminUpdate } from '../../lib/adminFetch'
 
 const S = {
   card: { background:'#1a1a1a', border:'1px solid #252525', borderRadius:10, padding:'20px 22px', marginBottom:16 },
@@ -64,11 +63,11 @@ export default function AdminTrials() {
     try {
       const current = new Date(extending.trial_ends_at || Date.now())
       const newEnd = new Date(current.getTime() + extDays * 24 * 60 * 60 * 1000)
-      await adminRpc('admin_extend_trial', {
-        p_org_id: extending.id,
-        p_new_end: newEnd.toISOString(),
-        p_days: extDays,
-      })
+      await adminUpdate(
+        'organizations',
+        { trial_ends_at: newEnd.toISOString() },
+        `id=eq.${extending.id}`
+      )
       setExtStatus('ok')
       await load()
       setTimeout(() => { setExtending(null); setExtStatus(null) }, 1500)
@@ -86,10 +85,11 @@ export default function AdminTrials() {
     if (!converting) return
     setConvStatus('saving')
     try {
-      await adminRpc('admin_convert_trial', {
-        p_org_id: converting.id,
-        p_tier: converting.subscription_tier,
-      })
+      await adminUpdate(
+        'organizations',
+        { subscription_status: 'active', trial_ends_at: null },
+        `id=eq.${converting.id}`
+      )
       setConvStatus('ok')
       await load()
       setTimeout(() => { setConverting(null); setConvStatus(null) }, 1500)

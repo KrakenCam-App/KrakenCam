@@ -4,36 +4,25 @@
  * Uses anon key; RLS super_admin bypass policies handle access.
  */
 
-import { createClient } from '@supabase/supabase-js'
+import { supabase as mainSupabase } from './supabase'
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
-
-// Singleton admin client (same anon key — RLS policies for super_admin handle the rest)
-let _adminClient = null
-export function getAdminClient() {
-  if (!_adminClient) {
-    _adminClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: {
-        persistSession: true,
-        storageKey: 'kraken-admin',
-        autoRefreshToken: true,
-      }
-    })
-  }
-  return _adminClient
+// Use the main authenticated client so RLS policies see the real user session.
+// A separate client with a different storageKey has no session and queries as anon.
+function getAdminClient() {
+  return mainSupabase
 }
 // ─── Auth Helper ──────────────────────────────────────────────────────────────
 
 /**
  * Returns true if the currently authenticated user has role='super_admin'.
+ * Uses the main supabase client so it reads the real user session
+ * (the admin client uses a separate storageKey and won't see the main session).
  */
 export async function isSuperAdmin() {
-  const supabase = getAdminClient()
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  const { data: { user }, error: authError } = await mainSupabase.auth.getUser()
   if (authError || !user) return false
 
-  const { data, error } = await supabase
+  const { data, error } = await mainSupabase
     .from('profiles')
     .select('role')
     .eq('user_id', user.id)

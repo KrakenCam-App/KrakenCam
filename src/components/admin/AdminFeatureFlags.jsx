@@ -4,10 +4,8 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { adminRpc } from '../../lib/adminFetch'
+import { adminRpc, adminFrom, adminInsert, adminUpdate } from '../../lib/adminFetch'
 
-const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL
-const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 const TIERS = ['capture_i', 'intelligence_ii', 'command_iii']
 const TIER_LABEL = { capture_i: 'Capture I', intelligence_ii: 'Intelligence II', command_iii: 'Command III' }
@@ -43,23 +41,11 @@ const S = {
 }
 
 async function saveFlag(key, patch) {
-  const anonKey = SUPABASE_ANON
-  const url     = SUPABASE_URL
-  await fetch(`${url}/rest/v1/feature_flags?key=eq.${key}`, {
-    method: 'PATCH',
-    headers: {
-      'apikey': anonKey, 'Authorization': `Bearer ${anonKey}`,
-      'Content-Type': 'application/json', 'Prefer': 'return=minimal',
-    },
-    body: JSON.stringify({ ...patch, updated_at: new Date().toISOString() }),
-  })
+  await adminUpdate('feature_flags', { ...patch, updated_at: new Date().toISOString() }, `key=eq.${key}`)
 }
 
 async function loadFlags() {
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/feature_flags?select=*&order=key`, {
-    headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` }
-  })
-  return r.json()
+  return adminFrom('feature_flags', 'select=*&order=key')
 }
 
 async function loadOrgs() {
@@ -194,13 +180,24 @@ export default function AdminFeatureFlags() {
   const addFlag = async () => {
     if (!newKey.trim() || !newLabel.trim()) return
     setAdding(true)
-    const anonKey = SUPABASE_ANON
-    await fetch(`${SUPABASE_URL}/rest/v1/feature_flags`, {
-      method: 'POST',
-      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify({ key: newKey.trim().toLowerCase().replace(/\s+/g, '_'), label: newLabel.trim(), description: newDesc.trim(), enabled: false, allowed_tiers: [], allowed_org_ids: [] }),
-    })
-    setNewKey(''); setNewLabel(''); setNewDesc(''); setShowAdd(false); setAdding(false)
+    const payload = {
+      key: newKey.trim(),
+      label: newLabel.trim(),
+      description: newDesc.trim(),
+      enabled: false,
+      allowed_tiers: [],
+      allowed_org_ids: [],
+    }
+    try {
+      await adminInsert('feature_flags', payload, true)
+    } catch (e) {
+      console.error('addFlag error:', e)
+    }
+    setNewKey('')
+    setNewLabel('')
+    setNewDesc('')
+    setShowAdd(false)
+    setAdding(false)
     load()
   }
 

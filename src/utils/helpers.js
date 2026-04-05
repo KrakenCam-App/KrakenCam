@@ -201,6 +201,24 @@ function estimateBlockHeight(block, gridClass, allBlocks = []) {
     const headingH = block.tableHeading ? 18 : 0;
     return 40 + titleH + headingH + rows * 28;
   }
+  // ── Restoration block types ───────────────────────────────────────────────
+  if (block.type === "moisture_data") {
+    const readingCount = (block._readings||[]).length;
+    const graphH    = block.showGraph   !== false ? 300 : 0;
+    const tableH    = block.showTable   !== false ? (44 + readingCount * 26) : 0;
+    const photoRows = Math.ceil((block._photos||[]).length / 2);
+    const photoH    = block.showPhotos  !== false && photoRows > 0 ? (photoRows * 170) : 0;
+    const summaryH  = block.showSummary !== false && block.summaryText ? 30 + block.summaryText.split("\n").length * 20 : 0;
+    return 60 + graphH + tableH + photoH + summaryH;
+  }
+  if (block.type === "equipment_log") {
+    const rows = Math.max(1, (block._equipment||[]).length);
+    return 80 + rows * 32;
+  }
+  if (block.type === "drying_timeline") {
+    const events = (block.events||[]).length + (block._autoEvents||[]).length;
+    return 80 + Math.max(2, events) * 48;
+  }
   return 60;
 }
 

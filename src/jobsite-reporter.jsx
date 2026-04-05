@@ -6,17 +6,18 @@ import { uploadOrgLogo, uploadUserAvatar } from "./lib/uploadImage";
 import { createTeamMember, updateTeamMember, removeUser as dbRemoveUser } from "./lib/team";
 import { useAuth } from "./components/AuthProvider.jsx";
 import {
-  getProjects     as dbGetProjects,
-  createProject   as dbCreateProject,
-  updateProject   as dbUpdateProject,
-  deleteProject   as dbDeleteProject,
-  getFolders      as dbGetFolders,
-  createFolder    as dbCreateFolder,
-  deleteFolder    as dbDeleteFolder,
-  getPictures     as dbGetPictures,
-  uploadPicture   as dbUploadPicture,
-  deletePicture   as dbDeletePicture,
-  getPictureUrl   as dbGetPictureUrl,
+  getProjects                  as dbGetProjects,
+  createProject                as dbCreateProject,
+  updateProject                as dbUpdateProject,
+  deleteProject                as dbDeleteProject,
+  getFolders                   as dbGetFolders,
+  createFolder                 as dbCreateFolder,
+  deleteFolder                 as dbDeleteFolder,
+  getPictures                  as dbGetPictures,
+  uploadPicture                as dbUploadPicture,
+  deletePicture                as dbDeletePicture,
+  getPictureUrl                as dbGetPictureUrl,
+  upsertProjectSubcontractors  as dbUpsertSubcontractors,
 } from "./lib/projects.js";
 import {
   getCalEvents    as dbGetCalEvents,
@@ -118,6 +119,9 @@ import { CameraPage, ImageEditor } from "./components/CameraPage.jsx";
 import { ProjectModal, ProjectsList } from "./components/ProjectModal.jsx";
 const ProjectDetail = React.lazy(()=>import("./components/PhotosTab.jsx").then(m=>({default:m.ProjectDetail})));
 const TemplatesPage = React.lazy(()=>import("./components/PhotosTab.jsx").then(m=>({default:m.TemplatesPage})));
+const EquipmentPage = React.lazy(()=>import("./components/EquipmentPage.jsx").then(m=>({default:m.EquipmentPage})));
+const RoomsTab = React.lazy(()=>import("./components/RoomsTab.jsx").then(m=>({default:m.RoomsTab})));
+import { KrakenUsageBar } from "./components/KrakenUsageBar.jsx";
 // Settings-aware date/time formattersconst formatDateTimeLabel = (iso, settings) => {
 const formatDurationLabel = (ms = 0) => {
   const totalSec = Math.max(0, Math.round(ms / 1000));
@@ -710,6 +714,82 @@ function LoginPage({ supabaseUrl, supabaseAnonKey, logo, onSuccess }) {
   );
 }
 
+// ── Jobsite Map — Tier 1 locked screen ───────────────────────────────────────
+function JobsiteMapLockedScreen({ isAdmin, onUpgrade }) {
+  const [showRequestModal, setShowRequestModal] = React.useState(false);
+  const features = [
+    "View and navigate project maps",
+    "Pin photos and rooms to locations",
+    "Visual project layout tracking",
+    "Integrated with photos and rooms",
+  ];
+  return (
+    <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:32 }}>
+      {showRequestModal && (
+        <div style={{ position:"fixed", inset:0, zIndex:9000, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,.5)" }}
+          onClick={() => setShowRequestModal(false)}>
+          <div style={{ background:"var(--bg)", borderRadius:14, padding:28, maxWidth:360, width:"100%", border:"1px solid var(--border)", textAlign:"center" }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontWeight:700, fontSize:16, color:"var(--text)", marginBottom:10 }}>Upgrade Required</div>
+            <div style={{ fontSize:14, color:"var(--text2)", lineHeight:1.6, marginBottom:20 }}>
+              Please speak with your account admin to upgrade your plan.
+            </div>
+            <button onClick={() => setShowRequestModal(false)}
+              style={{ background:"var(--surface2)", border:"1px solid var(--border)", borderRadius:8, padding:"8px 20px", fontSize:13, fontWeight:600, cursor:"pointer", color:"var(--text)" }}>
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
+      <div style={{ maxWidth:400, textAlign:"center" }}>
+        <div style={{ width:64, height:64, borderRadius:18, background:"linear-gradient(135deg,#a855f722,#7c3aed22)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 20px" }}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#a855f7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z M12 10a3 3 0 100-6 3 3 0 000 6z" />
+          </svg>
+        </div>
+        <div style={{ fontWeight:700, fontSize:18, color:"var(--text)", marginBottom:8 }}>Jobsite Map</div>
+        {isAdmin ? (
+          <>
+            <div style={{ fontSize:14, color:"var(--text2)", lineHeight:1.6, marginBottom:20 }}>
+              Unlock interactive jobsite mapping to visualize rooms, photos, and project layouts.
+              Improve navigation and documentation across your projects.
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:24, textAlign:"left" }}>
+              {features.map(f => (
+                <div key={f} style={{ display:"flex", alignItems:"center", gap:10, fontSize:13, color:"var(--text2)" }}>
+                  <div style={{ width:18, height:18, borderRadius:5, background:"#a855f711", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#a855f7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                  </div>
+                  {f}
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize:12, color:"var(--text3)", marginBottom:14 }}>Available on Intelligence II and Command III</div>
+            <button onClick={onUpgrade}
+              style={{ background:"linear-gradient(135deg,#a855f7,#7c3aed)", color:"white", border:"none", borderRadius:9, padding:"11px 28px", fontSize:14, fontWeight:700, cursor:"pointer", letterSpacing:.2 }}>
+              Upgrade Plan
+            </button>
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize:14, color:"var(--text2)", lineHeight:1.6, marginBottom:20 }}>
+              Unlock interactive jobsite mapping to visualize rooms, photos, and project layouts.
+              Improve navigation and documentation across your projects.
+            </div>
+            <div style={{ fontSize:12, color:"var(--text3)", marginBottom:14 }}>Available on Intelligence II and Command III</div>
+            <button onClick={() => setShowRequestModal(true)}
+              style={{ background:"linear-gradient(135deg,#a855f7,#7c3aed)", color:"white", border:"none", borderRadius:9, padding:"11px 28px", fontSize:14, fontWeight:700, cursor:"pointer", letterSpacing:.2 }}>
+              Request Upgrade
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   // Pull org profile from AuthProvider (already wraps the whole app)
 const { profile: authProfile, user: authUser, loading: authLoading } = useAuth();
@@ -750,10 +830,32 @@ const { profile: authProfile, user: authUser, loading: authLoading } = useAuth()
       if (s.reportTemplates)  setReportTemplates(s.reportTemplates);
       if (s.chats)            setChats(s.chats);
       if (s.calEvents)        setCalEvents(s.calEvents);
-      // Restore last page/project/tab so switching tabs doesn't reset navigation
-      if (s._page && s._page !== 'camera' && s._page !== 'editor') setPage(s._page);
-      if (s._activeProjectId && s.projects) {
-        const proj = s.projects.find(p => p.id === s._activeProjectId);
+      // Restore last page/project/tab so switching tabs doesn't reset navigation.
+      // URL hash overrides localStorage — hash is updated on every navigation so is always current.
+      let restoredPage = null;
+      let restoredProjectId = null;
+
+      // 1. Check URL hash first (written on every nav, always fresh)
+      const rawHash = window.location.hash.replace('#', '');
+      if (rawHash && !rawHash.includes('type=') && !rawHash.includes('access_token')) {
+        try {
+          const hp = new URLSearchParams(rawHash);
+          if (hp.get('p')) restoredPage = hp.get('p');
+          if (hp.get('j')) restoredProjectId = hp.get('j');
+        } catch(he) { /* ignore malformed hash */ }
+      }
+
+      // 2. Fall back to localStorage if hash didn't have values
+      if (!restoredPage && s._page && s._page !== 'camera' && s._page !== 'editor') {
+        restoredPage = s._page;
+      }
+      if (!restoredProjectId && s._activeProjectId) {
+        restoredProjectId = s._activeProjectId;
+      }
+
+      if (restoredPage) setPage(restoredPage);
+      if (restoredProjectId && s.projects) {
+        const proj = s.projects.find(p => p.id === restoredProjectId);
         if (proj) setActiveProject(proj);
       }
       // _activeTab and _editingSketchId are restored inside ProjectDetail via localStorage directly
@@ -911,16 +1013,107 @@ useEffect(() => {
             }
             return { ...row, photos: mergedPhotos };
           });
+          // Recover file storage URLs from project_files table.
+          // Files uploaded before the storage-URL-back-write fix may have lost their
+          // dataUrl in the JSONB (it was base64 → stripped → hasFile:true with no URL).
+          // project_files is the authoritative source for storage_path and public URL.
+          let pfByProjectId = {};
+          try {
+            const supaUrl = import.meta.env.VITE_SUPABASE_URL;
+            const pfHeaders = await getAuthHeaders({ 'Content-Type': 'application/json' });
+            const pfRes = await fetch(
+              `${supaUrl}/rest/v1/project_files?organization_id=eq.${orgId}&order=created_at.desc&select=id,project_id,name,storage_path,mime_type,file_size,created_at`,
+              { headers: pfHeaders }
+            );
+            if (pfRes.ok) {
+              const pfRows = await pfRes.json();
+              pfRows.forEach(pf => {
+                if (!pfByProjectId[pf.project_id]) pfByProjectId[pf.project_id] = [];
+                pfByProjectId[pf.project_id].push(pf);
+              });
+            }
+          } catch { /* non-fatal — continue without file recovery */ }
+
           // Preserve in-memory voiceNotes/videos/sketches/files loaded from separate tables
           // — these are NOT stored in the project row so a DB reload would wipe them.
           setProjects(prev => merged.map(row => {
             const existing = prev.find(p => p.id === row.id);
+            // Merge activityLog: keep DB as source of truth but preserve any local-only pending entries
+            const mergedActivityLog = (() => {
+              const dbLog = row.activityLog || [];
+              if (!existing) return dbLog;
+              const localLog = existing.activityLog || [];
+              const dbIds = new Set(dbLog.map(a => a.id));
+              const pending = localLog.filter(a => !dbIds.has(a.id));
+              return pending.length ? [...dbLog, ...pending] : dbLog;
+            })();
+
+            // Merge files: DB JSONB is the authoritative base (has correct dataUrls after the fix).
+            // Local/localStorage state may have stale hasFile:true entries — DO NOT prefer those
+            // over fresh DB data. Instead use DB as base and fill in any remaining gaps from
+            // local state (current-session base64) or the project_files recovery table.
+            const mergedFiles = (() => {
+              const dbFiles  = row.files || [];           // DB JSONB — most up to date
+              const localFiles = existing?.files || [];   // localStorage / in-memory
+              const pfRows   = pfByProjectId[row.id] || [];
+              const supaUrl  = import.meta.env.VITE_SUPABASE_URL;
+
+              // Build fast lookups
+              const pfByPath = {}, pfByName = {};
+              pfRows.forEach(pf => {
+                pfByPath[pf.storage_path] = pf;
+                if (!pfByName[pf.name]) pfByName[pf.name] = pf;
+              });
+              const localById = {}, localByName = {};
+              localFiles.forEach(lf => {
+                localById[lf.id] = lf;
+                if (lf.name && !localByName[lf.name]) localByName[lf.name] = lf;
+              });
+
+              // Map over DB files as the authoritative list
+              const result = dbFiles.map(f => {
+                // DB already has a usable URL — use it directly
+                if (f.dataUrl) return f;
+
+                // DB has hasFile:true — try to recover URL from:
+                // 1. Local state (current session may have base64 or the publicUrl)
+                const local = localById[f.id] || localByName[f.name];
+                if (local?.dataUrl) return { ...f, dataUrl: local.dataUrl, storagePath: local.storagePath || f.storagePath, supabaseId: local.supabaseId || f.supabaseId };
+
+                // 2. project_files table (has storage_path for any file uploaded to Storage)
+                const pf = (f.storagePath && pfByPath[f.storagePath])
+                  || pfRows.find(p => p.id === f.supabaseId)
+                  || pfByName[f.name];
+                if (pf) {
+                  const url = `${supaUrl}/storage/v1/object/public/project-photos/${pf.storage_path}`;
+                  return { ...f, dataUrl: url, storagePath: pf.storage_path, supabaseId: pf.id };
+                }
+                return f; // no URL available — file is unrecoverable without re-upload
+              });
+
+              // Add project_files rows not yet in the DB JSONB (just uploaded, race condition)
+              pfRows.forEach(pf => {
+                if (!result.find(f => f.storagePath === pf.storage_path || f.supabaseId === pf.id || f.name === pf.name)) {
+                  const url = `${supaUrl}/storage/v1/object/public/project-photos/${pf.storage_path}`;
+                  result.push({ id: pf.id, name: pf.name, dataUrl: url, storagePath: pf.storage_path, supabaseId: pf.id, type: pf.mime_type || '', size: pf.file_size || 0, uploadedAt: pf.created_at, category: 'General', tags: [], kind: '' });
+                }
+              });
+
+              // Keep any local-only files not yet in DB (pending saves from current session)
+              localFiles.forEach(lf => {
+                if (!result.find(f => f.id === lf.id || f.name === lf.name)) result.push(lf);
+              });
+
+              return result;
+            })();
+
             return {
               ...row,
+              activityLog: mergedActivityLog,
               voiceNotes: existing?.voiceNotes?.length ? existing.voiceNotes : (row.voiceNotes || []),
               videos:     existing?.videos?.length     ? existing.videos     : (row.videos     || []),
               sketches:   existing?.sketches?.length   ? existing.sketches   : (row.sketches   || []),
-              files:      existing?.files?.length      ? existing.files      : (row.files      || []),
+              files:      mergedFiles,
             };
           }));
         }
@@ -969,6 +1162,44 @@ useEffect(() => {
             city: r.city ?? p.city, state: r.state ?? p.state,
             status: r.status ?? p.status, notes: r.notes ?? p.notes,
             color: r.color ?? p.color, updatedAt: r.updated_at,
+            // Explicit field merges — DB is authoritative but preserve local-only pending entries
+            // Merge activity_log: use whichever version has more entries (DB or local)
+            activityLog: (() => {
+              const dbLog = r.activity_log || p.activityLog || [];
+              const localLog = p.activityLog || [];
+              if (dbLog.length >= localLog.length) return dbLog;
+              const dbIds = new Set(dbLog.map(a => a.id));
+              const pending = localLog.filter(a => !dbIds.has(a.id));
+              return [...dbLog, ...pending];
+            })(),
+            // photoTags: always use DB version (it's the canonical list)
+            photoTags: r.photo_tags?.length ? r.photo_tags : p.photoTags,
+            // photos: merge DB tags/metadata onto local photos (preserving dataUrls)
+            photos: (() => {
+              const dbPhotos = r.photos || [];
+              const localPhotos = p.photos || [];
+              if (!dbPhotos.length) return localPhotos;
+              return dbPhotos.map(dbPh => {
+                const local = localPhotos.find(lp => lp.id === dbPh.id);
+                return local ? { ...dbPh, dataUrl: local.dataUrl || dbPh.dataUrl } : dbPh;
+              });
+            })(),
+            // files: merge DB metadata onto local files (preserving dataUrls & storagePaths)
+            files: (() => {
+              const dbFiles = r.files || [];
+              const localFiles = p.files || [];
+              if (!dbFiles.length) return localFiles;
+              return dbFiles.map(dbF => {
+                const local = localFiles.find(lf => lf.id === dbF.id);
+                if (!local) return dbF;
+                return {
+                  ...dbF,
+                  dataUrl: local.dataUrl || dbF.dataUrl,
+                  storagePath: local.storagePath || dbF.storagePath,
+                  supabaseId: local.supabaseId || dbF.supabaseId,
+                };
+              });
+            })(),
           }));
         }
       })
@@ -1182,20 +1413,27 @@ useEffect(() => {
       if (!rows?.length) return;
       const supaUrl = import.meta.env.VITE_SUPABASE_URL;
       const mapped = rows.map(r => ({
-        id:          r.id,
-        supabaseId:  r.id,
-        name:        r.title || 'Video',
-        room:        r.room  || '',
-        date:        r.created_at?.slice(0,10) || '',
-        duration:    r.duration_seconds || null,
-        storagePath: r.storage_path,
+        id:                r.id,
+        supabaseId:        r.id,
+        name:              r.title || 'Video',
+        room:              r.room  || '',
+        date:              (r.recorded_at || r.created_at)?.slice(0,10) || '',
+        duration:          r.duration_seconds || null,
+        storagePath:       r.storage_path,
         // Public URL for playback — project-photos bucket is public
-        dataUrl:     r.storage_path
-                       ? `${supaUrl}/storage/v1/object/public/project-photos/${r.storage_path}`
-                       : null,
-        gps:         r.gps || null,
-        mimeType:    r.mime_type || 'video/webm',
-        isVideo:     true,
+        dataUrl:           r.storage_path
+                             ? `${supaUrl}/storage/v1/object/public/project-photos/${r.storage_path}`
+                             : null,
+        gps:               r.gps || null,
+        mimeType:          r.mime_type || 'video/webm',
+        isVideo:           true,
+        tags:              r.tags || [],
+        notes:             r.notes || '',
+        recordedAt:        r.recorded_at || r.created_at || null,
+        recordedByUserId:  r.recorded_by_user_id || null,
+        trimStart:         r.trim_start_seconds ?? null,
+        trimEnd:           r.trim_end_seconds ?? null,
+        thumbnailUrl:      r.thumbnail_url || null,
       }));
       setProjects(prev => prev.map(p => {
         if (p.id !== activeProject.id) return p;
@@ -1301,7 +1539,8 @@ useEffect(() => {
           })),
         }));
         // Strip base64 dataUrls before saving to localStorage — they're too large
-        // and cause localStorage quota exceeded errors that silently wipe all data
+        // and cause localStorage quota exceeded errors that silently wipe all data.
+        // Storage URLs (https://...) are short and are kept as-is so files survive refresh.
         const projectsForStorage = cleanProjects.map(proj => ({
           ...proj,
           photos: (proj.photos || []).map(ph => {
@@ -1309,6 +1548,13 @@ useEffect(() => {
               return { ...ph, dataUrl: undefined, hasImage: true };
             }
             return ph; // keep Storage URLs (short strings)
+          }),
+          files: (proj.files || []).map(f => {
+            if (f.dataUrl && f.dataUrl.startsWith('data:')) {
+              const { dataUrl, ...rest } = f;
+              return { ...rest, hasFile: true };
+            }
+            return f; // keep Storage URLs (short strings)
           }),
         }));
         localStorage.setItem("krakencam_state", JSON.stringify({
@@ -1320,13 +1566,64 @@ useEffect(() => {
           reportTemplates,
           chats,
           calEvents,
-          _page: page,
+          // Persist nav state — camera/editor are transient so fall back to parent page
+          _page: page !== 'camera' && page !== 'editor' ? page : 'projects',
           _activeProjectId: activeProject?.id || null,
+          _reportProjectId: reportCreatorData?.project?.id || null,
+          _reportId:        reportCreatorData?.report?.id  || null,
         }));
       } catch(e) { /* storage full or unavailable */ }
     }, 800);
     return () => clearTimeout(timer);
-  }, [projects, settings, teamUsers, tasks, notifications, reportTemplates, chats, calEvents]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projects, settings, teamUsers, tasks, notifications, reportTemplates, chats, calEvents, page, activeProject?.id, reportCreatorData?.report?.id]);
+
+  // ── Immediate nav-state save — runs synchronously on every page/project/report change ──
+  // The debounced save above is delayed 800ms; this ensures the route is persisted instantly
+  // so a hard refresh or unexpected remount always restores the correct page.
+  useEffect(() => {
+    if (!page) return;
+    try {
+      const existing = localStorage.getItem("krakencam_state");
+      const s = existing ? JSON.parse(existing) : {};
+      localStorage.setItem("krakencam_state", JSON.stringify({
+        ...s,
+        _page:           page !== 'camera' && page !== 'editor' ? page : (s._page || 'projects'),
+        _activeProjectId: activeProject?.id || null,
+        _reportProjectId: reportCreatorData?.project?.id || null,
+        _reportId:        reportCreatorData?.report?.id  || null,
+      }));
+    } catch(e) { /* storage unavailable */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, activeProject?.id, reportCreatorData?.report?.id]);
+
+  // ── Encode current route in URL hash — always fresh, survives tab restore ──
+  // Written on every navigation so it is more current than debounced localStorage.
+  // Skipped if the URL already holds a Supabase auth token to avoid clobbering it.
+  const _navHashTimer = useRef(null);
+  useEffect(() => {
+    clearTimeout(_navHashTimer.current);
+    _navHashTimer.current = setTimeout(() => {
+      const currentHash = window.location.hash;
+      if (currentHash.includes('type=') || currentHash.includes('access_token')) return;
+      const params = new URLSearchParams();
+      if (page && page !== 'projects') params.set('p', page);
+      if (activeProject?.id)              params.set('j', activeProject.id);
+      if (reportCreatorData?.report?.id)  params.set('r', reportCreatorData.report.id);
+      const hash = params.toString();
+      window.history.replaceState(null, '', hash ? `#${hash}` : window.location.pathname);
+    }, 200);
+    return () => clearTimeout(_navHashTimer.current);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, activeProject?.id, reportCreatorData?.report?.id]);
+
+  // ── Warn before hard reload/tab close when a report is open ──────────────
+  useEffect(() => {
+    if (!reportCreatorData) return;
+    const handler = (e) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [!!reportCreatorData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Persist AI usage to Supabase whenever it changes ─────────────────────
   // This ensures the usage counter and window start are saved immediately after
@@ -1483,7 +1780,15 @@ useEffect(() => {
     const prevProj = projects.find(p => p.id === proj.id);
     const prevIds  = prevProj?.assignedUserIds || [];
     const newlyAssignedIds = (proj.assignedUserIds||[]).filter(id => !prevIds.includes(id));
-    const stamped = { ...proj, updatedAt: now, createdAt: proj.createdAt || now };
+    // Preserve file dataUrls from current state — prevents ProjectModal from clobbering storage URLs
+    const mergedFiles = (proj.files || []).map(f => {
+      if (f.dataUrl) return f;
+      const cur = (prevProj?.files || []).find(cf => cf.id === f.id);
+      if (cur?.dataUrl) return { ...f, dataUrl: cur.dataUrl, storagePath: cur.storagePath || f.storagePath, supabaseId: cur.supabaseId || f.supabaseId };
+      if (f.storagePath || cur?.storagePath) return { ...f, storagePath: f.storagePath || cur.storagePath, supabaseId: f.supabaseId || cur?.supabaseId };
+      return f;
+    });
+    const stamped = { ...proj, files: mergedFiles, updatedAt: now, createdAt: proj.createdAt || now };
 
     // ── For new projects: seed the activity log with a "Jobsite created" entry ──
     if (!prevProj && !(stamped.activityLog || []).some(a => a.type === "created")) {
@@ -1509,15 +1814,26 @@ useEffect(() => {
     const orgId = authProfile?.organization_id;
     if (orgId) {
       if (!prevProj) {
-        // New project — INSERT with full data
-        dbCreateProject({ ...stamped, organization_id: orgId }).catch(err =>
-          console.warn("[KrakenCam] Failed to create project in DB:", err.message || err)
-        );
+        // New project — INSERT with full data, then save subcontractors
+        dbCreateProject({ ...stamped, organization_id: orgId })
+          .then(saved => {
+            const subs = proj._subcontractors || [];
+            if (subs.length > 0) {
+              dbUpsertSubcontractors(saved.id, orgId, subs).catch(err =>
+                console.warn("[KrakenCam] Failed to save subcontractors:", err.message || err)
+              );
+            }
+          })
+          .catch(err => console.warn("[KrakenCam] Failed to create project in DB:", err.message || err));
       } else {
-        // Existing project — UPDATE with full data
-        dbUpdateProject(stamped.id, stamped).catch(err =>
-          console.warn("[KrakenCam] Failed to update project in DB:", err.message || err)
-        );
+        // Existing project — UPDATE with full data, then save subcontractors
+        dbUpdateProject(stamped.id, stamped)
+          .then(() => {
+            dbUpsertSubcontractors(stamped.id, orgId, proj._subcontractors || []).catch(err =>
+              console.warn("[KrakenCam] Failed to save subcontractors:", err.message || err)
+            );
+          })
+          .catch(err => console.warn("[KrakenCam] Failed to update project in DB:", err.message || err));
       }
     }
 
@@ -1576,9 +1892,20 @@ useEffect(() => {
   };
 
   const updateProject = (proj) => {
-    setProjects(prev => prev.map(p => p.id === proj.id ? proj : p));
-    setActiveProject(proj);
-    dbUpdateProject(proj.id, proj).catch(err =>
+    // Preserve file dataUrls/storagePaths from current state — prevents stale closures
+    // in other tabs from clobbering storage URLs that the Files tab already set.
+    const currentProj = projects.find(p => p.id === proj.id);
+    const mergedFiles = (proj.files || []).map(f => {
+      if (f.dataUrl) return f; // already has URL — keep as-is
+      const cur = (currentProj?.files || []).find(cf => cf.id === f.id);
+      if (cur?.dataUrl) return { ...f, dataUrl: cur.dataUrl, storagePath: cur.storagePath || f.storagePath, supabaseId: cur.supabaseId || f.supabaseId };
+      if (f.storagePath || cur?.storagePath) return { ...f, storagePath: f.storagePath || cur.storagePath, supabaseId: f.supabaseId || cur?.supabaseId };
+      return f;
+    });
+    const merged = proj.files ? { ...proj, files: mergedFiles } : proj;
+    setProjects(prev => prev.map(p => p.id === merged.id ? merged : p));
+    setActiveProject(merged);
+    dbUpdateProject(merged.id, merged).catch(err =>
       console.warn("[KrakenCam] Failed to update project in DB:", err.message || err)
     );
   };
@@ -1885,7 +2212,10 @@ useEffect(() => {
         if (video._blob) {
           const title = video.name || `${latestProj.title} - Video`;
           const durationSeconds = video.duration || null;
-          dbUploadVideo(latestProj.id, orgId, video._blob, title, durationSeconds, video.room || null, video.gps || null).then(row => {
+          const userId = authProfile?.user_id || null;
+          const tags = video.tags || [];
+          const notes = video.notes || null;
+          dbUploadVideo(latestProj.id, orgId, video._blob, title, durationSeconds, video.room || null, video.gps || null, userId, tags, notes).then(row => {
             if (!row) return;
             const supaUrl = import.meta.env.VITE_SUPABASE_URL;
             // Replace local blob URL with persistent Storage URL
@@ -1955,6 +2285,15 @@ useEffect(() => {
     setReportCreatorData(null);
   };
 
+  // Silent auto-save: persists the report without closing the editor or firing a notification.
+  const saveReportSilent = (proj, savedReport) => {
+    const existingReports = proj.reports || [];
+    const updatedReports = existingReports.some(r => r.id === savedReport.id)
+      ? existingReports.map(r => r.id === savedReport.id ? savedReport : r)
+      : [...existingReports, savedReport];
+    updateProject({ ...proj, reports: updatedReports });
+  };
+
   const isFullscreen = page === "camera" || page === "editor" || !!reportCreatorData;
   const isDetail     = page === "detail";
 
@@ -2013,8 +2352,10 @@ useEffect(() => {
 
   const NAV = [
     { id:"projects",   label:"All Jobsites",   icon:ic.folder,        section:"main"  },
+    { id:"rooms",      label:"Rooms",           icon:ic.rooms,         section:"main"  },
     { id:"tasks",      label:"Tasks",           icon:ic.clipboardList, section:"main"  },
     { id:"calendar",   label:"Calendar",        icon:ic.calendarIcon,  section:"main"  },
+    { id:"equipment",  label:"Equipment",        icon:ic.wrench,        section:"tools" },
     { id:"templates",  label:"Templates",       icon:ic.templates,     section:"tools" },
     { id:"jobmap",     label:"Jobsite Map",     icon:ic.mapPin,        section:"tools", proOnly:true },
     { id:"account",    label:"Account",         icon:ic.shield,        section:"tools" },
@@ -2112,12 +2453,16 @@ useEffect(() => {
             )).map(item => {
               const planOk = !item.proOnly || isPro || settings?.plan==="command";
               if (!planOk) return (
-                <div key={item.id} className="nav-item" title={navCollapsed ? `${item.label} — Intelligence II+` : ""}
-                  style={{ opacity:0.45, cursor:"default" }}
-                  onClick={() => setPage("account")}>
+                <div key={item.id} className={`nav-item ${page===item.id?"active":""}`}
+                  title={navCollapsed ? `${item.label} — Intelligence II+` : item.label}
+                  onClick={() => setPage(item.id)}>
                   <Icon d={item.icon} size={15} />
                   <span className="nav-item-label">{item.label}</span>
-                  {!navCollapsed && <span style={{ marginLeft:"auto",fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:6,background:"var(--surface3)",color:"var(--text3)",whiteSpace:"nowrap" }}>II+</span>}
+                  {!navCollapsed && (
+                    <svg style={{ marginLeft:"auto", flexShrink:0, opacity:0.45 }} width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+                    </svg>
+                  )}
                 </div>
               );
               if (item.id === "help") {
@@ -2136,6 +2481,8 @@ useEffect(() => {
           </div>
 
           <div className="nav-footer">
+            {/* Kraken usage bar — org-wide weekly usage */}
+            <KrakenUsageBar settings={settings} collapsed={navCollapsed} />
             <div className="nav-collapse-btn" title={navCollapsed ? "Expand sidebar" : "Collapse sidebar"} onClick={() => setNavCollapsed(v => !v)}
               style={{ width:"100%", height:34, borderRadius:8, border:"1px solid var(--border)", marginBottom:10, background:"var(--surface2)" }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -2185,6 +2532,8 @@ useEffect(() => {
                     )}
                   </div>
                 )}
+                {page==="equipment" && <div className="topbar-title desktop-only">Equipment</div>}
+                {page==="rooms"     && <div className="topbar-title">Rooms</div>}
                 {page==="templates" && <div className="topbar-title desktop-only">Report Templates</div>}
                 {page==="jobmap"    && <div className="topbar-title desktop-only">Jobsite Map</div>}
                 {page==="tasks"     && <div className="topbar-title">Tasks</div>}
@@ -2210,7 +2559,7 @@ useEffect(() => {
           )}
 
           {page === "projects" && (
-            <ProjectsList projects={projects} teamUsers={teamUsers} settings={settings} onSelect={p => { setActiveProject(p); setPage("detail"); }} onNew={() => setShowNewProject(true)} onEdit={p => setEditingProject(p)} onDelete={deleteProject} />
+            <ProjectsList projects={projects} teamUsers={teamUsers} settings={settings} tasks={tasks} calEvents={calEvents} userId={authProfile?.user_id || null} orgId={authProfile?.organization_id || null} onSelect={p => { setActiveProject(p); setPage("detail"); }} onNew={() => setShowNewProject(true)} onEdit={p => setEditingProject(p)} onDelete={deleteProject} onUpdateProject={updateProject} />
           )}
           {page === "detail" && activeProject && (
             <ProjectDetail
@@ -2233,7 +2582,7 @@ useEffect(() => {
             />
           )}
           {page === "camera" && (
-            <CameraPage project={cameraProject} defaultRoom={cameraProject?._defaultRoom} onSave={handleCameraSave} onClose={() => { setCameraProject(null); setPage(activeProject ? "detail" : "projects"); }} settings={settings} />
+            <CameraPage project={cameraProject} defaultRoom={cameraProject?._defaultRoom} onSave={handleCameraSave} onClose={() => { setCameraProject(null); setPage(activeProject ? "detail" : "projects"); }} settings={settings} onUpdateProject={updateProject} />
           )}
           {page === "editor" && (
             <ImageEditor
@@ -2290,9 +2639,24 @@ useEffect(() => {
               }}
             />
           )}
+          {page === "equipment" && (
+            <React.Suspense fallback={<div style={{ flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text3)" }}>Loading Equipment…</div>}>
+              <EquipmentPage
+                projects={projects}
+                teamUsers={teamUsers}
+                settings={settings}
+                orgId={authProfile?.organization_id}
+                userId={authProfile?.user_id}
+              />
+            </React.Suspense>
+          )}
           {page === "templates" && (
             <div className="desktop-only" style={{ flex:1 }}>
-              <TemplatesPage templates={reportTemplates} onTemplatesChange={async (newTemplates) => {
+              <TemplatesPage templates={reportTemplates}
+                orgId={authProfile?.organization_id}
+                supabaseUrl={import.meta.env.VITE_SUPABASE_URL}
+                getAuthHeaders={getAuthHeaders}
+                onTemplatesChange={async (newTemplates) => {
                 // Detect deleted templates before updating state
                 const deletedIds = reportTemplates.filter(t => !newTemplates.find(n => n.id === t.id)).map(t => t.id);
                 setReportTemplates(newTemplates);
@@ -2317,8 +2681,10 @@ useEffect(() => {
                         name: t.name,
                         type: t.type || '',
                         color: t.color || '#4a90d9',
-                        // Store extra fields in sections._meta until ALTER TABLE adds columns
-                        sections: { ...(t.sections || {}), _meta: { desc: t.desc || '', recipient: t.recipient || 'Client', coverImg: (!t.coverImg || t.coverImg.startsWith('data:')) ? null : t.coverImg, signatureImg: (!t.signatureImg || t.signatureImg.startsWith('data:')) ? null : t.signatureImg } },
+                        // cover_img and signature_img as dedicated columns (storage URLs only)
+                        cover_img: (t.coverImg && !t.coverImg.startsWith('data:')) ? t.coverImg : null,
+                        signature_img: (t.signatureImg && !t.signatureImg.startsWith('data:')) ? t.signatureImg : null,
+                        sections: { ...(t.sections || {}), _meta: { desc: t.desc || '', recipient: t.recipient || 'Client' } },
                         updated_at: new Date().toISOString(),
                       }))),
                     }).catch(() => {});
@@ -2328,11 +2694,20 @@ useEffect(() => {
             </div>
           )}
           {page === "jobmap" && (
-            <div className="desktop-only" style={{ flex:1,overflow:"hidden" }}>
-              <JobsiteMapPage projects={projects} settings={settings} onSelectProject={p => { setActiveProject(p); setPage("detail"); }} />
+            <div style={{ flex:1, overflow:"hidden", display:"flex", flexDirection:"column" }}>
+              {(isPro || settings?.plan === "command") ? (
+                <div className="desktop-only" style={{ flex:1, overflow:"hidden" }}>
+                  <JobsiteMapPage projects={projects} settings={settings} onSelectProject={p => { setActiveProject(p); setPage("detail"); }} />
+                </div>
+              ) : (
+                <JobsiteMapLockedScreen
+                  isAdmin={settings?.userRole === "admin"}
+                  onUpgrade={() => setPage("account")}
+                />
+              )}
             </div>
           )}
-          {page === "tasks"     && <TasksPage projects={projects} teamUsers={teamUsers} settings={settings} tasks={tasks} onTasksChange={(newTasks) => {
+          {page === "tasks"     && <TasksPage projects={projects} teamUsers={teamUsers} settings={settings} tasks={tasks} userId={authProfile?.user_id || null} onTasksChange={(newTasks) => {
             // Wire tasks create/update/delete to Supabase (fire-and-forget)
             if (!authProfile?.organization_id) { setTasks(newTasks); return; }
             const prev = tasks;
@@ -2358,6 +2733,29 @@ useEffect(() => {
               catch(e) { console.warn("[KrakenCam] tasks sync delete failed:", e.message); }
             });
           }} onNotify={addNotification} />}
+          {page === "rooms" && (
+            <React.Suspense fallback={<div style={{ flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text3)" }}>Loading Rooms…</div>}>
+              <RoomsTab
+                project={activeProject}
+                orgId={authProfile?.organization_id}
+                userId={authProfile?.user_id}
+                settings={settings}
+                onSettingsChange={setSettings}
+                tasks={tasks}
+                onTasksChange={(newTasks) => {
+                  const prev = tasks;
+                  setTasks(newTasks);
+                  newTasks.filter(t => !prev.find(p => p.id === t.id)).forEach(async t => {
+                    try { await dbCreateTaskDB({ ...t, organization_id: authProfile.organization_id }); }
+                    catch(e) { console.warn("[KrakenCam] room task sync create:", e.message); }
+                  });
+                }}
+                teamUsers={teamUsers}
+                onUpdateProject={updateProject}
+                onOpenCamera={(room) => { if (activeProject) openCamera({ ...activeProject, _defaultRoom: room.name }); }}
+              />
+            </React.Suspense>
+          )}
           {page === "calendar"  && <CalendarPage projects={projects} teamUsers={teamUsers} settings={settings} calEvents={calEvents} onCalEventsChange={(newEvents) => {
             // Wire cal events create/update/delete to Supabase (fire-and-forget)
             if (!authProfile?.organization_id) { setCalEvents(newEvents); return; }
@@ -2465,6 +2863,7 @@ useEffect(() => {
               templates={reportTemplates}
               users={teamUsers}
               onSave={saved => saveReport(reportCreatorData.project, saved)}
+              onAutoSave={saved => saveReportSilent(reportCreatorData.project, saved)}
               onClose={() => setReportCreatorData(null)}
               onSettingsChange={setSettings}
               onUpgradeAi={() => setSettings(s => ({...s, plan: "pro"}))}
@@ -2516,15 +2915,12 @@ useEffect(() => {
             </div>
             <div className="mob-nav-cam-wrap" onClick={() => activeProject ? openCamera(activeProject) : setPage("projects")}>
               <div className="mob-nav-cam">
-                <Icon d={ic.camera} size={20} stroke="white" strokeWidth={2} />
+                <Icon d={ic.camera} size={22} stroke="white" strokeWidth={2} />
               </div>
             </div>
-            {canOpenAnalytics && (
-              <div className="mob-nav-item" onClick={() => setAnalyticsOpen(v => !v)}
-                style={{ color: analyticsOpen ? "var(--accent)" : undefined }}>
-                <Icon d={ic.pieChart} size={22} strokeWidth={1.8} />
-              </div>
-            )}
+            <div className={`mob-nav-item ${page==="rooms"?"active":""}`} onClick={() => setPage("rooms")}>
+              <Icon d={ic.rooms} size={22} strokeWidth={page==="rooms"?2.5:1.8} />
+            </div>
             <div className="mob-nav-item" onClick={() => setChatOpen(v => !v)} style={{ position:"relative" }}>
               <Icon d={ic.message} size={22} strokeWidth={1.8} />
               {(() => { const unread = chats.reduce((a,c)=>{const last=c.messages?.filter(m=>!m.readBy?.includes("__admin__"))?.length||0; return a+last;},0); return unread>0?<span className="mob-badge">{unread>9?"9+":unread}</span>:null; })()}

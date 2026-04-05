@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { getAdminClient } from '../../lib/admin'
+import { adminFrom } from '../../lib/adminFetch'
 
 const PAGE_SIZE = 20
 
@@ -48,37 +48,28 @@ export default function AdminAuditLog() {
   const load = useCallback(async (pageNum, filter) => {
     setLoading(true)
     setError(null)
-    const supabase = getAdminClient()
 
     const from = pageNum * PAGE_SIZE
-    const to = from + PAGE_SIZE - 1
+    const to   = from + PAGE_SIZE - 1
 
-    let query = supabase
-      .from('audit_log')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .range(from, to)
+    try {
+      // adminFrom uses the authenticated session JWT (not anon key) for RLS
+      let params = `select=*&order=created_at.desc&offset=${from}&limit=${PAGE_SIZE + 1}`
+      if (filter) params += `&event_type=eq.${encodeURIComponent(filter)}`
+      const data = await adminFrom('audit_log', params)
 
-    if (filter) {
-      query = query.eq('event_type', filter)
-    }
+      setEntries((data || []).slice(0, PAGE_SIZE))
+      setHasMore((data || []).length > PAGE_SIZE)
+      setLoading(false)
 
-    const { data, error: err } = await query
-
-    if (err) {
+      // Collect unique event types for filter dropdown (from first page only)
+      if (pageNum === 0 && !filter) {
+        const types = [...new Set((data || []).map(e => e.event_type).filter(Boolean))]
+      setEventTypes(types)
+      }
+    } catch (err) {
       setError(err.message)
       setLoading(false)
-      return
-    }
-
-    setEntries(data || [])
-    setHasMore((data || []).length === PAGE_SIZE)
-    setLoading(false)
-
-    // Collect unique event types for filter dropdown (from first page only)
-    if (pageNum === 0 && !filter) {
-      const types = [...new Set((data || []).map(e => e.event_type).filter(Boolean))]
-      setEventTypes(types)
     }
   }, [])
 

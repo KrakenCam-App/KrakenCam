@@ -4,9 +4,10 @@
  * Webhook Config, Security, and Danger Zone.
  */
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { getAllOrganizations } from '../../lib/admin'
+import { adminFrom, adminInsert, adminUpdate } from '../../lib/adminFetch'
 
 // ── Style constants ──────────────────────────────────────────────────────────
 
@@ -367,26 +368,48 @@ function ConfirmModal({ title, message, onConfirm, onClose, confirmLabel = 'Conf
   )
 }
 
-function WebhookModal({ onClose }) {
+function WebhookEventDetailModal({ event, onClose }) {
+  if (!event) return null
   return (
     <div style={S.modalOverlay} onClick={onClose}>
-      <div style={{ ...S.modalBox, maxWidth: 520 }} onClick={e => e.stopPropagation()}>
+      <div style={{ ...S.modalBox, maxWidth: 600 }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#e8e8e8' }}>🔗 Testing Webhooks</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: 20, lineHeight: 1 }}>✕</button>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#e8e8e8' }}>Event Detail</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: 20 }}>✕</button>
         </div>
-        <ol style={{ color: '#aaa', fontSize: 13, lineHeight: 1.9, paddingLeft: 18, margin: 0 }}>
-          <li>Go to the <a href="https://dashboard.stripe.com/test/webhooks" target="_blank" rel="noreferrer" style={{ color: '#00d4ff' }}>Stripe Dashboard → Webhooks</a></li>
-          <li>Select your KrakenCam endpoint</li>
-          <li>Click <strong style={{ color: '#e8e8e8' }}>"Send test event"</strong></li>
-          <li>Choose an event type (e.g. <code style={S.code}>checkout.session.completed</code>)</li>
-          <li>Click <strong style={{ color: '#e8e8e8' }}>Send test webhook</strong></li>
-          <li>Check the event log for delivery status</li>
-        </ol>
-        <div style={{ background: 'rgba(0,212,255,0.05)', border: '1px solid rgba(0,212,255,0.15)', borderRadius: 8, padding: '12px 14px', fontSize: 12, color: '#aaa' }}>
-          💡 Tip: You can also use the <code style={S.code}>stripe listen --forward-to localhost:5173/api/stripe-webhook</code> CLI command for local testing.
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {[
+            ['Event ID',    event.stripe_event_id],
+            ['Type',        event.event_type],
+            ['Status',      event.status],
+            ['Received',    event.received_at ? new Date(event.received_at).toLocaleString() : '—'],
+            ['Processed',   event.processed_at ? new Date(event.processed_at).toLocaleString() : '—'],
+            ['Org ID',      event.related_org_id || '—'],
+          ].map(([label, val]) => (
+            <div key={label} style={{ display: 'flex', gap: 12, fontSize: 13 }}>
+              <span style={{ color: '#888', minWidth: 110, flexShrink: 0 }}>{label}</span>
+              <span style={{ color: '#e8e8e8', fontFamily: 'monospace', wordBreak: 'break-all' }}>{val}</span>
+            </div>
+          ))}
+          {event.error_message && (
+            <div>
+              <div style={{ fontSize: 12, color: '#ff6b6b', marginBottom: 4 }}>Error</div>
+              <div style={{ background: 'rgba(255,50,50,0.08)', border: '1px solid rgba(255,80,80,0.2)', borderRadius: 6, padding: '10px 12px', fontSize: 12, fontFamily: 'monospace', color: '#ff9999', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                {event.error_message}
+              </div>
+            </div>
+          )}
+          {event.payload_json && (
+            <div>
+              <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>Payload (truncated)</div>
+              <pre style={{ background: 'rgba(5,10,25,0.8)', border: '1px solid #1e2638', borderRadius: 6, padding: '10px 12px', fontSize: 11, color: '#8b9ab8', overflowX: 'auto', maxHeight: 180, margin: 0 }}>
+                {JSON.stringify(event.payload_json, null, 2).slice(0, 1200)}
+                {JSON.stringify(event.payload_json).length > 1200 ? '\n…(truncated)' : ''}
+              </pre>
+            </div>
+          )}
         </div>
-        <button onClick={onClose} style={S.btn}>Got It</button>
+        <button onClick={onClose} style={S.btn}>Close</button>
       </div>
     </div>
   )
@@ -498,14 +521,9 @@ function EmailTemplatesTab() {
   const [saveStatus, setSaveStatus] = useState({}) // { [id]: 'saving' | 'saved' | 'error' }
   const [loadError, setLoadError] = useState(false)
 
-  // Load templates from DB on mount — raw fetch to bypass Brave IndexedDB lock
+  // Load templates from DB on mount using authenticated fetch (adminFrom uses real JWT)
   React.useEffect(() => {
-    const url     = import.meta.env.VITE_SUPABASE_URL
-    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-    fetch(`${url}/rest/v1/email_templates?select=*`, {
-      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` }
-    })
-      .then(r => r.json())
+    adminFrom('email_templates', 'select=*')
       .then(data => {
         if (Array.isArray(data) && data.length > 0) {
           setTemplates(prev => prev.map(local => {
@@ -529,14 +547,11 @@ function EmailTemplatesTab() {
   async function handleSave(t) {
     setSaveStatus(prev => ({ ...prev, [t.id]: 'saving' }))
     try {
-      const url     = import.meta.env.VITE_SUPABASE_URL
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-      const res = await fetch(`${url}/rest/v1/email_templates`, {
-        method: 'POST',
-        headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify({ id: t.id, name: t.name, trigger_event: t.trigger_event ?? t.trigger, subject: t.subject, body_html: t.body_html ?? t.previewHtml, enabled: t.enabled ?? true, updated_at: new Date().toISOString() }),
-      })
-      if (!res.ok) throw new Error(await res.text())
+      // adminInsert uses the authenticated JWT (not anon key), required for RLS
+      await adminInsert('email_templates',
+        { id: t.id, name: t.name, trigger_event: t.trigger_event ?? t.trigger, subject: t.subject, body_html: t.body_html ?? t.previewHtml, enabled: t.enabled ?? true, updated_at: new Date().toISOString() },
+        true  // upsert
+      )
       setSaveStatus(prev => ({ ...prev, [t.id]: 'saved' }))
       setTimeout(() => setSaveStatus(prev => ({ ...prev, [t.id]: null })), 2000)
     } catch (err) {
@@ -709,58 +724,188 @@ function EmailTemplatesTab() {
   )
 }
 
-function WebhookTab() {
-  const [showWebhookModal, setShowWebhookModal] = useState(false)
-  const [copied, setCopied] = useState(false)
+const WEBHOOK_EVENTS_LIST = [
+  'checkout.session.completed',
+  'customer.subscription.updated',
+  'customer.subscription.deleted',
+  'invoice.payment_failed',
+]
 
-  function handleCopy() {
-    // Only copying a masked value — real secret retrieval would be server-side
-    navigator.clipboard.writeText('whsec_••••••••').catch(() => {})
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+const STATUS_COLOR_MAP = {
+  success:    'green',
+  failed:     'red',
+  ignored:    'grey',
+  processing: 'yellow',
+  test:       'blue',
+}
+
+function whBadge(status) {
+  const c = STATUS_COLOR_MAP[status] || 'grey'
+  const colors = {
+    green:  { bg: 'rgba(0,200,100,0.12)',  text: '#4ec9b0', border: 'rgba(78,201,176,0.3)' },
+    red:    { bg: 'rgba(255,80,80,0.12)',   text: '#ff6b6b', border: 'rgba(255,80,80,0.3)' },
+    yellow: { bg: 'rgba(255,200,0,0.12)',   text: '#ffc700', border: 'rgba(255,199,0,0.3)' },
+    blue:   { bg: 'rgba(0,212,255,0.12)',   text: '#00d4ff', border: 'rgba(0,212,255,0.3)' },
+    grey:   { bg: 'rgba(100,100,100,0.15)', text: '#888',    border: 'rgba(100,100,100,0.2)' },
+  }
+  const col = colors[c]
+  return {
+    display: 'inline-block', padding: '2px 9px', borderRadius: 20,
+    fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase',
+    background: col.bg, color: col.text, border: `1px solid ${col.border}`,
+  }
+}
+
+function fmtTs(ts) {
+  if (!ts) return '—'
+  const d = new Date(ts)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+    ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+const PAGE_SIZE = 15
+
+function useToastWh() {
+  const [toast, setToast] = useState(null)
+  const timer = useRef(null)
+  const show = useCallback((msg, type = 'ok') => {
+    clearTimeout(timer.current)
+    setToast({ msg, type })
+    timer.current = setTimeout(() => setToast(null), 3500)
+  }, [])
+  return { toast, show }
+}
+
+function WebhookTab() {
+  const [whEvents,    setWhEvents]    = useState([])
+  const [loading,     setLoading]     = useState(true)
+  const [page,        setPage]        = useState(0)
+  const [viewEvent,   setViewEvent]   = useState(null)
+  const [testStatus,  setTestStatus]  = useState(null)   // null | 'running' | 'ok' | 'err'
+  const [testMsg,     setTestMsg]     = useState('')
+  const [retrying,    setRetrying]    = useState(null)   // event_id being retried
+  const [endpointEnv, setEndpointEnv] = useState(null)   // 'test' | 'live' | null
+  const { toast, show: showToast } = useToastWh()
+
+  // ── Load events ────────────────────────────────────────────────────────────
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await adminFrom(
+        'webhook_events',
+        'select=*&order=received_at.desc&limit=200'
+      )
+      setWhEvents(Array.isArray(data) ? data : [])
+    } catch (e) {
+      console.warn('WebhookTab load error:', e)
+      setWhEvents([])
+    }
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  // ── Derived stats ──────────────────────────────────────────────────────────
+  const lastReceived = whEvents[0]?.received_at || null
+  const lastSuccess  = whEvents.find(e => e.status === 'success')?.received_at || null
+  const lastFailed   = whEvents.find(e => e.status === 'failed')?.received_at || null
+  const failCount    = whEvents.filter(e => e.status === 'failed').length
+  const totalCount   = whEvents.length
+
+  // ── Pagination ─────────────────────────────────────────────────────────────
+  const pageCount   = Math.ceil(whEvents.length / PAGE_SIZE)
+  const pageSlice   = whEvents.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+
+  // ── Test webhook ───────────────────────────────────────────────────────────
+  async function handleTest() {
+    setTestStatus('running')
+    setTestMsg('')
+    try {
+      // 1. Ping endpoint for reachability + environment
+      const pingRes = await fetch('/api/stripe-webhook?ping=1')
+      if (!pingRes.ok) throw new Error(`Endpoint returned ${pingRes.status}`)
+      const pingData = await pingRes.json()
+      setEndpointEnv(pingData.env || 'unknown')
+
+      // 2. Insert a synthetic test event via admin client
+      const syntheticId = `test_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+      await adminInsert('webhook_events', {
+        stripe_event_id: syntheticId,
+        event_type:      'admin.test',
+        status:          'test',
+        received_at:     new Date().toISOString(),
+        processed_at:    new Date().toISOString(),
+        payload_json:    { source: 'admin_test', env: pingData.env, ts: pingData.ts },
+      })
+
+      setTestStatus('ok')
+      setTestMsg(`Endpoint reachable (${pingData.env} mode). Test event logged.`)
+      showToast('✓ Webhook endpoint is reachable and logging works', 'ok')
+      load()
+    } catch (err) {
+      setTestStatus('err')
+      setTestMsg(err.message)
+      showToast(`✗ Test failed: ${err.message}`, 'err')
+    }
+    setTimeout(() => setTestStatus(null), 8000)
   }
 
-  const events = [
-    'checkout.session.completed',
-    'customer.subscription.updated',
-    'customer.subscription.deleted',
-    'invoice.payment_failed',
-  ]
+  // ── Retry failed event ─────────────────────────────────────────────────────
+  async function handleRetry(evt) {
+    setRetrying(evt.id)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (!token) throw new Error('Not authenticated')
 
+      const res = await fetch('/api/stripe-webhook?action=retry', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ event_id: evt.id }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`)
+      showToast(`✓ Retried ${evt.event_type} — success`, 'ok')
+      load()
+    } catch (err) {
+      showToast(`✗ Retry failed: ${err.message}`, 'err')
+    }
+    setRetrying(null)
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div>
+      {/* ── Config card ── */}
       <div style={S.card}>
         <div style={S.sectionHeader}>Stripe Webhook</div>
 
         <div style={S.row}>
           <span style={S.label}>Endpoint URL</span>
-          <div style={{ ...S.readOnly, fontFamily: 'monospace', fontSize: 12, width: 'auto', flex: 1, maxWidth: 420 }}>
+          <div style={{ ...S.readOnly, fontFamily: 'monospace', fontSize: 12, width: 'auto', flex: 1, maxWidth: 440 }}>
             https://app.krakencam.com/api/stripe-webhook
           </div>
         </div>
 
         <div style={S.row}>
-          <span style={S.label}>Status</span>
-          <span style={S.badge('yellow')}>Configured – Test Mode</span>
+          <span style={S.label}>Environment</span>
+          <span style={S.badge('yellow')}>
+            {endpointEnv === 'live' ? '🟢 Live Mode' : endpointEnv === 'test' ? '🟡 Test Mode' : 'Test Mode (pending check)'}
+          </span>
         </div>
 
         <div style={S.row}>
           <span style={S.label}>Webhook Secret</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ ...S.readOnly, fontFamily: 'monospace', fontSize: 13, letterSpacing: 1 }}>
-              whsec_••••••••
-            </div>
-            <button style={S.btnGhost} onClick={handleCopy} title="Copy to clipboard">
-              {copied ? '✓ Copied' : '📋 Copy'}
-            </button>
+          <div style={{ ...S.readOnly, fontFamily: 'monospace', fontSize: 13, letterSpacing: 1, width: 220 }}>
+            whsec_••••••••
           </div>
         </div>
 
         <hr style={S.divider} />
 
         <div style={S.sectionHeader}>Listening to Events</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {events.map(ev => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+          {WEBHOOK_EVENTS_LIST.map(ev => (
             <div key={ev} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ color: '#4ec9b0', fontSize: 12 }}>✓</span>
               <code style={{ ...S.code, fontSize: 12 }}>{ev}</code>
@@ -768,14 +913,144 @@ function WebhookTab() {
           ))}
         </div>
 
-        <div style={{ marginTop: 20 }}>
-          <button style={S.btn} onClick={() => setShowWebhookModal(true)}>
-            🔗 Test Webhook
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            style={{ ...S.btn, opacity: testStatus === 'running' ? 0.6 : 1 }}
+            disabled={testStatus === 'running'}
+            onClick={handleTest}
+          >
+            {testStatus === 'running' ? '⏳ Testing…' : '🔗 Test Webhook'}
           </button>
+          {testMsg && (
+            <span style={{ fontSize: 12, color: testStatus === 'ok' ? '#4ec9b0' : '#ff6b6b' }}>
+              {testStatus === 'ok' ? '✓' : '✗'} {testMsg}
+            </span>
+          )}
         </div>
       </div>
 
-      {showWebhookModal && <WebhookModal onClose={() => setShowWebhookModal(false)} />}
+      {/* ── Status summary ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 12, marginBottom: 18 }}>
+        {[
+          { label: 'Total Events',   value: totalCount,              color: '#00d4ff' },
+          { label: 'Failed',         value: failCount,               color: failCount > 0 ? '#ff6b6b' : '#4ec9b0' },
+          { label: 'Last Received',  value: lastReceived ? fmtTs(lastReceived).split(' ').slice(0,2).join(' ') : 'None', color: '#ccc' },
+          { label: 'Last Success',   value: lastSuccess  ? fmtTs(lastSuccess).split(' ').slice(0,2).join(' ')  : 'None', color: '#4ec9b0' },
+          { label: 'Last Failed',    value: lastFailed   ? fmtTs(lastFailed).split(' ').slice(0,2).join(' ')   : 'None', color: lastFailed ? '#ff6b6b' : '#888' },
+        ].map(m => (
+          <div key={m.label} style={{ background: 'rgba(10,20,40,0.85)', border: '1px solid rgba(30,60,120,0.3)', borderRadius: 10, padding: '14px 16px' }}>
+            <div style={{ fontSize: 10, color: '#8b9ab8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 5 }}>{m.label}</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: m.color }}>{m.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Event log ── */}
+      <div style={{ background: 'rgba(10,20,40,0.85)', border: '1px solid rgba(30,60,120,0.3)', borderRadius: 12, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid rgba(30,60,120,0.2)' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: 0.8 }}>Event Log</div>
+          <button style={{ ...S.btnGhost, fontSize: 11, padding: '4px 10px' }} onClick={load}>↻ Refresh</button>
+        </div>
+
+        {loading ? (
+          <div style={{ padding: '28px', textAlign: 'center', color: '#8b9ab8', fontSize: 13 }}>Loading…</div>
+        ) : whEvents.length === 0 ? (
+          <div style={{ padding: '32px', textAlign: 'center', color: '#8b9ab8', fontSize: 13 }}>
+            No webhook events recorded yet. Click "Test Webhook" to verify your setup.
+          </div>
+        ) : (
+          <>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr>
+                    {['Event Type', 'Status', 'Received', 'Processed', 'Error', 'Actions'].map(h => (
+                      <th key={h} style={{ textAlign: 'left', padding: '9px 14px', background: 'rgba(5,10,25,0.6)', color: '#8b9ab8', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, borderBottom: '1px solid rgba(30,60,120,0.2)', whiteSpace: 'nowrap' }}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageSlice.map(ev => (
+                    <tr key={ev.id} style={{ borderBottom: '1px solid rgba(30,60,120,0.1)' }}>
+                      <td style={{ padding: '10px 14px', color: '#ccc', verticalAlign: 'middle' }}>
+                        <code style={{ ...S.code, fontSize: 11 }}>{ev.event_type}</code>
+                        <div style={{ fontSize: 10, color: '#8b9ab8', marginTop: 2, fontFamily: 'monospace' }}>
+                          {ev.stripe_event_id?.slice(0, 24)}…
+                        </div>
+                      </td>
+                      <td style={{ padding: '10px 14px', verticalAlign: 'middle' }}>
+                        <span style={whBadge(ev.status)}>{ev.status}</span>
+                      </td>
+                      <td style={{ padding: '10px 14px', color: '#8b9ab8', fontSize: 12, verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                        {fmtTs(ev.received_at)}
+                      </td>
+                      <td style={{ padding: '10px 14px', color: '#8b9ab8', fontSize: 12, verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                        {ev.processed_at ? fmtTs(ev.processed_at) : '—'}
+                      </td>
+                      <td style={{ padding: '10px 14px', verticalAlign: 'middle', maxWidth: 200 }}>
+                        {ev.error_message
+                          ? <span style={{ fontSize: 11, color: '#ff9999', fontFamily: 'monospace', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }} title={ev.error_message}>
+                              {ev.error_message}
+                            </span>
+                          : <span style={{ color: '#444', fontSize: 11 }}>—</span>
+                        }
+                      </td>
+                      <td style={{ padding: '10px 14px', verticalAlign: 'middle' }}>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            style={{ ...S.btnGhost, fontSize: 10, padding: '3px 8px' }}
+                            onClick={() => setViewEvent(ev)}
+                          >
+                            View
+                          </button>
+                          {ev.status === 'failed' && (
+                            <button
+                              style={{ background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.3)', color: '#fbbf24', borderRadius: 5, fontSize: 10, padding: '3px 8px', cursor: 'pointer', fontWeight: 600, opacity: retrying === ev.id ? 0.6 : 1 }}
+                              onClick={() => handleRetry(ev)}
+                              disabled={retrying === ev.id}
+                            >
+                              {retrying === ev.id ? '…' : '↻ Retry'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            {pageCount > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderTop: '1px solid rgba(30,60,120,0.2)', fontSize: 12, color: '#8b9ab8' }}>
+                <button style={{ ...S.btnGhost, fontSize: 11, padding: '3px 9px', opacity: page === 0 ? 0.4 : 1 }} disabled={page === 0} onClick={() => setPage(p => p - 1)}>← Prev</button>
+                <span>Page {page + 1} of {pageCount} ({whEvents.length} events)</span>
+                <button style={{ ...S.btnGhost, fontSize: 11, padding: '3px 9px', opacity: page >= pageCount - 1 ? 0.4 : 1 }} disabled={page >= pageCount - 1} onClick={() => setPage(p => p + 1)}>Next →</button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* ── CLI hint ── */}
+      <div style={{ ...S.card, marginTop: 14, fontSize: 12, color: '#8b9ab8', lineHeight: 1.9 }}>
+        💡 <strong style={{ color: '#888' }}>Local testing:</strong>{' '}
+        <code style={S.code}>stripe listen --forward-to localhost:5173/api/stripe-webhook</code>
+        {' '}or send a test event from the{' '}
+        <a href="https://dashboard.stripe.com/test/webhooks" target="_blank" rel="noreferrer" style={{ color: '#00d4ff' }}>Stripe Dashboard → Webhooks</a>.
+      </div>
+
+      {/* ── Toast ── */}
+      {toast && (
+        <div style={{ position: 'fixed', bottom: 28, right: 28, zIndex: 9999, background: '#0f1521', border: `1px solid ${toast.type === 'ok' ? 'rgba(78,201,176,.4)' : 'rgba(255,80,80,.4)'}`, borderLeft: `3px solid ${toast.type === 'ok' ? '#4ec9b0' : '#ff6b6b'}`, borderRadius: 8, padding: '12px 18px', fontSize: 13, color: '#e8e8e8', boxShadow: '0 4px 20px rgba(0,0,0,.6)', maxWidth: 360 }}>
+          {toast.msg}
+        </div>
+      )}
+
+      {/* ── Detail modal ── */}
+      {viewEvent && <WebhookEventDetailModal event={viewEvent} onClose={() => setViewEvent(null)} />}
     </div>
   )
 }

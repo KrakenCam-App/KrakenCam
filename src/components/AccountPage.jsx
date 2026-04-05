@@ -821,7 +821,7 @@ export function InviteUserButton({ canEdit }) {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${jwt}`,
         },
-        body: JSON.stringify({ email: email.trim(), role }),
+        body: JSON.stringify({ email: email.trim(), role, resend: true }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -842,9 +842,9 @@ export function InviteUserButton({ canEdit }) {
         className="btn btn-secondary btn-sm"
         onClick={() => canEdit && setOpen(true)}
         disabled={!canEdit}
-        title="Invite a user to join your organization"
+        title="Resend an invitation email to a team member"
       >
-        ✉️ Invite
+        🔁 Resend Invite
       </button>
     );
   }
@@ -860,9 +860,9 @@ export function InviteUserButton({ canEdit }) {
         fontFamily: "'Inter','Segoe UI',sans-serif", color: "#e8eaf0",
         boxShadow: "0 24px 64px rgba(0,0,0,0.5)",
       }}>
-        <h3 style={{ margin: "0 0 6px", fontSize: 18, fontWeight: 700 }}>Invite Team Member</h3>
+        <h3 style={{ margin: "0 0 6px", fontSize: 18, fontWeight: 700 }}>Resend Invitation</h3>
         <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 20 }}>
-          Send an invitation link by email. They'll create their own account.
+          Send a fresh invite link to a team member who hasn't signed up yet.
         </p>
         <div style={{ marginBottom: 14 }}>
           <label style={{ fontSize: 12, color: "#9ca3af", fontWeight: 500, display: "block", marginBottom: 5 }}>Email</label>
@@ -926,7 +926,7 @@ export function InviteUserButton({ canEdit }) {
               opacity: sending ? 0.7 : 1,
             }}
           >
-            {sending ? "Sending…" : "Send Invite"}
+            {sending ? "Sending…" : "Resend Invite"}
           </button>
         </div>
       </div>
@@ -935,7 +935,7 @@ export function InviteUserButton({ canEdit }) {
 }
 
 export function AccountPage({ settings, onSettingsChange, projects, users, onUsersChange, onProjectsChange, onNotify }) {
-  const { profile: acctAuthProfile } = useAuth();
+  const { profile: acctAuthProfile, session } = useAuth();
   const [tab, setTab]         = useState("team");
   const [editingUser, setEditingUser] = useState(null);
   const [addingUser, setAddingUser]   = useState(false);
@@ -1028,9 +1028,19 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
         // Brand-new user — insert a pending profile (no auth account yet)
         const orgId = acctAuthProfile?.organization_id;
         if (orgId) {
-          createTeamMember(normalizedUser, orgId).catch(err =>
-            console.warn("[KrakenCam] Failed to create team member:", err.message || err)
-          );
+          createTeamMember(normalizedUser, orgId)
+            .then(() => {
+              // Auto-send invite email so the new user can create their login
+              const jwt = session?.access_token;
+              if (jwt && normalizedUser.email) {
+                fetch('/api/invite-user', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
+                  body: JSON.stringify({ email: normalizedUser.email, role: normalizedUser.role || 'user' }),
+                }).catch(err => console.warn('[KrakenCam] Auto-invite email failed:', err));
+              }
+            })
+            .catch(err => console.warn("[KrakenCam] Failed to create team member:", err.message || err));
         }
       } else {
         // Existing user — update their profile (pass previous email so auth email can be updated if changed)
@@ -2343,7 +2353,11 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
                 { key:"allowUserProjectCreation", label:"Allow User Jobsite Creation", desc:"Let standard users create and edit jobsites instead of staying view-only." },
                 { key:"allowManagerBillingAccess", label:"Allow Manager Billing Access", desc:"Let managers view plan, billing, and payment details." },
                 { key:"allowManagerPermissionEditing", label:"Allow Manager Permission Editing", desc:"Let managers edit account-wide permission defaults." },
+                { key:"allowManagersAi", label:"Allow Managers to Use AI Features", desc:"Managers can use AI generation, report writing, and the Project Assistant.", adminOnly:true },
+                { key:"allowUsersAi",    label:"Allow Users to Use AI Features",    desc:"Standard users can use AI generation, report writing, and the Project Assistant.", adminOnly:true },
               ].map(item => {
+                // adminOnly toggles are hidden for non-admins entirely
+                if (item.adminOnly && currentUserRole !== "admin") return null;
                 const enabled = permissionPolicies[item.key] !== false;
                 return (
                   <div key={item.key} style={{ padding:"14px 16px",borderRadius:12,border:"1px solid var(--border)",background:"var(--surface2)",display:"flex",justifyContent:"space-between",gap:12 }}>

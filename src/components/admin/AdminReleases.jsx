@@ -5,9 +5,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
-
-const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL
-const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY
+import { adminFrom, adminInsert, adminUpdate, adminDelete } from '../../lib/adminFetch'
 
 const NOTE_TYPES = [
   { value:'new',     label:'✨ New',     color:'#4ade80' },
@@ -29,15 +27,6 @@ const S = {
   modalBox: { background:'#0f1521', border:'1px solid rgba(255,255,255,.1)', borderRadius:16, padding:'28px 24px', width:'100%', maxWidth:560, maxHeight:'90vh', overflowY:'auto' },
 }
 
-async function sbFetch(path, opts={}) {
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}`, 'Content-Type':'application/json', ...opts.headers },
-    ...opts,
-  })
-  const text = await r.text()
-  return text ? JSON.parse(text) : null
-}
-
 function NoteTypeTag({ type }) {
   const meta = NOTE_TYPES.find(t => t.value === type) || NOTE_TYPES[0]
   return <span style={S.badge(meta.color)}>{meta.label}</span>
@@ -55,8 +44,13 @@ export default function AdminReleases() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const data = await sbFetch('app_versions?select=*&order=release_date.desc')
-    setVersions(Array.isArray(data) ? data : [])
+    try {
+      const data = await adminFrom('app_versions', 'select=*&order=release_date.desc')
+      setVersions(Array.isArray(data) ? data : [])
+    } catch (e) {
+      console.warn('AdminReleases load error:', e)
+      setVersions([])
+    }
     setLoading(false)
   }, [])
 
@@ -79,24 +73,42 @@ export default function AdminReleases() {
   const save = async () => {
     if (!form.version.trim() || !form.title.trim()) return
     setSaving(true)
-    const payload = { version:form.version.trim(), title:form.title.trim(), release_date:form.release_date, notes:form.notes.filter(n=>n.text.trim()), published:form.published }
-    if (editVer) {
-      await sbFetch(`app_versions?version=eq.${encodeURIComponent(editVer.version)}`, { method:'PATCH', headers:{Prefer:'return=minimal'}, body:JSON.stringify(payload) })
-    } else {
-      await sbFetch('app_versions', { method:'POST', headers:{Prefer:'return=minimal'}, body:JSON.stringify(payload) })
+    const payload = {
+      version: form.version.trim(),
+      title: form.title.trim(),
+      release_date: form.release_date,
+      notes: form.notes.filter(n => n.text.trim()),
+      published: form.published,
+    }
+    try {
+      if (editVer) {
+        await adminUpdate('app_versions', payload, `version=eq.${encodeURIComponent(editVer.version)}`)
+      } else {
+        await adminInsert('app_versions', payload)
+      }
+    } catch (e) {
+      console.error('AdminReleases save error:', e)
     }
     setSaving(false); setShowForm(false); load()
   }
 
   const togglePublish = async (v) => {
-    await sbFetch(`app_versions?version=eq.${encodeURIComponent(v.version)}`, { method:'PATCH', headers:{Prefer:'return=minimal'}, body:JSON.stringify({ published:!v.published }) })
-    load()
+    try {
+      await adminUpdate('app_versions', { published: !v.published }, `version=eq.${encodeURIComponent(v.version)}`)
+      load()
+    } catch (e) {
+      console.error('togglePublish error:', e)
+    }
   }
 
   const deleteVersion = async (v) => {
     if (!window.confirm(`Delete version ${v.version}?`)) return
-    await sbFetch(`app_versions?version=eq.${encodeURIComponent(v.version)}`, { method:'DELETE', headers:{Prefer:'return=minimal'} })
-    load()
+    try {
+      await adminDelete('app_versions', `version=eq.${encodeURIComponent(v.version)}`)
+      load()
+    } catch (e) {
+      console.error('deleteVersion error:', e)
+    }
   }
 
   return (

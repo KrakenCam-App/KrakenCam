@@ -1,9 +1,23 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../lib/supabase";
+import { getProjectSubcontractors } from "../lib/projects.js";
 import { Icon, ic, RoomIcon, RoomIconBadge } from "../utils/icons.jsx";
 import { hasPermissionLevel, getEffectivePermissions, getPermissionPolicies, FIELD_TYPES } from "../utils/constants.js";
 import { uid, today , ROOM_ICONS, ROOM_COLORS, STATUS_META, normaliseStatuses, getStatusMeta, ROLE_META
 } from "../utils/helpers.js";
+
+// Shared across ProjectModal (editor stepper) and ProjectsList (card progress bar)
+const TIMELINE_STAGES = [
+  { id:"lead",             label:"Lead",             icon:"📋" },
+  { id:"assessment",       label:"Assessment",       icon:"🔍" },
+  { id:"approved",         label:"Approved",         icon:"✅" },
+  { id:"planning",         label:"Planning",         icon:"🗂️" },
+  { id:"in_progress",      label:"In Progress",      icon:"🔨" },
+  { id:"final_walk",       label:"Final Walk",       icon:"🚶" },
+  { id:"completion_phase", label:"Completion Phase", icon:"🧩" },
+  { id:"invoiced",         label:"Invoiced",         icon:"🧾" },
+  { id:"completed",        label:"Completed",        icon:"🏁" },
+];
 
 export function ProjectModal({ project, teamUsers = [], settings = {}, onSave, onClose }) {
   const isEdit = !!project;
@@ -28,6 +42,8 @@ export function ProjectModal({ project, teamUsers = [], settings = {}, onSave, o
     })(),
     clientEmail:         project?.clientEmail         || "",
     clientPhone:         project?.clientPhone         || "",
+    clientCellPhone:     project?.clientCellPhone     || "",
+    clientBusinessName:  project?.clientBusinessName  || "",
     clientRelationship:  project?.clientRelationship  || "",
     occupancyStatus:     project?.occupancyStatus     || "",
     contractorName:      project?.contractorName      || "",
@@ -89,17 +105,29 @@ export function ProjectModal({ project, teamUsers = [], settings = {}, onSave, o
   const CAUSE_OF_LOSS = settings?.causeOfLossOptions?.length ? settings.causeOfLossOptions : ["Water — Pipe Burst","Water — Flooding","Water — Sewage Backup","Water — Roof Leak","Fire — Structure","Fire — Smoke/Soot","Wind / Storm Damage","Mold / Microbial","Impact / Collision","Vandalism / Break-In","Earthquake","Hail","Electrical","Other"];
   const PPE_OPTIONS = ["Hard Hat","Safety Glasses / Goggles","Work Boots","Respirator","Tyvek Suit","Gloves","High Viz","Hearing Protection"];
   const togglePPE = item => set("ppeItems", form.ppeItems.includes(item) ? form.ppeItems.filter(x => x !== item) : [...form.ppeItems, item]);
-  const TIMELINE_STAGES = [
-    { id:"lead",        label:"Lead",           icon:"📋" },
-    { id:"assessment",  label:"Assessment",     icon:"🔍" },
-    { id:"approved",    label:"Approved",       icon:"✅" },
-    { id:"planning",    label:"Planning",       icon:"🗂️" },
-    { id:"in_progress", label:"In Progress",    icon:"🔨" },
-    { id:"final_walk",  label:"Final Walk",     icon:"🚶" },
-    { id:"completion_phase", label:"Completion Phase", icon:"🧩" },
-    { id:"invoiced",    label:"Invoiced",       icon:"🧾" },
-    { id:"completed",   label:"Completed",      icon:"🏁" },
-  ];
+  // TIMELINE_STAGES is defined at module level above (shared with ProjectsList)
+
+  // ── Subcontractors ───────────────────────────────────────────────────────────
+  const [subcontractors, setSubcontractors] = useState([]);
+  const [subcontractorsOpen, setSubcontractorsOpen] = useState(false);
+
+  const newSubcontractor = () => ({ _key: Math.random().toString(36).slice(2), companyName: "", contactName: "", phoneNumber: "", serviceDescription: "", notes: "" });
+  const addSubcontractor = () => setSubcontractors(s => [...s, newSubcontractor()]);
+  const removeSubcontractor = (key) => setSubcontractors(s => s.filter(x => x._key !== key));
+  const setSubField = (key, field, val) => setSubcontractors(s => s.map(x => x._key === key ? { ...x, [field]: val } : x));
+
+  // Load existing subcontractors when editing
+  useEffect(() => {
+    if (!project?.id) return;
+    getProjectSubcontractors(project.id)
+      .then(subs => {
+        if (subs.length > 0) {
+          setSubcontractors(subs.map(s => ({ ...s, _key: s.id || Math.random().toString(36).slice(2) })));
+          setSubcontractorsOpen(true);
+        }
+      })
+      .catch(() => {}); // non-fatal — form still works without
+  }, [project?.id]);
 
   const [geocodeState, setGeocodeState] = useState(
     project?.lat && project?.lng ? "done" : "idle"
@@ -154,6 +182,8 @@ export function ProjectModal({ project, teamUsers = [], settings = {}, onSave, o
       rooms,
       teamMembers,
       assignedUserIds,
+      // Pass subcontractors separately — saved by parent after project upsert
+      _subcontractors: subcontractors.filter(s => s.companyName?.trim()),
       lat: form.lat || "",
       lng: form.lng || "",
       zip: form.zip?.trim() || "",
@@ -378,11 +408,19 @@ export function ProjectModal({ project, teamUsers = [], settings = {}, onSave, o
               <div className="form-group"><label className="form-label">First Name</label><input className="form-input" placeholder="Jane" value={form.clientFirstName} onChange={e => set("clientFirstName", e.target.value)} /></div>
               <div className="form-group"><label className="form-label">Last Name</label><input className="form-input" placeholder="Smith" value={form.clientLastName} onChange={e => set("clientLastName", e.target.value)} /></div>
             </div>
+            <div className="form-group">
+              <label className="form-label">Business <span style={{ fontWeight:400, color:"var(--text3)", fontSize:11 }}>optional</span></label>
+              <input className="form-input" placeholder="Company or business name" value={form.clientBusinessName} onChange={e => set("clientBusinessName", e.target.value)} />
+            </div>
             <div className="form-row">
               <div className="form-group"><label className="form-label">Email</label><input className="form-input" placeholder="client@email.com" value={form.clientEmail} onChange={e => set("clientEmail", e.target.value)} /></div>
               <div className="form-group"><label className="form-label">Phone</label><input className="form-input" placeholder="(555) 000-0000" value={form.clientPhone} onChange={e => set("clientPhone", e.target.value)} /></div>
             </div>
             <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Cell <span style={{ fontWeight:400, color:"var(--text3)", fontSize:11 }}>optional</span></label>
+                <input className="form-input" placeholder="(555) 000-0000" value={form.clientCellPhone} onChange={e => set("clientCellPhone", e.target.value)} />
+              </div>
               <div className="form-group">
                 <label className="form-label">Relationship to Property</label>
                 <select className="form-input form-select" value={form.clientRelationship} onChange={e => set("clientRelationship", e.target.value)}>
@@ -390,13 +428,13 @@ export function ProjectModal({ project, teamUsers = [], settings = {}, onSave, o
                   {["Owner","Tenant","Property Manager","Manager","Office Admin","Other"].map(o => <option key={o}>{o}</option>)}
                 </select>
               </div>
-              <div className="form-group">
-                <label className="form-label">Building Occupancy Status</label>
-                <select className="form-input form-select" value={form.occupancyStatus} onChange={e => set("occupancyStatus", e.target.value)}>
-                  <option value="">— Select —</option>
-                  {["Occupied","Unoccupied","Vacant","Partially Occupied","Condemned","Restricted","Seasonal Occupancy"].map(o => <option key={o}>{o}</option>)}
-                </select>
-              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Building Occupancy Status</label>
+              <select className="form-input form-select" value={form.occupancyStatus} onChange={e => set("occupancyStatus", e.target.value)}>
+                <option value="">— Select —</option>
+                {["Occupied","Unoccupied","Vacant","Partially Occupied","Condemned","Restricted","Seasonal Occupancy"].map(o => <option key={o}>{o}</option>)}
+              </select>
             </div>
           </div>
 
@@ -413,6 +451,63 @@ export function ProjectModal({ project, teamUsers = [], settings = {}, onSave, o
               <div className="form-group"><label className="form-label">Company / Name</label><input className="form-input" placeholder="Apex Builders" value={form.contractorName} onChange={e => set("contractorName", e.target.value)} /></div>
               <div className="form-group"><label className="form-label">Phone</label><input className="form-input" placeholder="(555) 000-0000" value={form.contractorPhone} onChange={e => set("contractorPhone", e.target.value)} /></div>
             </div>
+          </div>
+
+          {/* Subcontractors — collapsible */}
+          <div className="form-section">
+            <div className="form-section-title" style={{ cursor:"pointer", userSelect:"none" }} onClick={() => setSubcontractorsOpen(o => !o)}>
+              <Icon d={ic.users} size={15} stroke="var(--accent)" /> Subcontractors
+              <span style={{ marginLeft:"auto", fontSize:12, color:"var(--text3)", fontWeight:400, background:"var(--surface3)", padding:"2px 10px", borderRadius:10 }}>
+                {subcontractorsOpen ? "▲ Hide" : "▼ Add"}
+              </span>
+            </div>
+            {subcontractorsOpen && (
+              <>
+                {subcontractors.length === 0 && (
+                  <div style={{ fontSize:13, color:"var(--text3)", padding:"10px 0 6px" }}>No subcontractors added yet.</div>
+                )}
+                {subcontractors.map((sub, idx) => (
+                  <div key={sub._key} style={{ position:"relative", background:"var(--surface2)", border:"1px solid var(--border)", borderRadius:"var(--radius-sm)", padding:"14px 14px 10px", marginBottom:10 }}>
+                    {/* Row header */}
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+                      <span style={{ fontSize:12, fontWeight:700, color:"var(--text2)", textTransform:"uppercase", letterSpacing:".04em" }}>
+                        Subcontractor {idx + 1}
+                      </span>
+                      <button type="button" onClick={() => removeSubcontractor(sub._key)}
+                        style={{ background:"none", border:"none", cursor:"pointer", color:"var(--text3)", fontSize:18, lineHeight:1, padding:"0 2px" }}
+                        title="Remove subcontractor">×</button>
+                    </div>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label className="form-label">Company Name *</label>
+                        <input className="form-input" placeholder="e.g. ABC Plumbing" value={sub.companyName} onChange={e => setSubField(sub._key, "companyName", e.target.value)} />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Contact Name</label>
+                        <input className="form-input" placeholder="e.g. John Doe" value={sub.contactName} onChange={e => setSubField(sub._key, "contactName", e.target.value)} />
+                      </div>
+                    </div>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label className="form-label">Phone Number</label>
+                        <input className="form-input" placeholder="(555) 000-0000" value={sub.phoneNumber} onChange={e => setSubField(sub._key, "phoneNumber", e.target.value)} />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Service Completing</label>
+                        <input className="form-input" placeholder="e.g. Plumbing, HVAC, Framing…" value={sub.serviceDescription} onChange={e => setSubField(sub._key, "serviceDescription", e.target.value)} />
+                      </div>
+                    </div>
+                    <div className="form-group" style={{ marginBottom:0 }}>
+                      <label className="form-label">Notes</label>
+                      <input className="form-input" placeholder="Any notes about this subcontractor…" value={sub.notes} onChange={e => setSubField(sub._key, "notes", e.target.value)} />
+                    </div>
+                  </div>
+                ))}
+                <button type="button" className="btn btn-secondary" style={{ width:"100%", marginTop:4, fontSize:13 }} onClick={addSubcontractor}>
+                  <Icon d={ic.plus} size={14} /> Add Subcontractor
+                </button>
+              </>
+            )}
           </div>
 
           {/* Site Conditions — collapsible */}
@@ -665,155 +760,490 @@ export function ProjectModal({ project, teamUsers = [], settings = {}, onSave, o
 }
 
 // ── Projects List (Home) ───────────────────────────────────────────────────────
-export function ProjectsList({ projects, teamUsers = [], settings = {}, onSelect, onNew, onEdit, onDelete }) {
-  const [showDeleteId, setShowDeleteId] = useState(null);
-  const [filterStatus, setFilterStatus] = useState("active");
-  const [search, setSearch] = useState("");
-  const [myOnly, setMyOnly] = useState(false);
+export function ProjectsList({ projects, teamUsers = [], settings = {}, onSelect, onNew, onEdit, onDelete, onUpdateProject, tasks = [], calEvents = [], userId = null, orgId = null }) {
+  const [showDeleteId,      setShowDeleteId]      = useState(null);
+  const [filterStatus,      setFilterStatus]      = useState("active");
+  const [search,            setSearch]            = useState("");
+  const [myOnly,            setMyOnly]            = useState(false);
+  const [sortBy,            setSortBy]            = useState("recent");
+  const [menuOpenId,        setMenuOpenId]        = useState(null);
+  const [bulkMode,          setBulkMode]          = useState(false);
+  const [selected,          setSelected]          = useState([]);
+  const [pinnedIds,         setPinnedIds]         = useState([]);
+  const [filterPinned,      setFilterPinned]      = useState(false);
+  const [filterEventsToday, setFilterEventsToday] = useState(false);
+  const [filterOverdue,     setFilterOverdue]     = useState(false);
+  const menuRef = useRef(null);
 
-  // Current user is __admin__ (the logged-in account holder)
-  const currentUserId = "__admin__";
-  const projectPerms = getEffectivePermissions(settings?.userRole || "admin", settings?.userPermissions, settings);
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  const projectPerms     = getEffectivePermissions(settings?.userRole || "admin", settings?.userPermissions, settings);
   const permissionPolicies = getPermissionPolicies(settings);
   const canCreateProjects = hasPermissionLevel(projectPerms, "projects", "edit") || (settings?.userRole === "user" && permissionPolicies.allowUserProjectCreation);
-  const canEditProjects = hasPermissionLevel(projectPerms, "projects", "edit");
+  const canEditProjects   = hasPermissionLevel(projectPerms, "projects", "edit");
   const canDeleteProjects = hasPermissionLevel(projectPerms, "deletes", "edit") || (settings?.userRole === "user" && permissionPolicies.allowUserDeletes);
 
+  // ── Load pins from Supabase ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (!userId) return;
+    supabase.from("jobsite_pins").select("project_id").eq("user_id", userId)
+      .then(({ data }) => { if (data) setPinnedIds(data.map(r => r.project_id)); });
+  }, [userId]);
+
+  // Close 3-dot menu on outside click
+  useEffect(() => {
+    if (!menuOpenId) return;
+    const handler = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpenId(null);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuOpenId]);
+
+  // ── Pin toggle ───────────────────────────────────────────────────────────────
+  const togglePin = useCallback(async (e, projectId) => {
+    e.stopPropagation();
+    const isPinned = pinnedIds.includes(projectId);
+    if (isPinned) {
+      setPinnedIds(ids => ids.filter(id => id !== projectId));
+      if (userId) supabase.from("jobsite_pins").delete().eq("user_id", userId).eq("project_id", projectId).then(() => {});
+    } else {
+      setPinnedIds(ids => [...ids, projectId]);
+      if (userId && orgId) supabase.from("jobsite_pins").insert([{ user_id: userId, organization_id: orgId, project_id: projectId }]).then(() => {});
+    }
+  }, [pinnedIds, userId, orgId]);
+
+  // ── Per-project derived helpers ──────────────────────────────────────────────
+  const getNextEvent = useCallback((projectId) => {
+    return calEvents
+      .filter(e => e.projectId === projectId && e.startDate >= todayStr)
+      .sort((a, b) => a.startDate.localeCompare(b.startDate))[0] || null;
+  }, [calEvents, todayStr]);
+
+  const getOverdueCount = useCallback((projectId) => {
+    return tasks.filter(t => t.projectId === projectId && t.dueDate && t.dueDate < todayStr && t.status !== "done" && t.status !== "completed").length;
+  }, [tasks, todayStr]);
+
+  const getProjectProgress = useCallback((project) => {
+    // Mirror the Project Timeline stepper: progress = stage index / (total stages - 1)
+    if (!project.timelineStage) return 0; // no stage set → empty bar
+    const idx = TIMELINE_STAGES.findIndex(s => s.id === project.timelineStage);
+    if (idx < 0) return 0;
+    return Math.round((idx / (TIMELINE_STAGES.length - 1)) * 100);
+  }, []);
+
+  const getLastActivity = useCallback((project) => {
+    return project.last_activity_at || project.updatedAt || project.createdAt || null;
+  }, []);
+
+  const getHealthWarnings = useCallback((project) => {
+    const w = [];
+    const clientName = [project.clientFirstName, project.clientLastName].filter(Boolean).join(" ") || project.clientName;
+    if (!clientName)                         w.push("No client");
+    if (!project.address)                    w.push("No address");
+    if (!(project.reports || []).length)     w.push("No reports");
+    if (!(project.photos  || []).length)     w.push("No photos");
+    if (!getNextEvent(project.id))           w.push("No upcoming event");
+    const lastAct = getLastActivity(project);
+    if (lastAct) {
+      const daysAgo = Math.floor((Date.now() - new Date(lastAct).getTime()) / 86400000);
+      if (daysAgo >= 30) w.push(`Inactive ${daysAgo}d`);
+    }
+    return w;
+  }, [getNextEvent, getLastActivity]);
+
+  const formatRelTime = useCallback((iso) => {
+    if (!iso) return "";
+    const diff = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1)  return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24)  return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    if (days < 30) return `${days}d ago`;
+    return `${Math.floor(days / 30)}mo ago`;
+  }, []);
+
+  const formatDateShort = (dateStr) => {
+    if (!dateStr) return "";
+    const d = new Date(dateStr + "T00:00:00");
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
+
+  // ── Summary metrics ──────────────────────────────────────────────────────────
+  const overdueTasksTotal  = tasks.filter(t => t.dueDate && t.dueDate < todayStr && t.status !== "done" && t.status !== "completed").length;
+  const eventsTodayTotal   = calEvents.filter(e => e.startDate === todayStr).length;
+  const pendingReportsTotal = projects.reduce((a, p) => a + (p.reports || []).filter(r => r.status === "draft" || r.status === "pending" || !r.status).length, 0);
+
+  // ── Filter helpers ────────────────────────────────────────────────────────────
+  const hasEventsToday = (p) => calEvents.some(e => e.projectId === p.id && e.startDate === todayStr);
+  const hasOverdueTasks = (p) => tasks.some(t => t.projectId === p.id && t.dueDate && t.dueDate < todayStr && t.status !== "done" && t.status !== "completed");
+  const effectiveUserId = userId || "__admin__";
+
+  // ── Filtered + sorted list ────────────────────────────────────────────────────
   const filtered = projects
-    .filter(p => !myOnly || (p.assignedUserIds||[]).includes(currentUserId))
+    .filter(p => !filterPinned      || pinnedIds.includes(p.id))
+    .filter(p => !filterEventsToday || hasEventsToday(p))
+    .filter(p => !filterOverdue     || hasOverdueTasks(p))
+    .filter(p => !myOnly            || (p.assignedUserIds || []).includes(effectiveUserId))
     .filter(p => filterStatus === "all" || p.status === filterStatus)
-    .filter(p => !search || p.title.toLowerCase().includes(search.toLowerCase()) || p.address.toLowerCase().includes(search.toLowerCase()) || (p.clientName||"").toLowerCase().includes(search.toLowerCase()))
+    .filter(p => {
+      if (!search) return true;
+      const q = search.toLowerCase();
+      const client = [p.clientFirstName, p.clientLastName].filter(Boolean).join(" ").toLowerCase() || (p.clientName || "").toLowerCase();
+      return p.title.toLowerCase().includes(q) || (p.address || "").toLowerCase().includes(q) || client.includes(q);
+    })
     .slice()
     .sort((a, b) => {
-      const sort = settings.projectSort || "recent";
-      if (sort === "alpha")  return a.title.localeCompare(b.title);
-      if (sort === "oldest") return new Date(a.createdAt||0) - new Date(b.createdAt||0);
-      if (sort === "newest") return new Date(b.createdAt||0) - new Date(a.createdAt||0);
-      // "recent" — by updatedAt falling back to createdAt
-      return new Date(b.updatedAt||b.createdAt||0) - new Date(a.updatedAt||a.createdAt||0);
+      // Pinned always float first
+      const aPinned = pinnedIds.includes(a.id) ? 0 : 1;
+      const bPinned = pinnedIds.includes(b.id) ? 0 : 1;
+      if (aPinned !== bPinned) return aPinned - bPinned;
+      switch (sortBy) {
+        case "alpha":        return a.title.localeCompare(b.title);
+        case "alpha_desc":   return b.title.localeCompare(a.title);
+        case "oldest":       return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+        case "newest":       return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+        case "most_photos":  return (b.photos?.length || 0) - (a.photos?.length || 0);
+        case "most_reports": return (b.reports?.length || 0) - (a.reports?.length || 0);
+        case "overdue":      return getOverdueCount(b.id) - getOverdueCount(a.id);
+        case "next_event": {
+          const aEv = getNextEvent(a.id), bEv = getNextEvent(b.id);
+          if (!aEv && !bEv) return 0;
+          if (!aEv) return 1; if (!bEv) return -1;
+          return aEv.startDate.localeCompare(bEv.startDate);
+        }
+        default: // recent
+          return new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0);
+      }
     });
 
-  const totalPhotos = projects.reduce((a, p) => a + (p.photos?.length || 0), 0);
+  // ── Bulk helpers ─────────────────────────────────────────────────────────────
+  const toggleSelect = (e, id) => {
+    e.stopPropagation();
+    setSelected(sel => sel.includes(id) ? sel.filter(s => s !== id) : [...sel, id]);
+  };
+  const selectAll   = () => setSelected(filtered.map(p => p.id));
+  const clearSelect = () => { setSelected([]); setBulkMode(false); };
+  const bulkArchive = () => {
+    if (onUpdateProject) selected.forEach(id => { const p = projects.find(pr => pr.id === id); if (p) onUpdateProject({ ...p, status: "archived" }); });
+    clearSelect();
+  };
+  const bulkSetStatus = (status) => {
+    if (onUpdateProject) selected.forEach(id => { const p = projects.find(pr => pr.id === id); if (p) onUpdateProject({ ...p, status }); });
+    clearSelect();
+  };
+
+  // ── 3-dot menu action ────────────────────────────────────────────────────────
+  const menuAction = (e, fn) => { e.stopPropagation(); fn(); setMenuOpenId(null); };
+
+  // Warning chip color map
+  const warnColor = { "No client":"#e8a33a", "No address":"#e8a33a", "No reports":"#3ab8e8", "No photos":"#3ab8e8", "No upcoming event":"#8b7cf8" };
+
+  const SORT_OPTIONS = [
+    ["recent",       "Recently Updated"],
+    ["newest",       "Date Created (Newest)"],
+    ["oldest",       "Date Created (Oldest)"],
+    ["alpha",        "Name A→Z"],
+    ["alpha_desc",   "Name Z→A"],
+    ["most_photos",  "Most Photos"],
+    ["most_reports", "Most Reports"],
+    ["overdue",      "Most Overdue Tasks"],
+    ["next_event",   "Next Upcoming Event"],
+  ];
 
   return (
-    <div className="page fade-in">
-      {/* Top stats */}
-      <div className="stats-grid">
+    <div className="page fade-in" onClick={() => setMenuOpenId(null)}>
+
+      {/* ── Summary metrics ── */}
+      <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:18 }}>
         {[
-          { label:"Total Jobsites", value:String(projects.length),  sub:`${projects.filter(p=>p.status==="active").length} active`, cls:"orange" },
-          { label:"Total Photos",   value:String(totalPhotos),      sub:"Across all projects",                                       cls:"blue"   },
-          { label:"Active Reports", value:String(projects.reduce((a,p)=>a+(p.reports?.length||0),0)), sub:"Across all projects",     cls:"green"  },
-          { label:"Completed",      value:String(projects.filter(p=>p.status==="completed").length),  sub:"Finished projects",       cls:"purple" },
+          { label:"Overdue Tasks",    value:overdueTasksTotal,  sub:"need attention",   color:"#e85a3a", onClick:() => setFilterOverdue(v => !v),     active:filterOverdue     },
+          { label:"Events Today",     value:eventsTodayTotal,   sub:"scheduled today",  color:"#3ab8e8", onClick:() => setFilterEventsToday(v => !v), active:filterEventsToday },
+          { label:"Pending Reports",  value:pendingReportsTotal, sub:"draft / pending", color:"#8b7cf8", onClick:null,                                active:false             },
         ].map(s => (
-          <div key={s.label} className={`stat-card ${s.cls}`}>
-            <div className="stat-label">{s.label}</div>
-            <div className="stat-value">{s.value}</div>
-            <div className="stat-sub">{s.sub}</div>
+          <div key={s.label}
+            onClick={s.onClick || undefined}
+            style={{ background:s.active?"var(--accent-glow)":"var(--surface2)",border:`1.5px solid ${s.active?s.color:"var(--border)"}`,borderRadius:"var(--radius)",padding:"12px 14px",cursor:s.onClick?"pointer":"default",transition:"all .15s" }}>
+            <div style={{ fontSize:22,fontWeight:800,color:s.value > 0 ? s.color : "var(--text)",lineHeight:1 }}>{s.value}</div>
+            <div style={{ fontSize:11.5,fontWeight:700,color:"var(--text)",marginTop:3 }}>{s.label}</div>
+            <div style={{ fontSize:11,color:"var(--text3)",marginTop:1 }}>{s.sub}</div>
           </div>
         ))}
       </div>
 
-      {/* Toolbar */}
-      <div style={{ display:"flex",flexDirection:"column",gap:10,marginBottom:20 }}>
-        <input className="form-input" style={{ width:"100%",padding:"8px 14px",boxSizing:"border-box" }} placeholder="Search jobsites, addresses, clients…" value={search} onChange={e => setSearch(e.target.value)} />
-        <div style={{ display:"flex",alignItems:"center",gap:8,flexWrap:"wrap" }}>
-          <div style={{ display:"flex",gap:6,overflowX:"auto",WebkitOverflowScrolling:"touch",scrollbarWidth:"none",msOverflowStyle:"none",width:"100%",paddingBottom:2 }}>
-            {[["all","All"],... ((normaliseStatuses(settings.projectStatuses)||[{id:"active",label:"Active"},{id:"onhold",label:"On Hold"},{id:"completed",label:"Completed"},{id:"archived",label:"Archived"}]).map(s=>[s.id,s.label]))].map(([k,l]) => (
-              <button key={k} className={`btn btn-sm ${filterStatus===k?"btn-primary":"btn-secondary"}`} style={{ flexShrink:0 }} onClick={() => setFilterStatus(k)}>{l}</button>
-            ))}
-          </div>
-          <button
-            onClick={() => setMyOnly(v => !v)}
-            style={{ display:"flex",alignItems:"center",gap:7,padding:"6px 13px",borderRadius:"var(--radius-sm)",border:`1.5px solid ${myOnly?"var(--accent)":"var(--border)"}`,background:myOnly?"var(--accent-glow)":"var(--surface2)",cursor:"pointer",fontSize:12.5,fontWeight:600,color:myOnly?"var(--accent)":"var(--text2)",transition:"all .15s",flexShrink:0 }}>
-            <div style={{ width:16,height:16,borderRadius:4,border:`2px solid ${myOnly?"var(--accent)":"var(--border)"}`,background:myOnly?"var(--accent)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .15s",flexShrink:0 }}>
-              {myOnly && <Icon d={ic.check} size={10} stroke="white" strokeWidth={3} />}
-            </div>
-            My Jobsites
+      {/* ── Search ── */}
+      <input className="form-input" style={{ width:"100%",padding:"8px 14px",boxSizing:"border-box",marginBottom:10 }}
+        placeholder="Search jobsites, addresses, clients…" value={search} onChange={e => setSearch(e.target.value)} />
+
+      {/* ── Status filter pills + sort + new ── */}
+      {/* proj-filter-bar stacks to two rows on mobile via CSS */}
+      <div className="proj-filter-bar" style={{ display:"flex",alignItems:"center",gap:8,marginBottom:8 }}>
+        {/* Pills — get their own full row on mobile */}
+        <div className="proj-filter-pills" style={{ display:"flex",gap:5,overflowX:"auto",WebkitOverflowScrolling:"touch",scrollbarWidth:"none",flex:1,paddingBottom:2 }}>
+          {[["all","All"],... ((normaliseStatuses(settings.projectStatuses)||[{id:"active",label:"Active"},{id:"onhold",label:"On Hold"},{id:"completed",label:"Completed"},{id:"archived",label:"Archived"}]).map(s=>[s.id,s.label]))].map(([k,l]) => (
+            <button key={k} className={`btn btn-sm ${filterStatus===k?"btn-primary":"btn-secondary"}`} style={{ flexShrink:0 }} onClick={e => { e.stopPropagation(); setFilterStatus(k); }}>{l}</button>
+          ))}
+        </div>
+        {/* Sort + New — pushed to their own row on mobile */}
+        <div className="proj-filter-actions" style={{ display:"flex",gap:8,alignItems:"center",flexShrink:0 }}>
+          <select
+            value={sortBy} onChange={e => setSortBy(e.target.value)}
+            onClick={e => e.stopPropagation()}
+            style={{ fontSize:12,padding:"5px 8px",borderRadius:"var(--radius-sm)",border:"1.5px solid var(--border)",background:"var(--surface2)",color:"var(--text)",cursor:"pointer" }}>
+            {SORT_OPTIONS.map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+          <button className="btn btn-primary" style={{ flexShrink:0 }} onClick={canCreateProjects ? onNew : undefined} disabled={!canCreateProjects}>
+            <Icon d={ic.plus} size={15} /> New
           </button>
-          <button className="btn btn-primary" style={{ marginLeft:"auto" }} onClick={canCreateProjects ? onNew : undefined} disabled={!canCreateProjects}><Icon d={ic.plus} size={16} /> New Jobsite</button>
         </div>
       </div>
 
+      {/* ── Quick filter toggles + bulk mode ── */}
+      <div style={{ display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:16 }}>
+        {[
+          ["📌 Pinned",       filterPinned,      () => setFilterPinned(v => !v)      ],
+          ["⚑ Overdue",      filterOverdue,     () => setFilterOverdue(v => !v)     ],
+          ["📅 Today",        filterEventsToday, () => setFilterEventsToday(v => !v) ],
+          ["👤 Mine",         myOnly,            () => setMyOnly(v => !v)            ],
+        ].map(([label, active, toggle]) => (
+          <button key={label}
+            onClick={e => { e.stopPropagation(); toggle(); }}
+            style={{ fontSize:11.5,fontWeight:600,padding:"4px 10px",borderRadius:20,border:`1.5px solid ${active?"var(--accent)":"var(--border)"}`,background:active?"var(--accent-glow)":"var(--surface2)",color:active?"var(--accent)":"var(--text2)",cursor:"pointer",transition:"all .15s" }}>
+            {label}
+          </button>
+        ))}
+        <button onClick={e => { e.stopPropagation(); setBulkMode(v => !v); if (bulkMode) clearSelect(); }}
+          style={{ marginLeft:"auto",fontSize:11.5,fontWeight:600,padding:"4px 10px",borderRadius:20,border:`1.5px solid ${bulkMode?"var(--accent)":"var(--border)"}`,background:bulkMode?"var(--accent-glow)":"var(--surface2)",color:bulkMode?"var(--accent)":"var(--text2)",cursor:"pointer" }}>
+          {bulkMode ? "✕ Cancel" : "☑ Select"}
+        </button>
+      </div>
+
+      {/* ── Bulk action bar ── */}
+      {bulkMode && selected.length > 0 && (
+        <div style={{ display:"flex",alignItems:"center",gap:8,padding:"10px 14px",borderRadius:"var(--radius)",background:"var(--accent-glow)",border:"1.5px solid var(--accent)",marginBottom:14,flexWrap:"wrap" }}>
+          <span style={{ fontSize:12.5,fontWeight:700,color:"var(--accent)" }}>{selected.length} selected</span>
+          <button className="btn btn-sm btn-secondary" onClick={e => { e.stopPropagation(); selectAll(); }}>Select All ({filtered.length})</button>
+          <button className="btn btn-sm btn-secondary" onClick={e => { e.stopPropagation(); bulkSetStatus("active"); }}>Set Active</button>
+          <button className="btn btn-sm btn-secondary" onClick={e => { e.stopPropagation(); bulkSetStatus("onhold"); }}>Set On Hold</button>
+          <button className="btn btn-sm btn-secondary" onClick={e => { e.stopPropagation(); bulkArchive(); }}>Archive</button>
+          <button className="btn btn-sm btn-ghost" style={{ marginLeft:"auto" }} onClick={e => { e.stopPropagation(); clearSelect(); }}>Clear</button>
+        </div>
+      )}
+
+      {/* ── Empty state ── */}
       {filtered.length === 0 ? (
         <div className="empty">
           <div className="empty-icon"><Icon d={ic.briefcase} size={28} stroke="var(--text3)" /></div>
-          <h3>{search ? "No results found" : myOnly ? "No assigned jobsites" : "No jobsites yet"}</h3>
-          <p>{search ? "Try a different search term." : myOnly ? "You haven't been assigned to any jobsites yet." : "Create your first jobsite to start capturing photos and building reports."}</p>
-          {!search && !myOnly && <button className="btn btn-primary" onClick={canCreateProjects ? onNew : undefined} disabled={!canCreateProjects}><Icon d={ic.plus} size={15} /> Create First Jobsite</button>}
+          <h3>{search ? "No results found" : filterPinned ? "No pinned jobsites" : myOnly ? "No assigned jobsites" : "No jobsites yet"}</h3>
+          <p>{search ? "Try a different search term." : filterPinned ? "Pin a jobsite by clicking the pin icon on any card." : myOnly ? "You haven't been assigned to any jobsites yet." : "Create your first jobsite to start capturing photos and building reports."}</p>
+          {!search && !myOnly && !filterPinned && <button className="btn btn-primary" onClick={canCreateProjects ? onNew : undefined} disabled={!canCreateProjects}><Icon d={ic.plus} size={15} /> Create First Jobsite</button>}
         </div>
       ) : (
         <div className="grid-3">
           {filtered.map(project => {
-            const sm = getStatusMeta(project.status, settings);
+            const sm        = getStatusMeta(project.status, settings);
+            const isPinned  = pinnedIds.includes(project.id);
+            const nextEv    = getNextEvent(project.id);
+            const overdueN  = getOverdueCount(project.id);
+            const progress  = getProjectProgress(project);
+            const lastAct   = getLastActivity(project);
+            const warnings  = getHealthWarnings(project);
+            const isSelected = selected.includes(project.id);
+            const clientName = [project.clientFirstName, project.clientLastName].filter(Boolean).join(" ") || project.clientName || "";
+            const owner = project.internal_owner_user_id ? teamUsers.find(u => u.id === project.internal_owner_user_id) : null;
+            const assigned = (project.assignedUserIds || []).map(id => teamUsers.find(u => u.id === id)).filter(Boolean);
+
             return (
-              <div key={project.id} className="project-card" onClick={() => onSelect(project)}>
-                <div className="project-card-bar" style={{ background: project.color }} />
+              <div key={project.id} className="project-card"
+                style={{ outline: isSelected ? "2px solid var(--accent)" : "none", position:"relative" }}
+                onClick={() => { if (bulkMode) { toggleSelect({stopPropagation:()=>{}}, project.id); } else { onSelect(project); } }}>
+
+                {/* Color bar */}
+                <div className="project-card-bar" style={{ background: project.color || "#4a90d9" }} />
+
                 <div className="project-card-body">
-                  {/* Top row: status + edit/delete */}
-                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
-                    <span className={`tag tag-${sm.cls}`}>{sm.label}</span>
-                    <div style={{ display:"flex",gap:6 }} onClick={e => e.stopPropagation()}>
-                      <button className="btn btn-sm btn-ghost btn-icon" title="Edit" onClick={() => canEditProjects && onEdit(project)} disabled={!canEditProjects}><Icon d={ic.edit} size={14} /></button>
-                      <button className="btn btn-sm btn-ghost btn-icon" title="Delete" onClick={() => canDeleteProjects && setShowDeleteId(project.id)} disabled={!canDeleteProjects}><Icon d={ic.trash} size={14} /></button>
+
+                  {/* Row 1: bulk checkbox / pin / status / 3-dot */}
+                  <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:8 }}>
+                    {bulkMode && (
+                      <div onClick={e => toggleSelect(e, project.id)}
+                        style={{ width:17,height:17,borderRadius:4,border:`2px solid ${isSelected?"var(--accent)":"var(--border)"}`,background:isSelected?"var(--accent)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:"pointer" }}>
+                        {isSelected && <Icon d={ic.check} size={10} stroke="white" strokeWidth={3} />}
+                      </div>
+                    )}
+                    {/* Pin */}
+                    <button onClick={e => togglePin(e, project.id)}
+                      title={isPinned ? "Unpin" : "Pin to top"}
+                      style={{ background:"none",border:"none",cursor:"pointer",padding:2,color:isPinned?"var(--accent)":"var(--text3)",fontSize:14,lineHeight:1,flexShrink:0 }}>
+                      {isPinned ? "📌" : "⊙"}
+                    </button>
+                    <span className={`tag tag-${sm.cls}`} style={{ flexShrink:0 }}>{sm.label}</span>
+                    {/* Overdue badge — hidden on mobile (shown at card bottom instead) */}
+                    {overdueN > 0 && (
+                      <span className="proj-overdue-top" style={{ background:"#e85a3a",color:"white",fontSize:10,fontWeight:700,borderRadius:10,padding:"2px 7px",flexShrink:0 }}>
+                        ⚑ {overdueN} overdue
+                      </span>
+                    )}
+                    {/* 3-dot menu */}
+                    <div style={{ marginLeft:"auto",position:"relative" }} onClick={e => e.stopPropagation()} ref={menuOpenId === project.id ? menuRef : null}>
+                      <button
+                        className="btn btn-sm btn-ghost btn-icon"
+                        onClick={e => { e.stopPropagation(); setMenuOpenId(id => id === project.id ? null : project.id); }}
+                        style={{ fontSize:16,lineHeight:1,padding:"2px 6px" }}>⋯</button>
+                      {menuOpenId === project.id && (
+                        <div style={{ position:"absolute",right:0,top:"100%",zIndex:9999,background:"var(--surface)",border:"1.5px solid var(--border)",borderRadius:"var(--radius)",boxShadow:"0 8px 24px rgba(0,0,0,.3)",minWidth:170,maxWidth:"min(210px,calc(100vw - 20px))",overflow:"hidden" }}>
+                          {[
+                            ["Open",          () => onSelect(project)                                                       ],
+                            ["Edit",          () => canEditProjects && onEdit(project)                                       ],
+                            [isPinned?"Unpin":"Pin to Top", () => togglePin({ stopPropagation:()=>{} }, project.id)         ],
+                            ["Open in Maps",  () => { if (project.address) window.open(`https://maps.google.com/?q=${encodeURIComponent([project.address,project.city,project.state].filter(Boolean).join(", "))}`, "_blank"); }],
+                            ["Archive",       () => onUpdateProject && onUpdateProject({ ...project, status:"archived" })    ],
+                            ["Delete",        () => canDeleteProjects && setShowDeleteId(project.id)                         ],
+                          ].map(([label, fn]) => (
+                            <button key={label}
+                              onClick={e => menuAction(e, fn)}
+                              style={{ display:"block",width:"100%",textAlign:"left",padding:"9px 14px",fontSize:13,background:"none",border:"none",cursor:"pointer",color: label==="Delete"?"#e85a3a":"var(--text)",borderBottom:"1px solid var(--border)" }}
+                              onMouseEnter={e => e.currentTarget.style.background="var(--surface2)"}
+                              onMouseLeave={e => e.currentTarget.style.background="none"}>
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
-                  {/* Title + address always below */}
-                  <div className="project-card-title" style={{ marginBottom:4,whiteSpace:"normal" }}>{project.title}</div>
-                  <div className="project-card-addr"><Icon d={ic.mapPin} size={12} stroke="var(--text3)" />{project.address}{project.city ? `, ${project.city}` : ""}{project.state ? `, ${project.state}` : ""}</div>
-                  <div className="project-card-meta">
-                    <div className="project-card-stat"><Icon d={ic.camera} size={12} />{project.photos?.length || 0} photos</div>
-                    <div className="project-card-stat"><Icon d={ic.rooms} size={12} />{project.rooms?.length || 0} rooms</div>
+
+                  {/* Title */}
+                  <div className="project-card-title" style={{ marginBottom:3,whiteSpace:"normal",lineHeight:1.3 }}>{project.title}</div>
+
+                  {/* Address */}
+                  {project.address && (
+                    <div className="project-card-addr" style={{ marginBottom:6 }}>
+                      <Icon d={ic.mapPin} size={12} stroke="var(--text3)" />
+                      {project.address}{project.city ? `, ${project.city}` : ""}{project.state ? `, ${project.state}` : ""}
+                    </div>
+                  )}
+
+                  {/* Client */}
+                  <div style={{ fontSize:12,color:clientName?"var(--text2)":"var(--text3)",display:"flex",alignItems:"center",gap:5,marginBottom:8 }}>
+                    <Icon d={ic.user} size={12} stroke={clientName?"var(--text2)":"var(--text3)"} />
+                    {clientName || <em>No client set</em>}
+                  </div>
+
+                  {/* Counts row */}
+                  <div className="project-card-meta" style={{ marginBottom:8 }}>
+                    <div className="project-card-stat"><Icon d={ic.camera}  size={12} />{project.photos?.length  || 0} photos</div>
+                    <div className="project-card-stat"><Icon d={ic.rooms}   size={12} />{project.rooms?.length   || 0} rooms</div>
                     <div className="project-card-stat"><Icon d={ic.reports} size={12} />{project.reports?.length || 0} reports</div>
                   </div>
-                  <div style={{ fontSize:11,color:"var(--text2)",background:"var(--surface2)",borderRadius:6,padding:"5px 9px",display:"inline-flex",alignItems:"center",gap:5 }}>
-                    <Icon d={ic.hash} size={11} />{project.type}
-                  </div>
-                </div>
-                <div className="project-card-footer">
-                  <div className="project-card-client"><Icon d={ic.user} size={12} />{project.clientName || "No client set"}</div>
-                  <div style={{ display:"flex",alignItems:"center",gap:8 }}>
-                    {(project.assignedUserIds||[]).length > 0 && (() => {
-                      const assigned = (project.assignedUserIds||[])
-                        .map(id => teamUsers.find(u => u.id === id))
-                        .filter(Boolean);
-                      const show = assigned.slice(0,3);
-                      const extra = assigned.length - show.length;
-                      return (
-                        <div style={{ display:"flex",alignItems:"center" }} onClick={e=>e.stopPropagation()}>
-                          {show.map((u,i) => {
-                            const m = ROLE_META[u.role]||ROLE_META.user;
-                            return (
-                              <div key={u.id} title={`${u.firstName} ${u.lastName}`}
-                                style={{ width:22,height:22,borderRadius:"50%",background:m.color,border:"2px solid var(--surface)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"white",marginLeft:i>0?-6:0,zIndex:show.length-i,position:"relative" }}>
-                                {`${u.firstName?.[0]||""}${u.lastName?.[0]||""}`.toUpperCase()}
-                              </div>
-                            );
-                          })}
-                          {extra > 0 && <div style={{ width:22,height:22,borderRadius:"50%",background:"var(--surface3)",border:"2px solid var(--surface)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"var(--text2)",marginLeft:-6 }}>+{extra}</div>}
+
+                  {/* Next event */}
+                  {nextEv && (
+                    <div style={{ fontSize:11.5,color:"var(--text2)",display:"flex",alignItems:"center",gap:5,marginBottom:6,background:"var(--surface2)",borderRadius:6,padding:"4px 8px" }}>
+                      <span style={{ color:"#3ab8e8" }}>📅</span>
+                      <span style={{ fontWeight:600 }}>{nextEv.startDate === todayStr ? "Today" : formatDateShort(nextEv.startDate)}</span>
+                      <span style={{ color:"var(--text3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{nextEv.title}</span>
+                    </div>
+                  )}
+
+                  {/* Internal owner + assigned avatars */}
+                  <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6 }}>
+                    {owner ? (
+                      <div style={{ display:"flex",alignItems:"center",gap:5,fontSize:11,color:"var(--text2)" }}>
+                        <div style={{ width:18,height:18,borderRadius:"50%",background:(ROLE_META[owner.role]||ROLE_META.user).color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:700,color:"white" }}>
+                          {(owner.firstName?.[0]||"")+(owner.lastName?.[0]||"")}
                         </div>
-                      );
-                    })()}
+                        {owner.firstName}
+                      </div>
+                    ) : <div />}
+                    {assigned.length > 0 && (
+                      <div style={{ display:"flex",alignItems:"center" }}>
+                        {assigned.slice(0, 3).map((u, i) => {
+                          const m = ROLE_META[u.role] || ROLE_META.user;
+                          return (
+                            <div key={u.id} title={`${u.firstName} ${u.lastName}`}
+                              style={{ width:22,height:22,borderRadius:"50%",background:m.color,border:"2px solid var(--surface)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"white",marginLeft:i>0?-6:0,zIndex:3-i,position:"relative" }}>
+                              {`${u.firstName?.[0]||""}${u.lastName?.[0]||""}`.toUpperCase()}
+                            </div>
+                          );
+                        })}
+                        {assigned.length > 3 && <div style={{ width:22,height:22,borderRadius:"50%",background:"var(--surface3)",border:"2px solid var(--surface)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"var(--text2)",marginLeft:-6 }}>+{assigned.length-3}</div>}
+                      </div>
+                    )}
                   </div>
+
+                  {/* Last activity */}
+                  {lastAct && (
+                    <div style={{ fontSize:11,color:"var(--text3)",marginBottom:6,display:"flex",alignItems:"center",gap:4 }}>
+                      <span style={{ opacity:.6 }}>⏱</span> {formatRelTime(lastAct)}
+                      {project.last_activity_type && <span style={{ opacity:.6 }}>· {project.last_activity_type}</span>}
+                    </div>
+                  )}
+
+                  {/* Progress bar — mirrors Project Timeline stage stepper */}
+                  <div style={{ marginBottom:7 }}
+                    title={project.timelineStage
+                      ? `Timeline: ${TIMELINE_STAGES.find(s => s.id === project.timelineStage)?.label ?? project.timelineStage}`
+                      : "Timeline not set"}>
+                    <div style={{ height:5,background:"var(--surface3)",borderRadius:3,overflow:"hidden" }}>
+                      <div style={{ height:"100%",width:`${progress}%`,background: progress >= 100 ? "#3dba7e" : progress >= 55 ? "#f0954e" : "var(--accent)",borderRadius:3,transition:"width .4s" }} />
+                    </div>
+                  </div>
+
+                  {/* Health warning chips */}
+                  {warnings.length > 0 && (
+                    <div style={{ display:"flex",gap:4,flexWrap:"wrap",marginTop:4 }}>
+                      {warnings.slice(0, 3).map(w => (
+                        <span key={w} style={{ fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:10,background:"rgba(0,0,0,.2)",color: warnColor[w] || "#e8a33a",border:`1px solid ${warnColor[w] || "#e8a33a"}40` }}>{w}</span>
+                      ))}
+                      {warnings.length > 3 && <span style={{ fontSize:10,color:"var(--text3)" }}>+{warnings.length-3} more</span>}
+                    </div>
+                  )}
+
+                  {/* Overdue badge — mobile only, shown at bottom so it doesn't crowd the top row */}
+                  {overdueN > 0 && (
+                    <span className="proj-overdue-bot" style={{ background:"#e85a3a",color:"white",fontSize:10,fontWeight:700,borderRadius:10,padding:"2px 7px",marginTop:6,alignSelf:"flex-start" }}>
+                      ⚑ {overdueN} overdue
+                    </span>
+                  )}
+                </div>
+
+                {/* Card footer: type tag */}
+                <div className="project-card-footer" style={{ justifyContent:"space-between" }}>
+                  <div style={{ fontSize:11,color:"var(--text2)",display:"inline-flex",alignItems:"center",gap:5 }}>
+                    <Icon d={ic.hash} size={11} />{project.type || "General"}
+                  </div>
+                  {project.projectNumber && (
+                    <div style={{ fontSize:11,color:"var(--text3)" }}>#{project.projectNumber}</div>
+                  )}
                 </div>
               </div>
             );
           })}
+
           {/* New jobsite card */}
-          <div className="project-card" style={{ border:"2px dashed var(--border)",cursor:canCreateProjects?"pointer":"not-allowed",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:200,opacity:canCreateProjects?1:0.6 }} onClick={canCreateProjects ? onNew : undefined}>
-            <div style={{ width:52,height:52,borderRadius:"50%",background:"var(--surface2)",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:12 }}>
-              <Icon d={ic.plus} size={24} stroke="var(--accent)" />
+          <div className="project-card"
+            style={{ border:"2px dashed var(--border)",cursor:canCreateProjects?"pointer":"not-allowed",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:220,opacity:canCreateProjects?1:0.5 }}
+            onClick={canCreateProjects ? onNew : undefined}>
+            <div style={{ width:48,height:48,borderRadius:"50%",background:"var(--surface2)",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:10 }}>
+              <Icon d={ic.plus} size={22} stroke="var(--accent)" />
             </div>
             <div style={{ fontSize:13,fontWeight:700,color:"var(--text2)" }}>New Jobsite</div>
-            <div style={{ fontSize:12,color:"var(--text3)",marginTop:4 }}>Create a new project</div>
+            <div style={{ fontSize:11.5,color:"var(--text3)",marginTop:3 }}>Create a new project</div>
           </div>
         </div>
       )}
 
-      {/* Confirm delete */}
-      {showDeleteId && (() => { const proj = projects.find(p=>p.id===showDeleteId); return (
+      {/* ── Confirm delete modal ── */}
+      {showDeleteId && (() => { const proj = projects.find(p => p.id === showDeleteId); return (
         <div className="modal-overlay" onClick={() => setShowDeleteId(null)}>
-          <div className="modal fade-in" style={{ maxWidth:440 }}>
-            <div className="modal-header"><div className="modal-title">Delete Jobsite?</div><button className="btn btn-ghost btn-sm btn-icon" onClick={() => setShowDeleteId(null)}><Icon d={ic.close} size={16} /></button></div>
+          <div className="modal fade-in" style={{ maxWidth:440 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title">Delete Jobsite?</div>
+              <button className="btn btn-ghost btn-sm btn-icon" onClick={() => setShowDeleteId(null)}><Icon d={ic.close} size={16} /></button>
+            </div>
             <div className="modal-body">
               <p style={{ fontSize:13.5,lineHeight:1.6,color:"var(--text2)" }}>Are you sure you want to delete <strong style={{ color:"var(--text)" }}>{proj?.title}</strong>? This will permanently delete all {proj?.photos?.length || 0} photos and {proj?.reports?.length || 0} reports associated with this project.</p>
               <div className="confirm-box">

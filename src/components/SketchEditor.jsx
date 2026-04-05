@@ -7,6 +7,8 @@ import {
 } from "../utils/helpers.js";
 import { PLAN_AI_LIMITS, getWeekWindowStart, getNextResetDate } from "../utils/constants.js";
 import { supabase, getAuthHeaders } from "../lib/supabase.js";
+import { checkAiPermission, logAiEvent, deductKrakens, KRAKEN_COSTS } from "../lib/krakenUsage.js";
+import { AiBlockedModal } from "./KrakenUsageBar.jsx";
 
 const SKETCH_TOOLS = [
   { id:"pan",       icon:"M18 11V6a2 2 0 00-2-2 2 2 0 00-2 2 2 2 0 00-2-2 2 2 0 00-2 2v.5 M14 10.5V4a2 2 0 00-2-2 2 2 0 00-2 2v.5 M10 10.5V6a2 2 0 00-2-2 2 2 0 00-2 2v8a6 6 0 006 6h2a6 6 0 006-6v-2.5",  label:"Pan / Move Screen" },
@@ -184,7 +186,7 @@ export function SketchEditor({ sketch, rooms, reports, project, settings, onSave
       ctx.fillStyle = "#4a90d9";
       ctx.font = "700 11px Inter, sans-serif";
       ctx.textBaseline = "top";
-      ctx.fillText("FLOOR PLAN MODE", 28, 28);
+      ctx.fillText("FLOOR PLAN", 28, 28);
       if (floorLabel) {
         ctx.fillStyle = "#f0f2f7";
         ctx.font = "600 16px Inter, sans-serif";
@@ -1342,7 +1344,18 @@ export function ProjectActivityFeed({ project, onUpdateProject, settings, userId
 
   // Files
   (project.files || []).forEach(f => {
-    if (f.date || f.uploadedAt) events.push({ id:`fl-${f.id}`, type:"file", date:f.date||f.uploadedAt, time:f.time||"", icon:"📎", label:"File uploaded", detail:f.name || "File", addedBy:f.addedBy||"" });
+    if (f.date || f.uploadedAt) {
+      let fileDate = f.date;
+      let fileTime = f.time || "";
+      if (!fileDate && f.uploadedAt) {
+        const d = new Date(f.uploadedAt);
+        if (!isNaN(d)) {
+          fileDate = d.toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" });
+          fileTime = d.toLocaleTimeString("en-US", { hour:"2-digit", minute:"2-digit", hour12:true });
+        }
+      }
+      events.push({ id:`fl-${f.id}`, type:"file", date:fileDate, time:fileTime, icon:"📎", label:"File uploaded", detail:f.name || "File", addedBy:f.addedBy||"" });
+    }
   });
 
   // Activity log entries (notes + structured events like jobsite creation)
@@ -1368,12 +1381,20 @@ export function ProjectActivityFeed({ project, onUpdateProject, settings, userId
     events.push({ id:"stage", type:"stage", date:stageDate, time:"", icon:"🏷", label:"Stage updated", detail:project.timelineStage.replace(/_/g," "), addedBy:"" });
   }
 
-  // Sort newest first
-  const sorted = events.sort((a, b) => {
-    const da = new Date(`${a.date}T${a.time || "00:00:00"}`);
-    const db = new Date(`${b.date}T${b.time || "00:00:00"}`);
-    return db - da;
-  });
+  // Sort newest first — handle both ISO dates ("2026-03-29") and legacy locale dates ("Mar 29, 2026")
+  const parseEventDate = (date, time) => {
+    if (!date) return new Date(0);
+    // ISO format: "2026-03-29" — safe to combine with T separator
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      const t = time ? time.replace(/\s?(AM|PM)$/i, m => m.trim()) : "00:00:00";
+      const d = new Date(`${date}T${t}`);
+      return isNaN(d) ? new Date(date) : d;
+    }
+    // Legacy locale format: "Mar 29, 2026" — parse without T separator
+    const d = new Date(time ? `${date} ${time}` : date);
+    return isNaN(d) ? new Date(0) : d;
+  };
+  const sorted = events.sort((a, b) => parseEventDate(b.date, b.time) - parseEventDate(a.date, a.time));
 
   const postNote = () => {
     if (!newNote.trim()) return;
@@ -1382,7 +1403,7 @@ export function ProjectActivityFeed({ project, onUpdateProject, settings, userId
     const entry = {
       id:     uid(),
       type:   "note",
-      date:   today(),
+      date:   new Date().toISOString().slice(0, 10),
       time:   new Date().toLocaleTimeString("en-US", { hour:"2-digit", minute:"2-digit", hour12:true }),
       text:   newNote.trim(),
       author: authorName,
@@ -1486,6 +1507,7 @@ export function AIProjectOverview({ project, settings, onSettingsChange, orgId, 
   const [generating,      setGenerating]      = useState(false);
   const [expanded,        setExpanded]        = useState(false);
   const [genError,        setGenError]        = useState(null);
+  const [showAiBlocked,   setShowAiBlocked]   = useState(false);
   const supaUrl = import.meta.env.VITE_SUPABASE_URL;
 
   // Kraken usage display
@@ -1514,6 +1536,10 @@ export function AIProjectOverview({ project, settings, onSettingsChange, orgId, 
   }, [project?.id, orgId]);
 
   const handleGenerate = async () => {
+    // Role-level permission check (admin toggle for managers/users)
+    const perm = checkAiPermission(settings);
+    if (!perm.allowed) { setShowAiBlocked(true); return; }
+
     const plan  = settings?.plan || "base";
     const limit = PLAN_AI_LIMITS[plan] || 0;
     if (limit === 0) { setGenError("AI features are not available on your current plan."); return; }
@@ -1579,15 +1605,16 @@ export function AIProjectOverview({ project, settings, onSettingsChange, orgId, 
       });
       setOverviewData({ text, updatedAt: now });
 
-      if (onSettingsChange) {
-        onSettingsChange(prev => {
-          const curWin = getWeekWindowStart();
-          const wStart = prev.aiGenerationsWindowStart ? new Date(prev.aiGenerationsWindowStart) : null;
-          const valid  = wStart && wStart >= curWin;
-          const used   = valid ? (prev.aiGenerationsUsed || 0) : 0;
-          return { ...prev, aiGenerationsUsed: used + 1, aiGenerationsWindowStart: valid ? prev.aiGenerationsWindowStart : curWin.toISOString() };
-        });
-      }
+      // Deduct 1 Kraken and log event
+      deductKrakens(KRAKEN_COSTS.project_overview_summary, onSettingsChange);
+      logAiEvent({
+        orgId:      orgId,
+        userId:     userId,
+        projectId:  project?.id,
+        featureKey: "project_overview_summary",
+        krakensCost: KRAKEN_COSTS.project_overview_summary,
+        status:     "success",
+      });
     } catch (err) { setGenError(`Generation failed: ${err.message}`); }
     finally { setGenerating(false); }
   };
@@ -1598,6 +1625,8 @@ export function AIProjectOverview({ project, settings, onSettingsChange, orgId, 
     : null;
 
   return (
+    <>
+    {showAiBlocked && <AiBlockedModal onClose={() => setShowAiBlocked(false)} />}
     <div className="card" style={{ marginBottom:16 }}>
       <div className="card-header" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
         <span style={{ fontWeight:700, display:"flex", alignItems:"center", gap:7 }}>
@@ -1648,5 +1677,6 @@ export function AIProjectOverview({ project, settings, onSettingsChange, orgId, 
         )}
       </div>
     </div>
+    </>
   );
 }

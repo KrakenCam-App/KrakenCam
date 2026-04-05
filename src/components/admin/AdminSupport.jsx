@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
-import { adminRpc } from '../../lib/adminFetch'
+import { adminRpc, adminFrom } from '../../lib/adminFetch'
 
 const S = {
   card: { background:'#1a1a1a', border:'1px solid #252525', borderRadius:10, padding:'20px 22px', marginBottom:16 },
@@ -52,21 +52,9 @@ export default function AdminSupport() {
     if (!q.trim()) { setOrgs([]); return }
     setLoading(true)
     try {
-      // Use raw fetch — bypasses Supabase auth lock issues on Brave/privacy browsers
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-      const res = await fetch(`${supabaseUrl}/rest/v1/rpc/admin_search_orgs`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': anonKey,
-          'Authorization': `Bearer ${anonKey}`,
-        },
-        body: JSON.stringify({ search_term: q }),
-      })
-      const data = await res.json()
-      const results = Array.isArray(data) ? data : data ? [data] : []
-      setOrgs(results)
+      // Use adminRpc so the authenticated JWT is sent (anon key alone fails RLS)
+      const results = await adminRpc('admin_search_orgs', { search_term: q })
+      setOrgs(results || [])
     } catch (e) {
       console.warn('[AdminSupport] search error:', e.message)
       setOrgs([])
@@ -83,13 +71,16 @@ export default function AdminSupport() {
   const selectOrg = async (org) => {
     setSelected(org)
     setUsers([]); setNotes([]); setFlag('none')
-    // Load users
-    const { data: u } = await supabase.rpc('admin_get_org_users', { p_org_id: org.id })
-    setUsers(u || [])
-    const { data: n } = await supabase.rpc('admin_get_org_notes', { p_org_id: org.id })
-    setNotes(n || [])
-    const { data: f } = await supabase.rpc('admin_get_org_flag', { p_org_id: org.id })
-    setFlag(f || 'none')
+    try {
+      const [u, n, f] = await Promise.all([
+        adminRpc('admin_get_org_users', { p_org_id: org.id }),
+        adminRpc('admin_get_org_notes', { p_org_id: org.id }),
+        adminRpc('admin_get_org_flag',  { p_org_id: org.id }),
+      ])
+      setUsers(u || [])
+      setNotes(n || [])
+      setFlag((Array.isArray(f) ? f[0] : f) || 'none')
+    } catch (e) { console.warn('[AdminSupport] selectOrg error:', e.message) }
   }
 
   const addNote = async () => {
@@ -97,7 +88,7 @@ export default function AdminSupport() {
     setSavingNote(true)
     await adminRpc('admin_add_org_note', { p_org_id: selected.id, p_note: newNote.trim() })
     setNewNote('')
-    const { data: n } = await supabase.rpc('admin_get_org_notes', { p_org_id: selected.id })
+    const n = await adminRpc('admin_get_org_notes', { p_org_id: selected.id })
     setNotes(n || [])
     setSavingNote(false)
   }

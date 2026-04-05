@@ -129,7 +129,11 @@ export function AuthProvider({ children }) {
       }
     };
 
-    setLoading(true);
+    // For token refreshes (same user is still logged in), skip the loading spinner.
+    // Showing a loading screen here unmounts the entire App and wipes React state,
+    // which causes the app to redirect back to /jobsites on every tab refocus.
+    const isTokenRefresh = profile !== null && profile?.user_id === user.id;
+    if (!isTokenRefresh) setLoading(true);
     loadData();
 
     return () => { cancelled = true; };

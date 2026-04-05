@@ -31,6 +31,7 @@ function toDbRow(t) {
     status:          t.status          || 'todo',
     assignee_ids:    t.assigneeIds      || t.assignee_ids     || [],
     due_date:        t.dueDate         || t.due_date         || null,
+    due_time:        t.dueTime         || t.due_time         || null,
     completed:       t.completed       ?? false,
     completed_at:    t.completedAt     || t.completed_at     || null,
     repeat_enabled:  t.repeatEnabled   ?? t.repeat_enabled   ?? false,
@@ -42,7 +43,9 @@ function toDbRow(t) {
     comments:        t.comments        || [],
     attachments:     safeAttachments,
     tags:            t.tags            || [],
-    created_by:      t.createdBy       || t.created_by       || null,
+    created_by:           t.createdBy          || t.created_by           || null,
+    created_by_user_id:   t.createdByUserId    || t.created_by_user_id   || null,
+    visibility:           t.visibility         || 'shared',
   };
 }
 
@@ -58,6 +61,7 @@ function fromDbRow(row) {
     status:         row.status          || 'todo',
     assigneeIds:    row.assignee_ids    || [],
     dueDate:        row.due_date        || '',
+    dueTime:        row.due_time        || '',
     completed:      row.completed       ?? false,
     completedAt:    row.completed_at    || null,
     repeatEnabled:  row.repeat_enabled  ?? false,
@@ -69,9 +73,11 @@ function fromDbRow(row) {
     comments:       row.comments        || [],
     attachments:    row.attachments     || [],
     tags:           row.tags            || [],
-    createdBy:      row.created_by      || '',
-    createdAt:      row.created_at      || '',
-    updatedAt:      row.updated_at      || '',
+    createdBy:          row.created_by           || '',
+    createdByUserId:    row.created_by_user_id   || null,
+    visibility:         row.visibility           || 'shared',
+    createdAt:          row.created_at           || '',
+    updatedAt:          row.updated_at           || '',
   };
 }
 
@@ -124,6 +130,17 @@ export async function createTask(task) {
     row.id = newUuid();
   }
 
+  // Stamp created_by_user_id from current auth session if not already set
+  if (!row.created_by_user_id) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user?.id) row.created_by_user_id = session.user.id;
+  }
+
+  // Private tasks MUST have created_by_user_id — enforce it
+  if (row.visibility === 'private' && !row.created_by_user_id) {
+    throw new Error('Private tasks require an authenticated user.');
+  }
+
   const { data, error } = await supabase
     .from('tasks')
     .insert([row])
@@ -140,8 +157,9 @@ export async function createTask(task) {
  */
 export async function updateTask(id, task) {
   const row = toDbRow(task);
-  delete row.organization_id; // never overwrite org on update
-  delete row.created_by;      // never overwrite creator
+  delete row.organization_id;       // never overwrite org on update
+  delete row.created_by;            // never overwrite creator (text legacy field)
+  delete row.created_by_user_id;    // never overwrite original creator uuid
 
   const { data, error } = await supabase
     .from('tasks')
@@ -163,5 +181,117 @@ export async function deleteTask(id) {
     .delete()
     .eq('id', id);
 
+  if (error) throw error;
+}
+
+/**
+ * Delete multiple tasks by UUID array.
+ */
+export async function deleteTasks(ids) {
+  if (!ids || ids.length === 0) return;
+  const { error } = await supabase
+    .from('tasks')
+    .delete()
+    .in('id', ids);
+  if (error) throw error;
+}
+
+// ── Task Tags ─────────────────────────────────────────────────────────────────
+
+/**
+ * Fetch all org-level task tags.
+ */
+export async function getTaskTags() {
+  const { data, error } = await supabase
+    .from('task_tags')
+    .select('*')
+    .order('name', { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * Create a new org-level tag.
+ */
+export async function createTaskTag({ organization_id, name, color }) {
+  const { data, error } = await supabase
+    .from('task_tags')
+    .insert([{ organization_id, name, color: color || '#6366f1' }])
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Delete an org tag by id.
+ */
+export async function deleteTaskTag(id) {
+  const { error } = await supabase.from('task_tags').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ── Activity Log ──────────────────────────────────────────────────────────────
+
+/**
+ * Fetch activity log for a task.
+ */
+export async function getTaskActivity(taskId) {
+  const { data, error } = await supabase
+    .from('task_activity_logs')
+    .select('*, profiles(full_name, first_name, last_name)')
+    .eq('task_id', taskId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * Log a task activity event.
+ */
+export async function logTaskActivity({ task_id, organization_id, user_id, action_type, action_label, old_value_json, new_value_json, metadata_json }) {
+  const { error } = await supabase
+    .from('task_activity_logs')
+    .insert([{ task_id, organization_id, user_id, action_type, action_label, old_value_json, new_value_json, metadata_json }]);
+  if (error) console.warn('[tasks] Failed to log activity:', error.message);
+}
+
+// ── Photo Links ───────────────────────────────────────────────────────────────
+
+/**
+ * Fetch photo links for a task.
+ */
+export async function getTaskPhotoLinks(taskId) {
+  const { data, error } = await supabase
+    .from('task_photo_links')
+    .select('*')
+    .eq('task_id', taskId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * Link a photo to a task.
+ */
+export async function addTaskPhotoLink({ task_id, photo_id, linked_by_user_id }) {
+  const { data, error } = await supabase
+    .from('task_photo_links')
+    .insert([{ task_id, photo_id, linked_by_user_id }])
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Remove a photo link from a task.
+ */
+export async function removeTaskPhotoLink(taskId, photoId) {
+  const { error } = await supabase
+    .from('task_photo_links')
+    .delete()
+    .eq('task_id', taskId)
+    .eq('photo_id', photoId);
   if (error) throw error;
 }
