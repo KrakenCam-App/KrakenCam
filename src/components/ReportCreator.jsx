@@ -2172,6 +2172,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                           fontWeight:block.textStyle?.bold?"bold":"normal",
                           fontStyle:block.textStyle?.italic?"italic":"normal",
                           textDecoration:block.textStyle?.underline?"underline":"none",
+                          textAlign:block.textStyle?.align||"left",
                           color:block.textStyle?.color||"#333",
                           background:block.textStyle?.highlight?"#ffe066": editingBlock===block.id ? "#fff" : "#f8f9fa",
                           border: editingBlock===block.id ? "2px solid #2b7fe8" : "1.5px dashed #ccc",
@@ -2300,7 +2301,8 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                                 style={{ width:"100%",minHeight:120,outline:"none",cursor:"text",
                                   fontSize:(block.textStyle?.fontSize||12.5)+"px",lineHeight:1.7,
                                   fontWeight:block.textStyle?.bold?"bold":"normal",fontStyle:block.textStyle?.italic?"italic":"normal",
-                                  textDecoration:block.textStyle?.underline?"underline":"none",color:block.textStyle?.color||"inherit",
+                                  textDecoration:block.textStyle?.underline?"underline":"none",textAlign:block.textStyle?.align||"left",
+                                  color:block.textStyle?.color||"inherit",
                                   background:block.textStyle?.highlight?"#ffe066":"transparent",
                                   whiteSpace:"pre-wrap",wordBreak:"break-word" }}
                               />
@@ -2311,7 +2313,8 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                           : <div className="rp-text-block" style={{ cursor:"text",minHeight:60,
                               fontSize:(block.textStyle?.fontSize||12.5)+"px",
                               fontWeight:block.textStyle?.bold?"bold":"normal",fontStyle:block.textStyle?.italic?"italic":"normal",
-                              textDecoration:block.textStyle?.underline?"underline":"none",color:block.textStyle?.color||"inherit",
+                              textDecoration:block.textStyle?.underline?"underline":"none",textAlign:block.textStyle?.align||"left",
+                              color:block.textStyle?.color||"inherit",
                               background:block.textStyle?.highlight?"#ffe066":"transparent" }}
                               onClick={()=>setEditingBlock(block.id)}>
                               {block.sideText ? <span dangerouslySetInnerHTML={{ __html: block.sideText }} /> : <span style={{ color:"#ccc" }}>Click to edit text...</span>}
@@ -2818,6 +2821,15 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                 const ts = block.textStyle || {};
                 const contentField = block.type==="text" ? "content" : block.type==="textphoto" ? "sideText" : "label";
 
+                // Helper: snapshot current innerHTML so React 19's dangerouslySetInnerHTML
+                // re-paint doesn't revert unsaved edits or destroy inline formatting/selection.
+                const snapContent = () => {
+                  const isDivider = block.type === "divider";
+                  if (isDivider) return {};
+                  const el = document.querySelector(`[data-block-id="${block.id}"]`);
+                  return el ? { [contentField]: el.innerHTML } : {};
+                };
+
                 // execCommand on current selection; if no selection falls back to block-level toggle
                 const fmt = (cmd, value) => {
                   const isDivider = block.type === "divider";
@@ -2826,9 +2838,9 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                   const hasSelection = !isDivider && sel && sel.toString().length > 0;
                   if (hasSelection) {
                     // Apply to selection via execCommand — focus preserved by onMouseDown preventDefault.
-                    // Do NOT call updateBlock(content) here: it re-renders dangerouslySetInnerHTML
-                    // which resets the cursor position. Content is saved on blur via commitBlock.
                     document.execCommand(cmd, false, value || null);
+                    // Snapshot content so the React re-render keeps the execCommand changes.
+                    updateBlock(block.id, { ...snapContent() });
                   } else {
                     // No selection — toggle block-level style
                     const defaultBold = isDivider ? true : false;
@@ -2843,7 +2855,8 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                     if (!isDivider && el && el === document.activeElement) {
                       document.execCommand(cmd, false, null);
                     }
-                    updateBlock(block.id, { textStyle:{ ...ts, ...patch } });
+                    // Snapshot content along with style so React 19 doesn't revert unsaved edits.
+                    updateBlock(block.id, { ...snapContent(), textStyle:{ ...ts, ...patch } });
                   }
                 };
 
@@ -2851,10 +2864,10 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                   const isDivider = block.type === "divider";
                   const sel = window.getSelection();
                   if (!isDivider && sel && sel.toString().length > 0) {
-                    // Don't updateBlock(content) after execCommand — cursor would jump; saved on blur.
                     document.execCommand("foreColor", false, color);
+                    updateBlock(block.id, { ...snapContent() });
                   } else {
-                    updateBlock(block.id, { textStyle:{ ...ts, color } });
+                    updateBlock(block.id, { ...snapContent(), textStyle:{ ...ts, color } });
                   }
                 };
 
@@ -2862,28 +2875,28 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                   const isDivider = block.type === "divider";
                   const sel = window.getSelection();
                   if (!isDivider && sel && sel.toString().length > 0) {
-                    // Don't updateBlock(content) after execCommand — cursor would jump; saved on blur.
                     document.execCommand("hiliteColor", false, ts.highlight ? "transparent" : "#ffe066");
+                    updateBlock(block.id, { ...snapContent() });
                   } else {
-                    updateBlock(block.id, { textStyle:{ ...ts, highlight:!ts.highlight } });
+                    updateBlock(block.id, { ...snapContent(), textStyle:{ ...ts, highlight:!ts.highlight } });
                   }
                 };
 
                 // Text alignment — stored in textStyle.align ('left'|'center'|'right'|'justify')
+                // Snapshot content so React 19 re-render doesn't destroy selection or edits.
                 const fmtAlign = (align) => {
-                  const cmd = { left:"justifyLeft", center:"justifyCenter", right:"justifyRight", justify:"justifyFull" }[align];
-                  if (!block.type !== "divider" && cmd) {
-                    const el = document.querySelector(`[data-block-id="${block.id}"]`);
-                    if (el) { el.focus(); document.execCommand(cmd, false, null); updateBlock(block.id, { [contentField]: el.innerHTML }); }
-                  }
-                  updateBlock(block.id, { textStyle:{ ...ts, align } });
+                  updateBlock(block.id, { ...snapContent(), textStyle:{ ...ts, align } });
                 };
 
                 // Lists — toggle on/off using execCommand
                 const fmtList = (listType) => {
                   const cmd = listType === "ul" ? "insertUnorderedList" : "insertOrderedList";
                   const el = document.querySelector(`[data-block-id="${block.id}"]`);
-                  if (el) { el.focus(); document.execCommand(cmd, false, null); updateBlock(block.id, { [contentField]: el.innerHTML }); }
+                  if (el) {
+                    if (el !== document.activeElement) el.focus();
+                    document.execCommand(cmd, false, null);
+                    updateBlock(block.id, { [contentField]: el.innerHTML });
+                  }
                 };
 
                 const togBtn = (active, title, children, onClick) => (
