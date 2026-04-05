@@ -31,18 +31,18 @@ const COVER_H  = 1056; // page 1 is always exactly one page
 
 export function PageFooter({ accentColor, settings, reportDate, reportTime, pageNum, isLast }) {
   const dateStr = reportDate ? formatDate(reportDate, settings) : formatDate(new Date().toISOString().slice(0,10), settings);
-  const timeStr = reportTime ? formatTime(reportTime, settings) : null;
+  const footerLeft = settings?.reportFooterLeft || settings?.companyName || "";
+  const footerPhone = settings?.phone || "";
   return (
     <>
       <div style={{ padding:"10px 36px",borderTop:`2px solid ${accentColor}`,display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fafafa",flexShrink:0 }}>
-        <div style={{ display:"flex",alignItems:"center",gap:8 }}>
-          <span style={{ fontSize:10,color:"#888" }}>{dateStr}</span>
-          {timeStr && <span style={{ fontSize:10,color:"#aaa" }}>· {timeStr}</span>}
+        <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+          {footerLeft && <span style={{ fontSize:10,color:"#888" }}>{footerLeft}</span>}
+          {footerLeft && footerPhone && <span style={{ fontSize:10,color:"#aaa" }}>· {footerPhone}</span>}
         </div>
         <span style={{ fontSize:10,color:accentColor,fontWeight:600 }}>{settings?.reportFooterCenter||"Confidential"}</span>
         <div style={{ textAlign:"right" }}>
-          <div style={{ fontSize:9,color:"#bbb",letterSpacing:".06em" }}>POWERED BY KRAKENCAM</div>
-          <div style={{ fontSize:9.5,color:"#aaa" }}>Page {pageNum}</div>
+          <div style={{ fontSize:9.5,color:"#aaa" }}>Page {pageNum} · {dateStr}</div>
         </div>
       </div>
       {isLast && settings?.reportFooterDisclaimer && (
@@ -141,7 +141,7 @@ export function BlockRenderer({ block, showGps, showTimestamp, showRooms, showTa
   );
   if (block.type === "text") return (
     <div style={{ padding:"6px 36px 12px" }}>
-      <div style={{
+      <div className="rp-text-content" style={{
         fontSize:(block.textStyle?.fontSize||12.5)+"px",
         lineHeight:1.7,
         color:block.textStyle?.color||"#333",
@@ -1610,6 +1610,8 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
   };
 
   const updateBlock = (id, patch) => setBlocks(prev => prev.map(b => b.id===id ? { ...b, ...patch } : b));
+  // commitBlock — like updateBlock but also snapshots history (use on blur/finish-editing events)
+  const commitBlock = (id, patch) => setBlocks(prev => { pushHistory(prev); return prev.map(b => b.id===id ? { ...b, ...patch } : b); });
   const deleteBlock = (id) => {
     setBlocks(prev => { pushHistory(prev); return prev.filter(b => b.id!==id); });
     setSelectedBlock(null);
@@ -2155,11 +2157,12 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                   <div className="rp-section">
                     <div style={{ position:"relative" }}>
                       <div
+                        className="rp-text-content"
                         contentEditable
                         suppressContentEditableWarning
                         data-block-id={block.id}
                         onFocus={()=>setEditingBlock(block.id)}
-                        onBlur={e=>{ updateBlock(block.id,{content:e.currentTarget.innerHTML}); setEditingBlock(null); }}
+                        onBlur={e=>{ commitBlock(block.id,{content:e.currentTarget.innerHTML}); setEditingBlock(null); }}
                         onInput={e=>{/* save on blur only to avoid cursor jump */}}
                         dangerouslySetInnerHTML={{ __html: block.content || "" }}
                         style={{ width:"100%",minHeight:72,outline:"none",cursor:"text",
@@ -2179,15 +2182,12 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                       {!block.content && editingBlock!==block.id && (
                         <div style={{ position:"absolute",top:10,left:10,color:"#aaa",fontSize:(block.textStyle?.fontSize||12.5)+"px",pointerEvents:"none",fontStyle:"italic" }}>Click to type text…</div>
                       )}
-                      <button title="✨ Write with AI" onClick={e=>{e.stopPropagation(); aiEnabled ? openAiFeature(() => setAiWriterBlock(block.id)) : setShowAiUpgrade(true);}}
-                        style={{ position:"absolute",top:6,right:6,height:32,padding:"0 10px",borderRadius:7,border:"none",background:"linear-gradient(135deg,#2b7fe8,#1a5fc8)",display:"flex",alignItems:"center",justifyContent:"center",gap:5,cursor:"pointer",boxShadow:"0 2px 8px rgba(43,127,232,.45)",transition:"transform .1s,box-shadow .1s",whiteSpace:"nowrap" }}
-                        onMouseEnter={e=>{e.currentTarget.style.transform="scale(1.05)";e.currentTarget.style.boxShadow="0 3px 12px rgba(43,127,232,.6)";}}
-                        onMouseLeave={e=>{e.currentTarget.style.transform="scale(1)";e.currentTarget.style.boxShadow="0 2px 8px rgba(43,127,232,.45)";}}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
-                        <span style={{ fontSize:11,fontWeight:700,color:"white" }}>AI Write</span>
-                        <span style={{ fontSize:10,fontWeight:600,opacity:.85,background:"rgba(0,0,0,.22)",borderRadius:4,padding:"1px 5px" }}>
-                          1 ⬡{aiEnabled ? ` · ${aiRemaining} left` : ""}
-                        </span>
+                      <button title="Write with AI" onClick={e=>{e.stopPropagation(); aiEnabled ? openAiFeature(() => setAiWriterBlock(block.id)) : setShowAiUpgrade(true);}}
+                        style={{ position:"absolute",top:6,right:6,height:26,padding:"0 8px",borderRadius:6,border:"none",background:"linear-gradient(135deg,#2b7fe8,#1a5fc8)",display:"flex",alignItems:"center",justifyContent:"center",gap:4,cursor:"pointer",boxShadow:"0 2px 6px rgba(43,127,232,.4)",transition:"transform .1s,box-shadow .1s",whiteSpace:"nowrap" }}
+                        onMouseEnter={e=>{e.currentTarget.style.transform="scale(1.05)";e.currentTarget.style.boxShadow="0 3px 10px rgba(43,127,232,.6)";}}
+                        onMouseLeave={e=>{e.currentTarget.style.transform="scale(1)";e.currentTarget.style.boxShadow="0 2px 6px rgba(43,127,232,.4)";}}>
+                        <span style={{ fontSize:10.5,fontWeight:700,color:"white" }}>AI Write</span>
+                        <span style={{ fontSize:9.5,fontWeight:600,opacity:.85,background:"rgba(0,0,0,.22)",borderRadius:4,padding:"1px 4px" }}>1 ⬡</span>
                       </button>
                     </div>
                   </div>
@@ -2294,7 +2294,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                                 suppressContentEditableWarning
                                 data-block-id={block.id}
                                 onFocus={e=>{setEditingBlock(block.id); e.currentTarget.parentElement.querySelector('.tp-placeholder') && (e.currentTarget.parentElement.querySelector('.tp-placeholder').style.display='none');}}
-                                onBlur={e=>{ updateBlock(block.id,{sideText:e.currentTarget.innerHTML}); setEditingBlock(null); }}
+                                onBlur={e=>{ commitBlock(block.id,{sideText:e.currentTarget.innerHTML}); setEditingBlock(null); }}
                                 onInput={e=>{ const p=e.currentTarget.parentElement.querySelector('.tp-placeholder'); if(p) p.style.display=e.currentTarget.innerHTML&&e.currentTarget.innerHTML!=='<br>'?'none':'block'; }}
                                 dangerouslySetInnerHTML={{ __html: block.sideText||"" }}
                                 style={{ width:"100%",minHeight:120,outline:"none",cursor:"text",
@@ -2821,16 +2821,16 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                 // execCommand on current selection; if no selection falls back to block-level toggle
                 const fmt = (cmd, value) => {
                   const isDivider = block.type === "divider";
+                  const el = document.querySelector(`[data-block-id="${block.id}"]`);
                   const sel = window.getSelection();
                   const hasSelection = !isDivider && sel && sel.toString().length > 0;
                   if (hasSelection) {
-                    // Apply to selection — focus is preserved by onMouseDown preventDefault
+                    // Apply to selection via execCommand — focus preserved by onMouseDown preventDefault.
+                    // Do NOT call updateBlock(content) here: it re-renders dangerouslySetInnerHTML
+                    // which resets the cursor position. Content is saved on blur via commitBlock.
                     document.execCommand(cmd, false, value || null);
-                    // Persist HTML after execCommand modifies the DOM
-                    const el = document.querySelector(`[data-block-id="${block.id}"]`);
-                    if (el) updateBlock(block.id, { [contentField]: el.innerHTML });
                   } else {
-                    // No selection (or divider) — toggle block-level style
+                    // No selection — toggle block-level style
                     const defaultBold = isDivider ? true : false;
                     const patch = {
                       bold:      cmd==="bold"      ? !(ts.bold??defaultBold) : (ts.bold??defaultBold),
@@ -2838,6 +2838,11 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                       underline: cmd==="underline" ? !ts.underline : ts.underline,
                       highlight: cmd==="highlight" ? !ts.highlight : ts.highlight,
                     };
+                    // If the editor has focus, also call execCommand so newly typed characters
+                    // inherit the inline format (e.g. typing while italic is on works correctly).
+                    if (!isDivider && el && el === document.activeElement) {
+                      document.execCommand(cmd, false, null);
+                    }
                     updateBlock(block.id, { textStyle:{ ...ts, ...patch } });
                   }
                 };
@@ -2846,9 +2851,8 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                   const isDivider = block.type === "divider";
                   const sel = window.getSelection();
                   if (!isDivider && sel && sel.toString().length > 0) {
+                    // Don't updateBlock(content) after execCommand — cursor would jump; saved on blur.
                     document.execCommand("foreColor", false, color);
-                    const el = document.querySelector(`[data-block-id="${block.id}"]`);
-                    if (el) updateBlock(block.id, { [contentField]: el.innerHTML });
                   } else {
                     updateBlock(block.id, { textStyle:{ ...ts, color } });
                   }
@@ -2858,9 +2862,8 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                   const isDivider = block.type === "divider";
                   const sel = window.getSelection();
                   if (!isDivider && sel && sel.toString().length > 0) {
+                    // Don't updateBlock(content) after execCommand — cursor would jump; saved on blur.
                     document.execCommand("hiliteColor", false, ts.highlight ? "transparent" : "#ffe066");
-                    const el = document.querySelector(`[data-block-id="${block.id}"]`);
-                    if (el) updateBlock(block.id, { [contentField]: el.innerHTML });
                   } else {
                     updateBlock(block.id, { textStyle:{ ...ts, highlight:!ts.highlight } });
                   }
@@ -2905,8 +2908,14 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                       value={ts.fontSize||12}
                       onChange={e=>updateBlock(block.id,{ textStyle:{ ...ts, fontSize:Math.min(20,Math.max(8,parseInt(e.target.value)||12)) } })}
                       onClick={e=>e.stopPropagation()}
-                      style={{ width:42,padding:"1px 4px",fontSize:11,textAlign:"center",border:"1px solid var(--border)",borderRadius:4,background:"var(--surface)",color:"var(--text)",flexShrink:0 }} />
+                      style={{ width:36,padding:"1px 4px",fontSize:11,textAlign:"center",border:"1px solid var(--border)",borderRadius:4,background:"var(--surface)",color:"var(--text)",flexShrink:0,MozAppearance:"textfield",appearance:"textfield" }} />
                     <span style={{ fontSize:10,color:"var(--text3)",flexShrink:0 }}>pt</span>
+                    <div style={{ display:"flex",flexDirection:"column",gap:1,flexShrink:0 }}>
+                      <button onMouseDown={e=>{e.preventDefault();e.stopPropagation();updateBlock(block.id,{textStyle:{...ts,fontSize:Math.min(20,(ts.fontSize||12)+1)}});}}
+                        style={{ width:22,height:15,padding:0,border:"1px solid var(--border)",borderRadius:"3px 3px 0 0",background:"var(--surface2)",color:"var(--text)",fontSize:10,cursor:"pointer",lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center" }}>▲</button>
+                      <button onMouseDown={e=>{e.preventDefault();e.stopPropagation();updateBlock(block.id,{textStyle:{...ts,fontSize:Math.max(8,(ts.fontSize||12)-1)}});}}
+                        style={{ width:22,height:15,padding:0,border:"1px solid var(--border)",borderTop:"none",borderRadius:"0 0 3px 3px",background:"var(--surface2)",color:"var(--text)",fontSize:10,cursor:"pointer",lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center" }}>▼</button>
+                    </div>
                     <div style={{ width:1,height:14,background:"var(--border)",flexShrink:0 }} />
                     <span style={{ fontSize:10,color:"var(--text3)",flexShrink:0 }}>Color:</span>
                     {["#222222","#e85a3a","#2b7fe8","#3dba7e","#e8c53a","#8b7cf8","#888888"].map(c=>(
@@ -2960,14 +2969,17 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
           <div className="rc-section-wrap">
             <div className="rp" style={{ minHeight:"auto",marginBottom:32 }}>
               <div className="rp-footer" style={{ borderTopColor:accentColor }}>
-                <div style={{ display:"flex",alignItems:"center",gap:8 }}>
-                  <span style={{ fontSize:10,color:"#888" }}>{formatDate(reportDate || new Date().toISOString().slice(0,10), settings)}</span>
-                  {reportTime && <span style={{ fontSize:10,color:"#aaa" }}>· {formatTime(reportTime, settings)}</span>}
+                <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+                  {(settings?.reportFooterLeft || settings?.companyName) && (
+                    <span style={{ fontSize:10,color:"#888" }}>{settings?.reportFooterLeft || settings?.companyName}</span>
+                  )}
+                  {(settings?.reportFooterLeft || settings?.companyName) && settings?.phone && (
+                    <span style={{ fontSize:10,color:"#aaa" }}>· {settings.phone}</span>
+                  )}
                 </div>
                 <span style={{ color:accentColor,fontWeight:600 }}>{settings?.reportFooterCenter || "Confidential"}</span>
                 <div style={{ textAlign:"right" }}>
-                  <div className="rp-branding">POWERED BY KRAKENCAM</div>
-                  <div style={{ fontSize:9.5,color:"#aaa" }}>Page 1</div>
+                  <div style={{ fontSize:9.5,color:"#aaa" }}>Page 1 · {formatDate(reportDate || new Date().toISOString().slice(0,10), settings)}</div>
                 </div>
               </div>
               {settings?.reportFooterDisclaimer && (
