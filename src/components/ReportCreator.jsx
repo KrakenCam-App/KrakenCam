@@ -2185,6 +2185,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                           lineHeight:1.7,
                           fontWeight:block.textStyle?.bold?"bold":"normal",
                           fontStyle:block.textStyle?.italic?"italic":"normal",
+                          fontSynthesis:"style",
                           textDecoration:block.textStyle?.underline?"underline":"none",
                           textAlign:block.textStyle?.align||"left",
                           color:block.textStyle?.color||"#333",
@@ -2313,6 +2314,7 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                                 style={{ width:"100%",minHeight:120,outline:"none",cursor:"text",
                                   fontSize:(block.textStyle?.fontSize||12.5)+"px",lineHeight:1.7,
                                   fontWeight:block.textStyle?.bold?"bold":"normal",fontStyle:block.textStyle?.italic?"italic":"normal",
+                                  fontSynthesis:"style",
                                   textDecoration:block.textStyle?.underline?"underline":"none",textAlign:block.textStyle?.align||"left",
                                   color:block.textStyle?.color||"inherit",
                                   background:block.textStyle?.highlight?"#ffe066":"transparent",
@@ -2839,14 +2841,19 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                 // survive re-renders caused by textStyle-only state updates.
                 const fmt = (cmd, value) => {
                   const isDivider = block.type === "divider";
-                  const el = document.querySelector(`[data-block-id="${block.id}"]`);
                   const sel = window.getSelection();
                   const hasSelection = !isDivider && sel && sel.toString().length > 0;
                   if (hasSelection) {
-                    // Apply inline format to selection; DOM change persists until blur saves it.
+                    // Apply inline format to selection via execCommand; DOM change persists
+                    // because ContentEditableBlock (useMemo) won't re-set innerHTML unless
+                    // block.content actually changes.
                     document.execCommand(cmd, false, value || null);
                   } else {
-                    // No selection — toggle block-level style via CSS + execCommand cursor state
+                    // No selection — toggle block-level style via CSS only.
+                    // We do NOT call execCommand here because the browser uses computed style
+                    // to decide whether to toggle italic on or off, and calling execCommand
+                    // while the container CSS is already italic causes it to insert
+                    // <span style="font-style:normal"> that counteracts the CSS italic.
                     const defaultBold = isDivider ? true : false;
                     const patch = {
                       bold:      cmd==="bold"      ? !(ts.bold??defaultBold) : (ts.bold??defaultBold),
@@ -2854,9 +2861,6 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                       underline: cmd==="underline" ? !ts.underline : ts.underline,
                       highlight: cmd==="highlight" ? !ts.highlight : ts.highlight,
                     };
-                    if (!isDivider && el && el === document.activeElement) {
-                      document.execCommand(cmd, false, null);
-                    }
                     updateBlock(block.id, { textStyle:{ ...ts, ...patch } });
                   }
                 };
