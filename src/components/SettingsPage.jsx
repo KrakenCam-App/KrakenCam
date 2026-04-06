@@ -157,6 +157,11 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
       companyName:   prev.companyName   || settings.companyName   || "",
     }));
   }, [settings.userFirstName, settings.userEmail, settings.companyName]);
+  const [appVersion, setAppVersion] = useState(null);
+  useEffect(() => {
+    supabase.from("app_versions").select("version").eq("published", true).order("release_date", { ascending: false }).limit(1)
+      .then(({ data }) => { if (data?.[0]?.version) setAppVersion(data[0].version); });
+  }, []);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [showExportModal, setShowExportModal] = useState(false);
@@ -1398,7 +1403,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                 </div>
                 <div>
                   <div style={{ fontWeight:700,fontSize:15 }}>KrakenCam</div>
-                  <div style={{ fontSize:12,color:"var(--text2)",marginTop:2 }}>Version 1.0.0</div>
+                  <div style={{ fontSize:12,color:"var(--text2)",marginTop:2 }}>Version {appVersion || "1.0.0"}</div>
                 </div>
               </div>
 
