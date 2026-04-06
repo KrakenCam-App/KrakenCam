@@ -2261,7 +2261,9 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
                       <div key={f} style={{ display:"flex",alignItems:"center",gap:5,fontSize:11,color:"var(--text2)" }}><Icon d={ic.check} size={10} stroke="#3dba7e" /> {f}</div>
                     ))}
                   </div>
-                  {currentPlan==="base"
+                  {currentPlan==="base" && subscription?.status==="trialing"
+                    ? <button className="btn btn-primary btn-sm" style={{ width:"100%",fontWeight:700,fontSize:11 }} onClick={()=>setConfirmUpgrade("base")}>Subscribe to Capture I</button>
+                    : currentPlan==="base"
                     ? <div style={{ fontSize:11,color:"var(--text3)",textAlign:"center",fontStyle:"italic" }}>Your current plan</div>
                     : <button className="btn btn-ghost btn-sm" style={{ fontSize:11,color:"var(--text3)",width:"100%" }} onClick={()=>setConfirmDowngrade("base")}>Downgrade to Capture I</button>
                   }
