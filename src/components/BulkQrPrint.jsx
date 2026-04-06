@@ -8,7 +8,7 @@
  * - Print all on one page or download as PNG sheet
  *
  * Props:
- *   equipment   — array of equipment objects (must have qr_code_id)
+ *   equipment   — array of equipment objects (must have qrCodeId)
  *   onClose     — dismiss modal
  */
 import React, { useState, useEffect, useRef, useCallback } from "react";
@@ -33,7 +33,7 @@ const SIZES = {
 async function renderLabelToCanvas(canvas, equipment, size) {
   const s       = SIZES[size];
   const QRCode  = await loadQRCode();
-  const qrId    = equipment.qr_code_id;
+  const qrId    = equipment.qrCodeId;
   if (!qrId) return;
 
   // Render QR to temp canvas
@@ -100,7 +100,7 @@ function LabelPreview({ equipment, size }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (!equipment.qr_code_id) return;
+    if (!equipment.qrCodeId) return;
     setReady(false);
     let active = true;
     renderLabelToCanvas(canvasRef.current, equipment, size)
@@ -112,7 +112,7 @@ function LabelPreview({ equipment, size }) {
   return (
     <div style={{ display: 'inline-block', position: 'relative' }}>
       <canvas ref={canvasRef} style={{ display: 'block' }} />
-      {!ready && !equipment.qr_code_id && (
+      {!ready && !equipment.qrCodeId && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
           justifyContent: 'center', background: '#f9f9f9', fontSize: 10, color: '#aaa' }}>
           No QR
@@ -128,8 +128,8 @@ export function BulkQrPrint({ equipment = [], onClose }) {
   const [labelSize,   setLabelSize]   = useState('medium');
   const [generating,  setGenerating]  = useState(false);
 
-  const withQr = equipment.filter(e => e.qr_code_id);
-  const withoutQr = equipment.filter(e => !e.qr_code_id);
+  const withQr = equipment.filter(e => e.qrCodeId);
+  const withoutQr = equipment.filter(e => !e.qrCodeId);
   const selectedList = withQr.filter(e => selected.has(e.id));
 
   const toggleOne = (id) => setSelected(prev => {
@@ -154,7 +154,7 @@ export function BulkQrPrint({ equipment = [], onClose }) {
       // Build data URLs for each selected item
       const labelDataUrls = await Promise.all(
         selectedList.map(async (eq) => {
-          if (!eq.qr_code_id) return null;
+          if (!eq.qrCodeId) return null;
           const canvas = document.createElement('canvas');
           await renderLabelToCanvas(canvas, eq, labelSize);
           return { dataUrl: canvas.toDataURL('image/png'), name: eq.name };
@@ -313,8 +313,8 @@ export function BulkQrPrint({ equipment = [], onClose }) {
                 </div>
 
                 {/* Photo */}
-                {eq.photo_url
-                  ? <img src={eq.photo_url} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
+                {eq.photoUrl
+                  ? <img src={eq.photoUrl} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
                   : <div style={{ width: 36, height: 36, borderRadius: 6, background: '#333',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>📦</div>
                 }
