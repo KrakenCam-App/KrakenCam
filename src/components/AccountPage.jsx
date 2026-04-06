@@ -2153,9 +2153,10 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
 
           {/* ── Trial countdown banner ── */}
           {subscription?.status === "trialing" && (() => {
-            const msLeft  = new Date(subscription.current_period_end) - new Date();
+            const trialEndRaw = acctAuthProfile?.organization?.trial_ends_at || subscription.current_period_end;
+            const msLeft  = new Date(trialEndRaw) - new Date();
             const daysLeft = Math.max(0, Math.ceil(msLeft / 86400000));
-            const endDate  = new Date(subscription.current_period_end)
+            const endDate  = new Date(trialEndRaw)
               .toLocaleDateString("en-US", { month:"long", day:"numeric", year:"numeric" });
             return (
               <div style={{ display:"flex",alignItems:"center",gap:14,padding:"14px 18px",
@@ -2280,7 +2281,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
                   {cycle==="annual" && <div style={{ fontSize:10,color:"#3dba7e",fontWeight:700,marginBottom:2 }}>Save ${(PRICING.monthly.pro.admin-PRICING.annual.pro.admin)*12}/yr</div>}
                   <div style={{ fontSize:11.5,color:"#a855f7",fontWeight:500,marginBottom:10 }}>admin · +${PRICING[cycle].pro.user}/user/mo</div>
                   <div style={{ display:"flex",flexDirection:"column",gap:4,marginBottom:10 }}>
-                    {["Everything in Capture I","Before & After comparison","Video capture (6 mins)","Team Chat (15 groups)","Calendar (up to 25 users)","AI Report Writer","710 AI Generation Krakens/week"].map(f=>(
+                    {["Everything in Capture I","Before & After comparison","Video capture (6 mins)","Team Chat (15 groups)","Calendar (up to 25 users)","AI Report Writer","75 AI Generation Krakens/week"].map(f=>(
                       <div key={f} style={{ display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#a855f7" }}><Icon d={ic.check} size={10} stroke="#a855f7" /> {f}</div>
                     ))}
                   </div>
@@ -2456,7 +2457,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
 
             const TIER_FEATURES = {
               base: "10 AI Generation Krakens/week and all Capture I features",
-              pro: "710 AI Generation Krakens/week and Intelligence II features",
+              pro: "75 AI Generation Krakens/week and Intelligence II features",
               command: "1,000 AI Generation Krakens/week and all Command III features",
             };
 
