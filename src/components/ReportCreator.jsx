@@ -49,13 +49,11 @@ const COVER_H  = 1056; // page 1 is always exactly one page
 export function PageFooter({ accentColor, settings, reportDate, reportTime, pageNum, isLast }) {
   const dateStr = reportDate ? formatDate(reportDate, settings) : formatDate(new Date().toISOString().slice(0,10), settings);
   const footerLeft = settings?.reportFooterLeft || settings?.companyName || "";
-  const footerPhone = settings?.phone || "";
   return (
     <>
       <div style={{ padding:"10px 36px",borderTop:`2px solid ${accentColor}`,display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fafafa",flexShrink:0 }}>
         <div style={{ display:"flex",alignItems:"center",gap:6 }}>
           {footerLeft && <span style={{ fontSize:10,color:"#888" }}>{footerLeft}</span>}
-          {footerLeft && footerPhone && <span style={{ fontSize:10,color:"#aaa" }}>· {footerPhone}</span>}
         </div>
         <span style={{ fontSize:10,color:accentColor,fontWeight:600 }}>{settings?.reportFooterCenter||"Confidential"}</span>
         <div style={{ textAlign:"right" }}>
@@ -2989,9 +2987,6 @@ export function ReportCreator({ project, reportData, settings, onSettingsChange,
                 <div style={{ display:"flex",alignItems:"center",gap:6 }}>
                   {(settings?.reportFooterLeft || settings?.companyName) && (
                     <span style={{ fontSize:10,color:"#888" }}>{settings?.reportFooterLeft || settings?.companyName}</span>
-                  )}
-                  {(settings?.reportFooterLeft || settings?.companyName) && settings?.phone && (
-                    <span style={{ fontSize:10,color:"#aaa" }}>· {settings.phone}</span>
                   )}
                 </div>
                 <span style={{ color:accentColor,fontWeight:600 }}>{settings?.reportFooterCenter || "Confidential"}</span>

@@ -783,7 +783,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                 <div style={{ fontSize:11,color:"var(--text3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10 }}>Footer Preview</div>
                 <div style={{ background:"white",borderRadius:8,padding:"12px 20px",color:"#222",borderTop:`2px solid ${form.accent}` }}>
                   <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10.5,color:"#666" }}>
-                    <span>{form.reportFooterLeft || form.companyName || "Your Company"} · {form.phone}</span>
+                    <span>{form.reportFooterLeft || form.companyName || "Your Company"}</span>
                     <span style={{ color:form.accent,fontWeight:600 }}>{form.reportFooterCenter || "Confidential"}</span>
                     <span>Page 1 of 1 · {formatDate(new Date().toISOString().slice(0,10), settings)}</span>
                   </div>
@@ -791,7 +791,7 @@ export function SettingsPage({ settings, onSave, onDeleteAccount, projects = [],
                 </div>
               </div>
               <div className="form-row">
-                <div className="form-group"><label className="form-label">Footer Left Text</label><input className="form-input" value={form.reportFooterLeft} onChange={e => set("reportFooterLeft", e.target.value)} placeholder="Company name + phone" /></div>
+                <div className="form-group"><label className="form-label">Footer Left Text</label><input className="form-input" value={form.reportFooterLeft} onChange={e => set("reportFooterLeft", e.target.value)} placeholder="Company name" /></div>
                 <div className="form-group"><label className="form-label">Footer Center Label</label><input className="form-input" value={form.reportFooterCenter} onChange={e => set("reportFooterCenter", e.target.value)} placeholder="Confidential" /></div>
               </div>
               <div className="form-group"><label className="form-label">Disclaimer / Legal Text (optional)</label><textarea className="form-input form-textarea" style={{ minHeight:64 }} value={form.reportFooterDisclaimer} onChange={e => set("reportFooterDisclaimer", e.target.value)} placeholder="This report is prepared for the exclusive use of the client named herein. Reproduction or distribution without written consent is prohibited." /></div>
