@@ -2737,6 +2737,8 @@ useEffect(() => {
             <React.Suspense fallback={<div style={{ flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text3)" }}>Loading Rooms…</div>}>
               <RoomsTab
                 project={activeProject}
+                projects={projects}
+                onProjectChange={setActiveProject}
                 orgId={authProfile?.organization_id}
                 userId={authProfile?.user_id}
                 settings={settings}

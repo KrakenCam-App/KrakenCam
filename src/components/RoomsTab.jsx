@@ -1906,11 +1906,13 @@ function RoomCard({ room, dbRoom, labels, roomTasks, onOpen, onOpenCamera, onAdd
 // MAIN: RoomsTab
 // ═══════════════════════════════════════════════════════════════════════════════
 export function RoomsTab({
-  project, orgId, userId, settings, onSettingsChange,
+  project, projects = [], onProjectChange,
+  orgId, userId, settings, onSettingsChange,
   tasks = [], onTasksChange, teamUsers = [],
   onUpdateProject, onOpenCamera,
 }) {
   const rooms = project?.rooms || [];
+  const activeProjects = projects.filter(p => p.status === "active");
 
   // ── Summary data from DB (status, labels, task counts) ────────────────────
   const [dbRoomsMap,   setDbRoomsMap]   = useState({});  // { [roomId]: dbRoom }
@@ -2026,8 +2028,33 @@ export function RoomsTab({
     <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
 
+      {/* ── Jobsite selector ── */}
+      {activeProjects.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 20px",
+          borderBottom: "1px solid var(--border)", flexShrink: 0, background: "var(--surface2)" }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text2)", whiteSpace: "nowrap" }}>Jobsite:</span>
+          <select
+            value={project?.id || ""}
+            onChange={e => {
+              const p = projects.find(p => p.id === e.target.value);
+              if (p && onProjectChange) onProjectChange(p);
+            }}
+            style={{ flex: 1, maxWidth: 320, background: "var(--surface)", border: "1px solid var(--border)",
+              borderRadius: 8, padding: "7px 10px", fontSize: 13, color: "var(--text)", outline: "none" }}>
+            {!project && <option value="">Select a jobsite…</option>}
+            {activeProjects.map(p => <option key={p.id} value={p.id}>{p.title || p.name}</option>)}
+          </select>
+        </div>
+      )}
+
+      {!project && (
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text3)", fontSize: 14 }}>
+          Select a jobsite above to view its rooms.
+        </div>
+      )}
+
       {/* ── Top bar ── */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 20px",
+      {project && <><div style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 20px",
         borderBottom: "1px solid var(--border)", flexShrink: 0, flexWrap: "wrap" }}>
         <div style={{ flex: 1, minWidth: 180, position: "relative" }}>
           <Ico d={I.search} size={14} stroke="var(--text3)"
@@ -2132,6 +2159,7 @@ export function RoomsTab({
           currentLabels={allOrgLabels}
           onLabelsChange={setAllOrgLabels} />
       )}
+      </>}
     </div>
   );
 }
