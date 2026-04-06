@@ -1106,6 +1106,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
 
   // Fire cert expiry notifications on mount and whenever users change
   const notifiedCertsRef = React.useRef(new Set());
+  const planCardRef = useRef(null);
   React.useEffect(() => {
     if (!onNotify) return;
     users.forEach(u => {
@@ -2166,12 +2167,12 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
                     {daysLeft} day{daysLeft!==1?"s":""} left in your free trial
                   </div>
                   <div style={{ fontSize:12.5,color:"var(--text2)" }}>
-                    Add a payment method to continue after {endDate}
+                    Choose a plan and subscribe to continue after {endDate}
                   </div>
                 </div>
                 <button className="btn btn-primary btn-sm"
-                  onClick={()=>triggerBillingAction("portal")}>
-                  Add Payment Method
+                  onClick={()=>planCardRef.current?.scrollIntoView({ behavior:"smooth", block:"center" })}>
+                  Start Your Subscription
                 </button>
               </div>
             );
@@ -2232,7 +2233,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
           </div>
 
           {/* ── Current Plan card ── */}
-          <div className="card" style={{ marginBottom:16 }}>
+          <div ref={planCardRef} className="card" style={{ marginBottom:16 }}>
             <div className="card-header" style={{ display:"flex",alignItems:"center",justifyContent:"space-between" }}>
               <span style={{ fontWeight:700 }}>Current Plan</span>
               <span style={{ fontSize:12,fontWeight:700,padding:"3px 10px",borderRadius:10,
