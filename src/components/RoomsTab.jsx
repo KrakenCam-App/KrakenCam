@@ -31,6 +31,7 @@ import { QrScannerModal } from "./QrScannerModal.jsx";
 import { QrActionModal } from "./QrActionModal.jsx";
 import { removeAssignment, moveEquipmentToRoom, markInTransit, logMovement, MOVE_ACTION } from "../lib/equipmentMovement.js";
 import { RoomMoistureTab } from "./MoistureTab.jsx";
+import { saveNotification } from "../lib/notifications.js";
 
 // ── tiny uuid ─────────────────────────────────────────────────────────────────
 const uid = () =>
@@ -401,10 +402,11 @@ function EquipmentAssignModal({ room, orgId, projectId, userId, onSave, onClose 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TASK ADD MODAL (room-scoped)
 // ═══════════════════════════════════════════════════════════════════════════════
-function RoomTaskModal({ room, projectId, orgId, userId, teamUsers, onSave, onClose }) {
+function RoomTaskModal({ room, projectId, orgId, userId, teamUsers, onSave, onClose, settings, projectName, initialValues }) {
   const [form, setForm] = useState({
-    title: "", description: "", priority: "medium", dueDate: "",
-    assigneeId: "",
+    title: initialValues?.title || "", description: initialValues?.description || "",
+    priority: initialValues?.priority || "medium", dueDate: "", dueTime: "",
+    assigneeId: "", saveAsTemplate: false,
   });
   const [saving, setSaving] = useState(false);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -425,12 +427,45 @@ function RoomTaskModal({ room, projectId, orgId, userId, teamUsers, onSave, onCl
         status: "todo",
         completed: false,
         due_date: form.dueDate || null,
-        assigned_to: form.assigneeId || null,
-        created_by: userId || null,
+        due_time: form.dueTime || null,
+        assignee_ids: form.assigneeId ? [form.assigneeId] : [],
+        created_by_user_id: userId || null,
       };
       const { error } = await supabase.from("tasks").insert([newTask]);
       if (error) throw error;
-      onSave({ ...newTask, roomId: room.id, projectId, dueDate: form.dueDate || "" });
+
+      // Send notification to assigned user
+      if (form.assigneeId) {
+        try {
+          const assignerName = settings?.userFirstName
+            ? `${settings.userFirstName} ${settings.userLastName || ""}`.trim()
+            : "Someone";
+          await saveNotification(orgId, {
+            type: "task_assigned",
+            title: "New Task Assigned",
+            body: `${assignerName} assigned you a task: "${form.title.trim()}"`,
+            recipientUserIds: [form.assigneeId],
+            context: JSON.stringify({ taskId, roomName: room.name, projectName: projectName || "" }),
+            action: "rooms",
+            author: assignerName,
+          });
+        } catch (_) { /* notification failure shouldn't block task creation */ }
+      }
+
+      // Save as template if checked
+      if (form.saveAsTemplate) {
+        try {
+          await supabase.from("room_task_templates").insert([{
+            organization_id: orgId,
+            name: form.title.trim(),
+            description: form.description || "",
+            priority: form.priority,
+            created_by: userId,
+          }]);
+        } catch (_) { /* template save failure shouldn't block */ }
+      }
+
+      onSave({ ...newTask, roomId: room.id, projectId, dueDate: form.dueDate || "", dueTime: form.dueTime || "", assigneeIds: newTask.assignee_ids });
     } catch (e) { alert("Error creating task: " + e.message); }
     finally { setSaving(false); }
   };
@@ -460,12 +495,23 @@ function RoomTaskModal({ room, projectId, orgId, userId, teamUsers, onSave, onCl
             <input type="date" style={inp} value={form.dueDate} onChange={e => set("dueDate", e.target.value)} />
           </div>
         </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text2)", marginBottom: 4 }}>Due Time</div>
+            <input type="time" style={inp} value={form.dueTime} onChange={e => set("dueTime", e.target.value)} />
+          </div>
+          <div />
+        </div>
         {teamUsers && teamUsers.length > 0 && (
           <div>
             <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text2)", marginBottom: 4 }}>Assign To</div>
             <select style={inp} value={form.assigneeId} onChange={e => set("assigneeId", e.target.value)}>
               <option value="">— unassigned —</option>
-              {teamUsers.map(u => <option key={u.id} value={u.id}>{u.name || u.email}</option>)}
+              {teamUsers.filter(u => u.status === "active").map(u => (
+                <option key={u.userId || u.id} value={u.userId || u.id}>
+                  {u.firstName ? `${u.firstName} ${u.lastName || ""}`.trim() : u.name || u.email}
+                </option>
+              ))}
             </select>
           </div>
         )}
@@ -474,6 +520,10 @@ function RoomTaskModal({ room, projectId, orgId, userId, teamUsers, onSave, onCl
           <textarea style={{ ...inp, resize: "vertical", minHeight: 60 }} placeholder="Optional notes…"
             value={form.description} onChange={e => set("description", e.target.value)} />
         </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text2)", cursor: "pointer" }}>
+          <input type="checkbox" checked={form.saveAsTemplate} onChange={e => set("saveAsTemplate", e.target.checked)} />
+          Save as task template
+        </label>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
           <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
           <Btn variant="primary" onClick={save} disabled={saving || !form.title.trim()}>
@@ -1558,6 +1608,185 @@ const DETAIL_TABS = [
   { id: "activity",  label: "Activity",  icon: I.activity  },
 ];
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// ROOM TASK TEMPLATE PICKER
+// ═══════════════════════════════════════════════════════════════════════════════
+function RoomTaskTemplatePicker({ orgId, onSelect, onManage, onClose }) {
+  const [templates, setTemplates] = useState([]);
+  const [loading, setLoading]     = useState(true);
+
+  useEffect(() => {
+    supabase.from("room_task_templates").select("*").eq("organization_id", orgId)
+      .order("name").then(({ data }) => { setTemplates(data || []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [orgId]);
+
+  const inp = { width: "100%", background: "var(--surface)", border: "1px solid var(--border)",
+    borderRadius: 8, padding: "8px 10px", fontSize: 13, color: "var(--text)", boxSizing: "border-box", outline: "none" };
+  const PRIO_COLOR = { critical: "#ef4444", high: "#f97316", medium: "#3b82f6", low: "#6b7280" };
+
+  return (
+    <Modal title="Add Task from Template" onClose={onClose} width={420}>
+      {loading ? (
+        <div style={{ textAlign: "center", padding: 24, color: "var(--text3)", fontSize: 13 }}>Loading templates…</div>
+      ) : templates.length === 0 ? (
+        <div style={{ textAlign: "center", padding: 24 }}>
+          <div style={{ color: "var(--text3)", fontSize: 13, marginBottom: 12 }}>No task templates yet.</div>
+          <Btn variant="primary" size="sm" onClick={onManage}>Create Template</Btn>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 400, overflowY: "auto" }}>
+          {templates.map(t => (
+            <div key={t.id} onClick={() => onSelect(t)}
+              style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
+                background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 8,
+                cursor: "pointer", transition: "border-color .15s" }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = "var(--accent)"}
+              onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: PRIO_COLOR[t.priority] || "#3b82f6", flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 13, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</div>
+                {t.description && <div style={{ fontSize: 11.5, color: "var(--text3)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.description}</div>}
+              </div>
+              <span style={{ fontSize: 11, color: PRIO_COLOR[t.priority], fontWeight: 600, textTransform: "capitalize" }}>{t.priority}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12, borderTop: "1px solid var(--border)", paddingTop: 12 }}>
+        <Btn variant="ghost" size="sm" onClick={onManage}>Manage Templates</Btn>
+        <Btn variant="ghost" size="sm" onClick={onClose}>Cancel</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ROOM TASK TEMPLATE MANAGER
+// ═══════════════════════════════════════════════════════════════════════════════
+function RoomTaskTemplateManager({ orgId, userId, onClose }) {
+  const [templates, setTemplates] = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [editing, setEditing]     = useState(null); // null = list view, object = editing
+  const [form, setForm]           = useState({ name: "", description: "", priority: "medium" });
+  const [saving, setSaving]       = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    supabase.from("room_task_templates").select("*").eq("organization_id", orgId)
+      .order("name").then(({ data }) => { setTemplates(data || []); setLoading(false); })
+      .catch(() => setLoading(false));
+  };
+  useEffect(load, [orgId]);
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const saveTemplate = async () => {
+    if (!form.name.trim()) return;
+    setSaving(true);
+    try {
+      if (editing?.id) {
+        await supabase.from("room_task_templates").update({
+          name: form.name.trim(), description: form.description, priority: form.priority, updated_at: new Date().toISOString(),
+        }).eq("id", editing.id);
+      } else {
+        await supabase.from("room_task_templates").insert([{
+          organization_id: orgId, name: form.name.trim(), description: form.description,
+          priority: form.priority, created_by: userId,
+        }]);
+      }
+      setEditing(null);
+      load();
+    } catch (e) { alert("Error saving template: " + e.message); }
+    finally { setSaving(false); }
+  };
+
+  const deleteTemplate = async (id) => {
+    if (!confirm("Delete this template?")) return;
+    await supabase.from("room_task_templates").delete().eq("id", id);
+    load();
+  };
+
+  const startEdit = (tmpl) => {
+    setEditing(tmpl);
+    setForm({ name: tmpl.name, description: tmpl.description || "", priority: tmpl.priority || "medium" });
+  };
+
+  const startNew = () => {
+    setEditing({});
+    setForm({ name: "", description: "", priority: "medium" });
+  };
+
+  const inp = { width: "100%", background: "var(--surface)", border: "1px solid var(--border)",
+    borderRadius: 8, padding: "8px 10px", fontSize: 13, color: "var(--text)", boxSizing: "border-box", outline: "none" };
+  const PRIO_COLOR = { critical: "#ef4444", high: "#f97316", medium: "#3b82f6", low: "#6b7280" };
+
+  return (
+    <Modal title={editing ? (editing.id ? "Edit Template" : "New Template") : "Manage Task Templates"} onClose={editing ? () => setEditing(null) : onClose} width={460}>
+      {editing ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text2)", marginBottom: 4 }}>Template Name *</div>
+            <input style={inp} placeholder="e.g., Moisture Check" value={form.name} onChange={e => set("name", e.target.value)} autoFocus />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text2)", marginBottom: 4 }}>Default Priority</div>
+            <select style={inp} value={form.priority} onChange={e => set("priority", e.target.value)}>
+              {["critical","high","medium","low"].map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase()+p.slice(1)}</option>)}
+            </select>
+          </div>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text2)", marginBottom: 4 }}>Description</div>
+            <textarea style={{ ...inp, resize: "vertical", minHeight: 60 }} placeholder="Optional task description…"
+              value={form.description} onChange={e => set("description", e.target.value)} />
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
+            <Btn variant="ghost" onClick={() => setEditing(null)}>Cancel</Btn>
+            <Btn variant="primary" onClick={saveTemplate} disabled={saving || !form.name.trim()}>
+              {saving ? "Saving…" : editing.id ? "Update" : "Create Template"}
+            </Btn>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+            <Btn variant="primary" size="sm" onClick={startNew} style={{ gap: 4 }}>
+              <Ico d={I.plus} size={12} /> New Template
+            </Btn>
+          </div>
+          {loading ? (
+            <div style={{ textAlign: "center", padding: 24, color: "var(--text3)", fontSize: 13 }}>Loading…</div>
+          ) : templates.length === 0 ? (
+            <div style={{ textAlign: "center", padding: 24, color: "var(--text3)", fontSize: 13 }}>No templates yet. Create one to get started.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 400, overflowY: "auto" }}>
+              {templates.map(t => (
+                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
+                  background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 8 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: PRIO_COLOR[t.priority] || "#3b82f6", flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: "var(--text)" }}>{t.name}</div>
+                    {t.description && <div style={{ fontSize: 11.5, color: "var(--text3)", marginTop: 2 }}>{t.description}</div>}
+                  </div>
+                  <Btn variant="ghost" size="sm" onClick={() => startEdit(t)} style={{ padding: "4px 8px" }}>
+                    <Ico d={I.edit} size={12} />
+                  </Btn>
+                  <Btn variant="ghost" size="sm" onClick={() => deleteTemplate(t.id)} style={{ padding: "4px 8px", color: "#ef4444" }}>
+                    <Ico d={I.trash} size={12} />
+                  </Btn>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12, borderTop: "1px solid var(--border)", paddingTop: 12 }}>
+            <Btn variant="ghost" onClick={onClose}>Done</Btn>
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+}
+
 function RoomDetailView({
   room, project, orgId, userId, settings, onSettingsChange,
   tasks, onTasksChange, teamUsers, onUpdateProject, onOpenCamera, onBack,
@@ -1569,6 +1798,9 @@ function RoomDetailView({
   const [status,      setStatus]      = useState("not_started");
   const [loadingRoom, setLoadingRoom] = useState(true);
   const [showAddTask, setShowAddTask] = useState(false);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [templateInitial, setTemplateInitial] = useState(null);
+  const [showTemplateManager, setShowTemplateManager] = useState(false);
   const [showPhotos,  setShowPhotos]  = useState(false);
   const [showLabels,  setShowLabels]  = useState(false);
 
@@ -1734,6 +1966,11 @@ function RoomDetailView({
             <Ico d={I.plus} size={13} />
             <span className="desktop-only">Task</span>
           </Btn>
+          <Btn size="sm" variant="ghost" onClick={() => setShowTemplatePicker(true)}
+            style={{ gap: 4 }} title="Add from Template">
+            <Ico d={I.template} size={13} />
+            <span className="desktop-only">Template</span>
+          </Btn>
           <Btn size="sm" variant="ghost" onClick={() => setShowPhotos(true)}
             style={{ gap: 4 }} title="Assign Photos">
             <Ico d={I.photo} size={13} />
@@ -1805,8 +2042,25 @@ function RoomDetailView({
       {/* ── Modals ── */}
       {showAddTask && (
         <RoomTaskModal room={room} projectId={project.id} orgId={orgId}
-          userId={userId} teamUsers={teamUsers}
-          onClose={() => setShowAddTask(false)} onSave={handleAddTask} />
+          userId={userId} teamUsers={teamUsers} settings={settings}
+          projectName={project.title || project.name}
+          initialValues={templateInitial}
+          onClose={() => { setShowAddTask(false); setTemplateInitial(null); }}
+          onSave={t => { handleAddTask(t); setTemplateInitial(null); }} />
+      )}
+      {showTemplatePicker && (
+        <RoomTaskTemplatePicker orgId={orgId}
+          onSelect={tmpl => {
+            setTemplateInitial({ title: tmpl.name, description: tmpl.description, priority: tmpl.priority });
+            setShowTemplatePicker(false);
+            setShowAddTask(true);
+          }}
+          onManage={() => { setShowTemplatePicker(false); setShowTemplateManager(true); }}
+          onClose={() => setShowTemplatePicker(false)} />
+      )}
+      {showTemplateManager && (
+        <RoomTaskTemplateManager orgId={orgId} userId={userId}
+          onClose={() => setShowTemplateManager(false)} />
       )}
       {showPhotos && (
         <PhotoAssignModal photos={project.photos || []} rooms={project.rooms || []}
