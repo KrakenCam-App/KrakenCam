@@ -33,7 +33,7 @@ const TIER_LIMITS = {
     videoMinutes:     1.5,
     chatGroups:       4,
     calendarUsers:    10,
-    aiWeeklyLimit:    5,
+    aiWeeklyLimit:    10,
     beforeAfter:      false,
     clientPortal:     false,
     maxProjects:      Infinity,

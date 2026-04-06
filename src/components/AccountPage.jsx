@@ -2257,7 +2257,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
                   {cycle==="annual" && <div style={{ fontSize:10,color:"#3dba7e",fontWeight:700,marginBottom:2 }}>Save ${(PRICING.monthly.base.admin-PRICING.annual.base.admin)*12}/yr</div>}
                   <div style={{ fontSize:11.5,color:"var(--text2)",fontWeight:500,marginBottom:10 }}>admin · +${PRICING[cycle].base.user}/user/mo</div>
                   <div style={{ display:"flex",flexDirection:"column",gap:4,marginBottom:10 }}>
-                    {["All core features","Unlimited projects","Video capture (1.5 mins)","Team Chat (4 groups)","Calendar (up to 10 users)","AI Report Writer","5 AI Generation Krakens/week"].map(f=>(
+                    {["All core features","Unlimited projects","Video capture (1.5 mins)","Team Chat (4 groups)","Calendar (up to 10 users)","AI Report Writer","10 AI Generation Krakens/week"].map(f=>(
                       <div key={f} style={{ display:"flex",alignItems:"center",gap:5,fontSize:11,color:"var(--text2)" }}><Icon d={ic.check} size={10} stroke="#3dba7e" /> {f}</div>
                     ))}
                   </div>
@@ -2280,7 +2280,7 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
                   {cycle==="annual" && <div style={{ fontSize:10,color:"#3dba7e",fontWeight:700,marginBottom:2 }}>Save ${(PRICING.monthly.pro.admin-PRICING.annual.pro.admin)*12}/yr</div>}
                   <div style={{ fontSize:11.5,color:"#a855f7",fontWeight:500,marginBottom:10 }}>admin · +${PRICING[cycle].pro.user}/user/mo</div>
                   <div style={{ display:"flex",flexDirection:"column",gap:4,marginBottom:10 }}>
-                    {["Everything in Capture I","Before & After comparison","Video capture (6 mins)","Team Chat (15 groups)","Calendar (up to 25 users)","AI Report Writer","75 AI Generation Krakens/week"].map(f=>(
+                    {["Everything in Capture I","Before & After comparison","Video capture (6 mins)","Team Chat (15 groups)","Calendar (up to 25 users)","AI Report Writer","710 AI Generation Krakens/week"].map(f=>(
                       <div key={f} style={{ display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#a855f7" }}><Icon d={ic.check} size={10} stroke="#a855f7" /> {f}</div>
                     ))}
                   </div>
@@ -2444,9 +2444,22 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
             const toPlan = confirmUpgrade;
             const toPlanName = PLAN_NAMES[toPlan];
             const isToCommand = toPlan === "command";
-            const gradFrom = isToCommand ? "#2b7fe8" : "#7c3aed";
-            const gradTo   = isToCommand ? "#1a5fc8" : "#a855f7";
-            const p = calcProration(settings, users, currentPlan, toPlan);
+            const isTrial = subscription?.status === "trialing";
+            const gradFrom = isToCommand ? "#2b7fe8" : toPlan === "base" ? "var(--accent)" : "#7c3aed";
+            const gradTo   = isToCommand ? "#1a5fc8" : toPlan === "base" ? "var(--accent)" : "#a855f7";
+            const p = !isTrial ? calcProration(settings, users, currentPlan, toPlan) : null;
+            const tierPricing = PRICING[cycle][toPlan];
+            const seatCount = Math.max(0, activeUsers.length);
+            const adminCost = tierPricing.admin;
+            const seatCost = seatCount * tierPricing.user;
+            const totalMonthly = adminCost + seatCost;
+
+            const TIER_FEATURES = {
+              base: "10 AI Generation Krakens/week and all Capture I features",
+              pro: "710 AI Generation Krakens/week and Intelligence II features",
+              command: "1,000 AI Generation Krakens/week and all Command III features",
+            };
+
             return (
               <div style={{ position:"fixed",inset:0,zIndex:600,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.55)" }}
                 onClick={e=>{if(e.target===e.currentTarget)setConfirmUpgrade(null);}}>
@@ -2456,36 +2469,68 @@ export function AccountPage({ settings, onSettingsChange, projects, users, onUse
                       <div style={{ width:36,height:36,borderRadius:9,background:`linear-gradient(135deg,${gradFrom},${gradTo})`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
                         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
                       </div>
-                      <div style={{ fontWeight:800,fontSize:16 }}>Upgrade to {toPlanName}</div>
+                      <div style={{ fontWeight:800,fontSize:16 }}>{isTrial ? `Subscribe to ${toPlanName}` : `Upgrade to ${toPlanName}`}</div>
                     </div>
                     <div style={{ fontSize:13,color:"var(--text2)",lineHeight:1.6 }}>
-                      {isToCommand ? "1,000 AI Generation Krakens/week and all Command features" : "75 AI Generation Krakens/week and Intelligence features"} unlock immediately. You are only charged for the remaining days in your current billing cycle.
+                      {TIER_FEATURES[toPlan]} unlock immediately.{isTrial ? "" : " You are only charged for the remaining days in your current billing cycle."}
                     </div>
                   </div>
                   <div style={{ padding:"16px 24px" }}>
-                    <div style={{ background:"var(--surface2)",borderRadius:8,overflow:"hidden",border:"1px solid var(--border)",marginBottom:14,fontSize:12.5 }}>
-                      <div style={{ display:"grid",gridTemplateColumns:"1fr auto",padding:"8px 12px",borderBottom:"1px solid var(--border)",color:"var(--text2)" }}>
-                        <span>{PLAN_NAMES[currentPlan]} unused credit ({p.daysLeft} of {p.daysTotal} days)</span>
-                        <span style={{ color:"#3dba7e",fontWeight:700 }}>-${p.unusedCredit}</span>
-                      </div>
-                      <div style={{ display:"grid",gridTemplateColumns:"1fr auto",padding:"8px 12px",borderBottom:"1px solid var(--border)",color:"var(--text2)" }}>
-                        <span>{toPlanName} prorated charge ({p.daysLeft} days)</span>
-                        <span style={{ fontWeight:600 }}>+${p.newCharge}</span>
-                      </div>
-                      <div style={{ display:"grid",gridTemplateColumns:"1fr auto",padding:"10px 12px",fontWeight:800,fontSize:13 }}>
-                        <span>Charged today</span>
-                        <span style={{ color: p.netCharge > 0 ? "var(--accent)" : "#3dba7e" }}>${p.netCharge > 0 ? p.netCharge : "0.00"}{p.netCharge <= 0 ? " (credit applied)" : ""}</span>
-                      </div>
-                    </div>
-                    <div style={{ fontSize:11.5,color:"var(--text3)",marginBottom:14 }}>
-                      From <strong>{p.cycleEnd.toLocaleDateString("en-US",{month:"short",day:"numeric"})}</strong> onwards: <strong>${p.toTotal}/mo</strong> ({cycle})
-                    </div>
+                    {isTrial ? (
+                      <>
+                        <div style={{ background:"var(--surface2)",borderRadius:8,overflow:"hidden",border:"1px solid var(--border)",marginBottom:14,fontSize:12.5 }}>
+                          <div style={{ display:"grid",gridTemplateColumns:"1fr auto",padding:"8px 12px",borderBottom:"1px solid var(--border)",color:"var(--text2)" }}>
+                            <span>{toPlanName} — Admin seat</span>
+                            <span style={{ fontWeight:600 }}>${adminCost}/mo</span>
+                          </div>
+                          {seatCount > 0 && (
+                            <div style={{ display:"grid",gridTemplateColumns:"1fr auto",padding:"8px 12px",borderBottom:"1px solid var(--border)",color:"var(--text2)" }}>
+                              <span>{seatCount} team member{seatCount!==1?"s":""} × ${tierPricing.user}/mo</span>
+                              <span style={{ fontWeight:600 }}>${seatCost}/mo</span>
+                            </div>
+                          )}
+                          <div style={{ display:"grid",gridTemplateColumns:"1fr auto",padding:"10px 12px",fontWeight:800,fontSize:13 }}>
+                            <span>{cycle==="annual" ? "Monthly total (billed annually)" : "Monthly total"}</span>
+                            <span style={{ color:"var(--accent)" }}>${totalMonthly}/mo</span>
+                          </div>
+                          {cycle==="annual" && (
+                            <div style={{ display:"grid",gridTemplateColumns:"1fr auto",padding:"8px 12px",borderTop:"1px solid var(--border)",color:"#3dba7e",fontWeight:700,fontSize:12 }}>
+                              <span>Annual total</span>
+                              <span>${totalMonthly * 12}/yr</span>
+                            </div>
+                          )}
+                        </div>
+                        <div style={{ fontSize:11.5,color:"var(--text3)",marginBottom:14 }}>
+                          You'll be redirected to Stripe to complete payment. Your subscription starts today.
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ background:"var(--surface2)",borderRadius:8,overflow:"hidden",border:"1px solid var(--border)",marginBottom:14,fontSize:12.5 }}>
+                          <div style={{ display:"grid",gridTemplateColumns:"1fr auto",padding:"8px 12px",borderBottom:"1px solid var(--border)",color:"var(--text2)" }}>
+                            <span>{PLAN_NAMES[currentPlan]} unused credit ({p.daysLeft} of {p.daysTotal} days)</span>
+                            <span style={{ color:"#3dba7e",fontWeight:700 }}>-${p.unusedCredit}</span>
+                          </div>
+                          <div style={{ display:"grid",gridTemplateColumns:"1fr auto",padding:"8px 12px",borderBottom:"1px solid var(--border)",color:"var(--text2)" }}>
+                            <span>{toPlanName} prorated charge ({p.daysLeft} days)</span>
+                            <span style={{ fontWeight:600 }}>+${p.newCharge}</span>
+                          </div>
+                          <div style={{ display:"grid",gridTemplateColumns:"1fr auto",padding:"10px 12px",fontWeight:800,fontSize:13 }}>
+                            <span>Charged today</span>
+                            <span style={{ color: p.netCharge > 0 ? "var(--accent)" : "#3dba7e" }}>${p.netCharge > 0 ? p.netCharge : "0.00"}{p.netCharge <= 0 ? " (credit applied)" : ""}</span>
+                          </div>
+                        </div>
+                        <div style={{ fontSize:11.5,color:"var(--text3)",marginBottom:14 }}>
+                          From <strong>{p.cycleEnd.toLocaleDateString("en-US",{month:"short",day:"numeric"})}</strong> onwards: <strong>${p.toTotal}/mo</strong> ({cycle})
+                        </div>
+                      </>
+                    )}
                     <div style={{ display:"flex",gap:8 }}>
                       <button className="btn btn-secondary btn-sm" style={{ flex:1 }} onClick={()=>setConfirmUpgrade(null)}>Cancel</button>
                       <button className="btn btn-primary btn-sm" style={{ flex:2,background:`linear-gradient(135deg,${gradFrom},${gradTo})`,border:"none",fontWeight:700,gap:6 }}
                         onClick={()=>{ setConfirmUpgrade(null); triggerBillingAction("upgrade", { toPlan }); }}>
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
-                        Confirm - Pay ${Math.max(0, p.netCharge)} now
+                        {isTrial ? `Subscribe - $${totalMonthly}/mo` : `Confirm - Pay $${Math.max(0, p.netCharge)} now`}
                       </button>
                     </div>
                   </div>
