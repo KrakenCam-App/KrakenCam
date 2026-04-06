@@ -603,7 +603,8 @@ function TaskModal({ task, projects, teamUsers, settings, onSave, onClose, onNot
               ) : (
                 <div style={{ display:"flex",flexDirection:"column",gap:0 }}>
                   {activityLogs.map((log,i)=>{
-                    const userName = log.profiles?.full_name || log.profiles?.first_name || "System";
+                    const logUser = teamUsers.find(u => u.userId === log.user_id || u.id === log.user_id);
+                    const userName = logUser ? `${logUser.firstName || ""} ${logUser.lastName || ""}`.trim() || logUser.email || "User" : "System";
                     const initials = userName.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
                     const timeStr = log.created_at ? new Date(log.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}) : "";
                     return (

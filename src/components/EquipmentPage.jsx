@@ -640,7 +640,7 @@ function TaxonomyManager({ types, categories, orgId, onTypesChange, onCategories
   };
 
   const isTypes = tab === "types";
-  const items   = isTypes ? types : categories;
+  const items   = (isTypes ? types : categories).slice().sort((a,b) => (a.is_archived?1:0) - (b.is_archived?1:0));
   const add     = isTypes ? addType : addCat;
   const saveEdit= isTypes ? saveTypeEdit : saveCatEdit;
   const toggle  = isTypes ? toggleTypeArchive : toggleCatArchive;

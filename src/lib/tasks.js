@@ -239,7 +239,7 @@ export async function deleteTaskTag(id) {
 export async function getTaskActivity(taskId) {
   const { data, error } = await supabase
     .from('task_activity_logs')
-    .select('*, profiles(full_name, first_name, last_name)')
+    .select('*')
     .eq('task_id', taskId)
     .order('created_at', { ascending: false });
   if (error) throw error;
