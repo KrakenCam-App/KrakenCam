@@ -454,18 +454,17 @@ function RoomTaskModal({ room, projectId, orgId, userId, teamUsers, onSave, onCl
 
       // Save as template if checked
       if (form.saveAsTemplate) {
-        try {
-          await supabase.from("room_task_templates").insert([{
-            organization_id: orgId,
-            name: form.title.trim(),
-            description: form.description || "",
-            priority: form.priority,
-            created_by: userId,
-          }]);
-        } catch (_) { /* template save failure shouldn't block */ }
+        const { error: tmplErr } = await supabase.from("room_task_templates").insert([{
+          organization_id: orgId,
+          name: form.title.trim(),
+          description: form.description || "",
+          priority: form.priority,
+          created_by: userId,
+        }]);
+        if (tmplErr) console.warn("Template save failed:", tmplErr.message);
       }
 
-      onSave({ ...newTask, roomId: room.id, projectId, dueDate: form.dueDate || "", dueTime: form.dueTime || "", assigneeIds: newTask.assignee_ids });
+      onSave({ ...newTask, roomId: room.id, projectId, dueDate: form.dueDate || "", dueTime: form.dueTime || "", assigneeIds: newTask.assignee_ids, _persisted: true });
     } catch (e) { alert("Error creating task: " + e.message); }
     finally { setSaving(false); }
   };

@@ -2747,7 +2747,7 @@ useEffect(() => {
                 onTasksChange={(newTasks) => {
                   const prev = tasks;
                   setTasks(newTasks);
-                  newTasks.filter(t => !prev.find(p => p.id === t.id)).forEach(async t => {
+                  newTasks.filter(t => !prev.find(p => p.id === t.id) && !t._persisted).forEach(async t => {
                     try { await dbCreateTaskDB({ ...t, organization_id: authProfile.organization_id }); }
                     catch(e) { console.warn("[KrakenCam] room task sync create:", e.message); }
                   });
